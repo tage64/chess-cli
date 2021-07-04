@@ -50,6 +50,13 @@ class Fullmove(NamedTuple):
         else:
             return Fullmove(self.move_number, chess.WHITE)
 
+    def next(self):
+        " Get next move. "
+        if self.color == chess.WHITE:
+            return Fullmove(self.move_number, chess.BLACK)
+        else:
+            return Fullmove(self.move_number + 1, chess.WHITE)
+
     def __str__(self) -> str:
         return str(
             self.move_number) + ("." if self.color == chess.WHITE else "...")
@@ -63,7 +70,8 @@ class ChessCli(cmd2.Cmd):
     def __init__(self, file_name: Optional[str] = None):
         # Set cmd shortcuts
         shortcuts: dict[str, str] = dict(cmd2.DEFAULT_SHORTCUTS)
-        super().__init__(shortcuts=shortcuts)
+        super().__init__(shortcuts=shortcuts, include_py=True)
+        self.self_in_py = True
 
         # Read the pgn file
         if file_name is not None:
@@ -160,27 +168,64 @@ class ChessCli(cmd2.Cmd):
         Print all moves by default, but if some constraint is specified, print only those moves.
         """
 
-        current_board: chess.Board = self.game_node.board()
-        current_fullmove: Fullmove = Fullmove.from_board(current_board)
-
         # If No constraint is specified, print all moves.
         if not (args.start or args.end or args._from or args.to):
             args.start = True
             args.end = True
 
+        _start_node = self.game_node.game().next()
+        if _start_node is not None:
+            start_node: chess.pgn.ChildNode = _start_node
+        else:
+            # The game doesn't contains any moves.
+            return
         if args.start:
-            first_board: chess.Board = current_board.root()
-            move_list = current_board.move_stack
+            node: chess.pgn.ChildNode = start_node
         elif args._from:
             try:
                 from_move: Fullmove = Fullmove.parse(args._from)
             except ValueError:
-                self.poutput(f"Error: Unable to parse fullmove: {args._from}")
+                self.poutput(
+                    f"Error: Unable to parse move number: {args._from}")
                 return
-            if from_move.move_number <= current_fullmove.move_number:
-                start_board = current_board.root()
-            else:
-                start_board = current_board
+            node = start_node
+            while from_move > Fullmove.from_board(
+                    node.board()) and not node.is_end():
+                node = node.next()  # type: ignore
+        else:
+            node = self.game_node if isinstance(
+                self.game_node, chess.pgn.ChildNode) else start_node
+
+        if args.to:
+            try:
+                to_move: Optional[Fullmove] = Fullmove.parse(args._from)
+            except ValueError:
+                self.poutput(f"Error: Unable to parse move number: {args.to}")
+                return
+        else:
+            to_move = None
+
+        moves_per_line: int = 6
+        lines: list[str] = []
+        moves_at_last_line: int = 0
+        while not node.is_end():
+            if to_move and to_move > Fullmove.from_board(node.board()):
+                break
+            if moves_at_last_line >= moves_per_line:
+                lines.append("")
+                moves_at_last_line = 0
+
+            move_number: Fullmove = Fullmove.from_board(node.board())
+            if move_number.color == chess.WHITE or lines == []:
+                if lines == []:
+                    lines.append("")
+                lines[-1] += str(move_number) + " "
+            lines[-1] += node.san() + " "
+            if move_number.color == chess.BLACK:
+                moves_at_last_line += 1
+            node = node.next()  # type: ignore
+        for line in lines:
+            self.poutput(line)
 
 
 def run():
