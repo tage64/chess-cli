@@ -12,6 +12,9 @@ chess-cli = 'chess_cli:run'
 python = "^3.9"
 cmd2 = "^2.1.1"
 chess = "^1.6.1"
+appdirs = "^1.4.4"
+dhall = "^0.1.7"
+toml = "^0.10.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

@@ -1,4 +1,12 @@
 [[package]]
+name = "appdirs"
+version = "1.4.4"
+description = "A small Python module for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "atomicwrites"
 version = "1.4.0"
 description = "Atomic file writes."
@@ -55,6 +63,14 @@ description = "Cross-platform colored terminal text."
 category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+
+[[package]]
+name = "dhall"
+version = "0.1.7"
+description = "Python bindings for dhall, a functional configuration language"
+category = "main"
+optional = false
+python-versions = "*"
 
 [[package]]
 name = "more-itertools"
@@ -169,7 +185,7 @@ testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "requests", "xm
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
@@ -192,9 +208,13 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "268dec3c6f6a246d0cc1f8cc374b5e990f1703e1a6c51275789dd57c96155e90"
+content-hash = "1b3d81a521a4f37557c4750402bc69cf970b5e8b5ce9fe123de85775f27cdf6e"
 
 [metadata.files]
+appdirs = [
+    {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
+    {file = "appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41"},
+]
 atomicwrites = [
     {file = "atomicwrites-1.4.0-py2.py3-none-any.whl", hash = "sha256:6d1784dea7c0c8d4a5172b6c620f40b6e4cbfdf96d783691f2e1302a7b88e197"},
     {file = "atomicwrites-1.4.0.tar.gz", hash = "sha256:ae70396ad1a434f9c7046fd2dd196fc04b12f9e91ffb859164193be8b6168a7a"},
@@ -214,6 +234,20 @@ cmd2 = [
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
+]
+dhall = [
+    {file = "dhall-0.1.7-cp36-cp36m-macosx_10_7_x86_64.whl", hash = "sha256:219092ec27a01ba5c11a3f592268f321a7311159b12641d5becc655285972f08"},
+    {file = "dhall-0.1.7-cp36-cp36m-manylinux2010_x86_64.whl", hash = "sha256:b59f1b6850352ceb0a83554ed7230a21316ad17bc9b8a15d444bfd65cd196e56"},
+    {file = "dhall-0.1.7-cp36-none-win_amd64.whl", hash = "sha256:0cb3c07be577ca6002fb81fd1464f1f8c96f4d1d4c3bbe37b51ca294c05acbed"},
+    {file = "dhall-0.1.7-cp37-cp37m-macosx_10_7_x86_64.whl", hash = "sha256:ba6a4eaecd24f1cf49fb1871e9082405afb319fbdcffa5d425938dc4569a672d"},
+    {file = "dhall-0.1.7-cp37-cp37m-manylinux2010_x86_64.whl", hash = "sha256:1a73c2fd1ea6617fda0f7d9a12094fa3700472c3714c3cbf0d16d78b7155d803"},
+    {file = "dhall-0.1.7-cp37-none-win_amd64.whl", hash = "sha256:319ab57f1811adcf185bf16f2d552e1bc3537291a87118d09918f0251904f11b"},
+    {file = "dhall-0.1.7-cp38-cp38-macosx_10_7_x86_64.whl", hash = "sha256:6202623eeea6aace9c36a557ac0bafd478baaf8d3386e189650b86f4314bb000"},
+    {file = "dhall-0.1.7-cp38-cp38-manylinux2010_x86_64.whl", hash = "sha256:0509eba32f3a6ccf34529da212e6654943c74596affcc8fdd9d4ae73f0e7e9a6"},
+    {file = "dhall-0.1.7-cp38-none-win_amd64.whl", hash = "sha256:32eb99c405ace2aa19f8acf088dfa9a43995dc786589df4d6e67f5f0c1c18ba6"},
+    {file = "dhall-0.1.7-cp39-cp39-macosx_10_7_x86_64.whl", hash = "sha256:4e26166f77973d625599715e9022a400dae719c42872dd836dd49d942a98d362"},
+    {file = "dhall-0.1.7-cp39-cp39-manylinux2010_x86_64.whl", hash = "sha256:3637d443f1ed6c402fce713a96c92eed0e64e5d5cb2c94afc85b7fa2ad78af68"},
+    {file = "dhall-0.1.7-cp39-none-win_amd64.whl", hash = "sha256:7ebb9f0fe49b3b4438662a4e7f10cf33e97569c641c243d3996a8d42e84f8658"},
 ]
 more-itertools = [
     {file = "more-itertools-8.8.0.tar.gz", hash = "sha256:83f0308e05477c68f56ea3a888172c78ed5d5b3c282addb67508e7ba6c8f813a"},
