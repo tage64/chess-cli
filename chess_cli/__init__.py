@@ -1,5 +1,8 @@
+from . import nags
+
 from collections import deque, defaultdict
 import copy
+import datetime
 import os
 import re
 import sys
@@ -10,6 +13,7 @@ import appdirs  # type: ignore
 import chess
 import chess.engine
 import chess.pgn
+import chess.svg
 import cmd2
 import toml  # type: ignore
 
@@ -102,6 +106,42 @@ class Analysis(NamedTuple):
     san: Optional[str]
 
 
+def move_str(game_node: chess.pgn.GameNode,
+             include_move_number: bool = True) -> str:
+    res: str = ""
+    if not isinstance(game_node, chess.pgn.ChildNode):
+        res += "start"
+    else:
+        if not game_node.is_main_variation():
+            res += "<"
+        if include_move_number:
+            res += str(MoveNumber.last(game_node)) + " "
+        if game_node.starting_comment:
+            res += "-"
+        res += game_node.san()
+        if game_node.nags:
+            res += str([nags.ascii_glyph(nag) for nag in game_node.nags])
+        if game_node.comment:
+            res += "-"
+        if not game_node.parent.variations[-1] == game_node:
+            res += ">"
+    return res
+
+
+def score_str(score: chess.engine.Score) -> str:
+    if score == chess.engine.MateGiven:
+        return "mate, "
+    if score.is_mate():
+        mate: int = score.mate()  # type: ignore
+        if 0 < mate:
+            return f"Mate in {mate}, "
+        return f"Mated in {-mate}, "
+    cp: int = score.score()  # type: ignore
+    if cp > 0:
+        return f"+{cp/100} pawns, "
+    return f"{cp/100} pawns, "
+
+
 class ChessCli(cmd2.Cmd):
     """A repl to edit and analyse chess games. """
     def __init__(self,
@@ -191,12 +231,7 @@ class ChessCli(cmd2.Cmd):
     def set_prompt(
         self, postcommand_data: cmd2.plugin.PostcommandData
     ) -> cmd2.plugin.PostcommandData:
-        if self.game_node.parent is None:
-            # This is the root node.
-            self.prompt = "start: "
-        else:
-            assert isinstance(self.game_node, chess.pgn.ChildNode)
-            self.prompt = f"{MoveNumber.last(self.game_node)} {self.game_node.san()}: "
+        self.prompt = f"{move_str(self.game_node)}: "
         return postcommand_data
 
     play_argparser = cmd2.Cmd2ArgumentParser()
@@ -233,6 +268,295 @@ class ChessCli(cmd2.Cmd):
                 self.game_node = self.game_node.add_variation(move)
         if args.comment is not None:
             self.game_node.comment = args.comment
+
+    show_argparser = cmd2.Cmd2ArgumentParser()
+    show_argparser.add_argument("what",
+                                choices=[
+                                    "comment", "nags", "evaluation", "arrows",
+                                    "clock", "starting-comment", "all"
+                                ],
+                                default="all",
+                                nargs="?",
+                                help="What to show.")
+
+    @cmd2.with_argparser(show_argparser)  # type: ignore
+    def do_show(self, args) -> None:
+        " Show various things like comments and arrows about the current move. "
+        if (isinstance(self.game_node, chess.pgn.ChildNode)
+                and self.game_node.starting_comment
+                and (args.what == "starting_comment" or args.what == "all")):
+            self.poutput(self.game_node.starting_comment)
+            self.poutput(
+                f"    {MoveNumber.last(self.game_node)} {self.game_node.san()}"
+            )
+        if (self.game_node and (args.what == "comment" or args.what == "all")):
+            self.poutput(self.game_node.comment)
+        if (self.game_node.nags
+                and (args.what == "nags" or args.what == "all")):
+            for nag in self.game_node.nags:
+                text: str = "NAG: " if not args.what == "all" else ""
+                text += f"({nags.ascii_glyph(nag)}) {nags.description(nag)}"
+                self.poutput(text)
+        eval = self.game_node.eval()
+        if (eval is not None
+                and (args.what == "evaluation" or args.what == "all")):
+            text = "Evaluation: " if not args.what == "all" else ""
+            text += score_str(eval.relative)
+            if self.game_node.eval_depth() is not None:
+                text += f", Depth: {self.game_node.eval_depth()}"
+            self.poutput(text)
+        if (self.game_node.arrows()
+                and (args.what == "arrows" or args.what == "all")):
+            text = "Arows: " if not args.what == "all" else ""
+            text += str([
+                f"{arrow.color} {arrow.tail}-{arrow.head}"
+                for arrow in self.game_node.arrows()
+            ])
+            self.poutput(text)
+        clock = self.game_node.clock()
+        if (clock is not None
+                and (args.what == "clock" or args.what == "all")):
+            text = "Clock: " if not args.what == "all" else ""
+            text += str(datetime.timedelta(seconds=clock)).strip("0")
+            self.poutput(text)
+
+    set_argparser = cmd2.Cmd2ArgumentParser()
+    set_subcmds = set_argparser.add_subparsers(dest="subcmd")
+    set_comment_argparser = set_subcmds.add_parser(
+        "comment", aliases=["c"], help="Set comment for this move.")
+    set_comment_argparser.add_argument("comment", help="The new text.")
+    set_comment_argparser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help="Append this text to the old comment.")
+    set_starting_comment_argparser = set_subcmds.add_parser(
+        "starting-comment",
+        aliases=["sc"],
+        help=
+        "Set starting_comment for this move. Only moves that starts a variation can have a starting comment."
+    )
+    set_starting_comment_argparser.add_argument("comment",
+                                                help="The new text.")
+    set_starting_comment_argparser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help="Append this text to the old comment.")
+    set_nag_argparser = set_subcmds.add_parser(
+        "nag", help="Set a nag (numeric annotation glyph) on this move.")
+    set_nag_argparser.add_argument(
+        "nag",
+        help=
+        "Nag, either a number like '$17' or an ascii glyph like '!' or '?!'.")
+    set_nag_argparser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help=
+        "Append this nag to the list of existing nags at this move instead of replacing them."
+    )
+    set_eval_argparser = set_subcmds.add_parser(
+        "evaluation",
+        aliases=["eval"],
+        help="Set an evaluation for this move.")
+    set_eval_group = set_eval_argparser.add_mutually_exclusive_group(
+        required=True)
+    set_eval_group.add_argument(
+        "--cp",
+        type=int,
+        help=
+        "Relative score in centi pawns from the player to move's point of view."
+    )
+    set_eval_group.add_argument(
+        "--mate",
+        "--mate-in",
+        type=int,
+        help="The player to move can force mate in the given number of moves.")
+    set_eval_group.add_argument(
+        "--mated",
+        "--mated-in",
+        type=int,
+        help="The player to move will be mated in the given number of moves.")
+    set_eval_argparser.add_argument(
+        "-d",
+        "--depth",
+        type=int,
+        help="The depth at which the analysis was made.")
+    set_arrow_argparser = set_subcmds.add_parser(
+        "arrow", aliases=["arr"], help="Draw an arrow on the board.")
+    set_arrow_argparser.add_argument(
+        "from",
+        type=chess.parse_square,
+        dest="_from",
+        help="The square from which the arrow is drawn.")
+    set_arrow_argparser.add_argument(
+        "to",
+        type=chess.parse_square,
+        help="The square which the arrow is pointing to.")
+    set_arrow_argparser.add_argument(
+        "color",
+        choices=["red", "r", "yellow", "y", "green", "g", "blue", "b"],
+        default="green",
+        nargs="?",
+        help=
+        "Color of the arrow. Red/yellow/green/blue can be abbreviated as r/y/g/b."
+    )
+    set_clock_argparser = set_subcmds.add_parser(
+        "clock",
+        help="Set the remaining time for the player making this move.")
+    set_clock_argparser.add_argument("time", help="Remaining time.")
+
+    @cmd2.with_argparser(set_argparser)  # type: ignore
+    def do_set(self, args) -> None:
+        " Set various things (like comments, nags or arrows) at the current move. "
+        if args.subcmd == "comment":
+            if args.append and self.game_node.comment:
+                self.game_node.comment = " ".join(
+                    (self.game_node.comment, args.comment))
+            else:
+                self.game_node.comment = args.comment
+        elif args.subcmd == "starting_comment":
+            if not self.game_node.starts_variation():
+                self.poutput(
+                    "Error: Only moves that starts a variation can have a starting comment and this move doesn't start a variation.\nYour attempt to set a starting comment for this move was a complete failure!"
+                )
+            if args.append and self.game_node.starting_comment:
+                self.game_node.starting_comment = " ".join(
+                    (self.game_node.starting_comment, args.comment))
+            else:
+                self.game_node.starting_comment = args.comment
+        elif args.subcmd == "nag":
+            try:
+                nag: int = nags.parse_nag(args.nag)
+            except ValueError as e:
+                self.poutput(f"Error: invalid NAG {args.nag}: {e}")
+                return
+            if args.append:
+                self.game_node.nags.add(nag)
+            else:
+                self.game_node.nags = {nag}
+            self.poutput(
+                f"Set NAG ({nags.ascii_glyph(nag)}): {nags.description(nag)}.")
+        elif args.subcmd == "eval":
+            if args.mate_in is not None:
+                score: chess.engine.Score = chess.engine.Mate(args.mate_in)
+            elif args.mated_in is not None:
+                score = chess.engine.Mate(-args.mated_in)
+            else:
+                score = chess.engine.Cp(args.cp)
+            self.game_node.set_eval(
+                chess.engine.PovScore(score, self.game_node.turn()),
+                args.depth)
+        elif args.subcmd == "arrow":
+            color_abbreviations: dict[str, str] = {
+                "g": "green",
+                "y": "yellow",
+                "r": "red",
+                "b": "blue"
+            }
+            if args.color in color_abbreviations:
+                color = color_abbreviations[args.color]
+            else:
+                color = args.color
+            self.game_node.set_arrows(
+                self.game_node.arrows() +
+                [chess.svg.Arrow(args._from, args.to, color=color)])
+        elif args.subcmd == "clock":
+            time_parsed = re.fullmatch("(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?",
+                                       args.time)
+            if time_parsed is None:
+                self.poutput(f"Error: Couldn't parse time '{args.time}'.")
+                return
+            time_groups = time_parsed.groups()
+            time: float = float(time_groups[0])
+            if time_groups[2]:
+                time = time * 60 + float(time_groups[2])
+                if time_groups[4]:
+                    time = time * 60 + float(time_groups[4])
+            if time_groups[6]:
+                time += float("0." + time_groups[6])
+            self.game_node.set_clock(time)
+
+    rm_argparser = cmd2.Cmd2ArgumentParser()
+    rm_subcmds = rm_argparser.add_subparsers(dest="subcmd")
+    rm_subcmds.add_parser("comment",
+                          aliases=["c"],
+                          help="Remove the comment at this move.")
+    rm_subcmds.add_parser("starting-comment",
+                          aliases=["sc"],
+                          help="Remove the starting comment at this move.")
+    rm_subcmds.add_parser("nags", help="Remove all NAGs at this move.")
+    rm_nag_argparser = rm_subcmds.add_parser(
+        "nag", help="Remove a specific NAG at this move.")
+    rm_nag_argparser.add_argument("which",
+                                  type=nags.parse_nag,
+                                  help="A NAG to remove. Like '$16' or '??'.")
+    rm_subcmds.add_parser(
+        "evaluation",
+        aliases=["eval"],
+        help="Remove the evaluation annotation at this move if any.")
+    rm_arrows_argparser = rm_subcmds.add_parser(
+        "arrows", help="Remove arrows at this move.")
+    rm_arrows_argparser.add_argument(
+        "-f",
+        "--from",
+        dest="_from",
+        type=chess.parse_square,
+        help="Remove arrows starting at this square.")
+    rm_arrows_argparser.add_argument(
+        "-t",
+        "--to",
+        type=chess.parse_square,
+        help="Remove arrows ending at this square.")
+    rm_arrows_argparser.add_argument(
+        "-c",
+        "--color",
+        choices=["red", "r", "yellow", "y", "green", "g", "blue", "b"],
+        help=
+        "Remove only arrows with this color. Red/yellow/green/blue can be abbreviated as r/y/g/b."
+    )
+    rm_subcmds.add_parser(
+        "clock", help="Remove the clock annotation at this move if any.")
+
+    @cmd2.with_argparser(rm_argparser)  # type: ignore
+    def do_rm(self, args) -> None:
+        " Remove various things at the current move (like the comment or arrows). "
+        if args.subcmd == "comment":
+            self.game_node.comment = ""
+        elif args.subcmd == "starting_comment":
+            self.game_node.starting_comment = ""
+        elif args.subcmd == "nags":
+            self.game_node.nags = set()
+        elif args.subcmd == "eval":
+            self.game_node.set_eval(None)
+        elif args.subcmd == "clock":
+            self.game_node.set_clock(None)
+        elif args.subcmd == "nag":
+            try:
+                self.game_node.nags.remove(args.nag)
+            except KeyError:
+                self.poutput(
+                    f"Error: The NAG {nags.ascii_glyph(args.nag)} was not set for this move so it couldn't be removed."
+                )
+        elif args.subcmd == "arrows":
+            color_abbreviations: dict[str, str] = {
+                "g": "green",
+                "y": "yellow",
+                "r": "red",
+                "b": "blue"
+            }
+            if args.color is None:
+                color: Optional[str] = None
+            elif args.color in color_abbreviations:
+                color = color_abbreviations[args.color]
+            else:
+                color = args.color
+            self.game_node.set_arrows(
+                (arr for arr in self.game_node.arrows()
+                 if args._from is None or not args._from == arr.tail
+                 if args.to is None or not args.to == arr.head
+                 if color is None or not color == arr.color))
 
     moves_argparser = cmd2.Cmd2ArgumentParser()
     _moves_before_group = moves_argparser.add_mutually_exclusive_group()
@@ -1171,7 +1495,7 @@ class ChessCli(cmd2.Cmd):
         else:
             show_str += "starting position: "
 
-        def score_str(info: chess.engine.InfoDict) -> str:
+        def score_and_wdl_str(info: chess.engine.InfoDict) -> str:
             res: str = ""
             if "pv" in info and info["pv"]:
                 move_number: MoveNumber = (MoveNumber.last(
@@ -1181,19 +1505,7 @@ class ChessCli(cmd2.Cmd):
                 res += f"{move_number} {analysis.board.san(info['pv'][0])}: "
             if "score" in info:
                 score: chess.engine.Score = info["score"].relative
-                if score == chess.engine.MateGiven:
-                    res += "mate, "
-                elif score.is_mate():
-                    mate: int = score.mate()  # type: ignore
-                    if 0 < mate:
-                        res += f"Mate in {mate}, "
-                    else:
-                        res += f"Mated in {-mate}, "
-                else:
-                    cp: int = score.score()  # type: ignore
-                    if cp > 0:
-                        res += "+"
-                    res += f"{cp/100} pawns, "
+                res += score_str(score)
                 wdl_from_score: Optional[chess.engine.Wdl] = score.wdl(
                     ply=analysis.board.ply())
             else:
@@ -1210,7 +1522,7 @@ class ChessCli(cmd2.Cmd):
             return res
 
         if not verbose:
-            show_str += score_str(analysis.result.info)
+            show_str += score_and_wdl_str(analysis.result.info)
             if analysis.engine in self.running_analysis:
                 show_str += "(running)"
             else:
@@ -1229,7 +1541,7 @@ class ChessCli(cmd2.Cmd):
                 ]:
                     show_str += f"{key}: {val}, "
             for i, info in enumerate(analysis.result.multipv, 1):
-                show_str += f"\n  {i}. {score_str(info)}"
+                show_str += f"\n  {i}. {score_and_wdl_str(info)}"
         self.poutput(show_str)
 
     def analysis_ls(self, args) -> None:
