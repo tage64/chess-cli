@@ -1,5 +1,6 @@
 from . import nags
 
+import argparse
 from collections import deque, defaultdict
 import copy
 import datetime
@@ -107,12 +108,13 @@ class Analysis(NamedTuple):
 
 
 def move_str(game_node: chess.pgn.GameNode,
-             include_move_number: bool = True) -> str:
+             include_move_number: bool = True,
+             include_side_line_arrows: bool = True) -> str:
     res: str = ""
     if not isinstance(game_node, chess.pgn.ChildNode):
         res += "start"
     else:
-        if not game_node.is_main_variation():
+        if include_side_line_arrows and not game_node.is_main_variation():
             res += "<"
         if include_move_number:
             res += str(MoveNumber.last(game_node)) + " "
@@ -120,26 +122,32 @@ def move_str(game_node: chess.pgn.GameNode,
             res += "-"
         res += game_node.san()
         if game_node.nags:
-            res += str([nags.ascii_glyph(nag) for nag in game_node.nags])
-        if game_node.comment:
-            res += "-"
-        if not game_node.parent.variations[-1] == game_node:
-            res += ">"
+            nag_strs = [nags.ascii_glyph(nag) for nag in game_node.nags]
+            if len(nag_strs) == 1:
+                res += nag_strs[0]
+            else:
+                res += f"[{', '.join(nag_strs)}]"
+    if game_node.comment or game_node.arrows() or game_node.eval(
+    ) is not None or game_node.clock() is not None:
+        res += "-"
+    if include_side_line_arrows and game_node.parent is not None and not game_node.parent.variations[
+            -1] == game_node:
+        res += ">"
     return res
 
 
 def score_str(score: chess.engine.Score) -> str:
     if score == chess.engine.MateGiven:
-        return "mate, "
+        return "mate"
     if score.is_mate():
         mate: int = score.mate()  # type: ignore
         if 0 < mate:
-            return f"Mate in {mate}, "
-        return f"Mated in {-mate}, "
+            return f"Mate in {mate}"
+        return f"Mated in {-mate}"
     cp: int = score.score()  # type: ignore
     if cp > 0:
-        return f"+{cp/100} pawns, "
-    return f"{cp/100} pawns, "
+        return f"+{cp/100} pawns"
+    return f"{cp/100} pawns"
 
 
 class ChessCli(cmd2.Cmd):
@@ -294,29 +302,29 @@ class ChessCli(cmd2.Cmd):
         if (self.game_node.nags
                 and (args.what == "nags" or args.what == "all")):
             for nag in self.game_node.nags:
-                text: str = "NAG: " if not args.what == "all" else ""
+                text: str = "NAG: " if args.what == "all" else ""
                 text += f"({nags.ascii_glyph(nag)}) {nags.description(nag)}"
                 self.poutput(text)
         eval = self.game_node.eval()
         if (eval is not None
                 and (args.what == "evaluation" or args.what == "all")):
-            text = "Evaluation: " if not args.what == "all" else ""
+            text = "Evaluation: " if args.what == "all" else ""
             text += score_str(eval.relative)
             if self.game_node.eval_depth() is not None:
                 text += f", Depth: {self.game_node.eval_depth()}"
             self.poutput(text)
         if (self.game_node.arrows()
                 and (args.what == "arrows" or args.what == "all")):
-            text = "Arows: " if not args.what == "all" else ""
+            text = "Arows: " if args.what == "all" else ""
             text += str([
-                f"{arrow.color} {arrow.tail}-{arrow.head}"
+                f"{arrow.color} {chess.square_name(arrow.tail)}-{chess.square_name(arrow.head)}"
                 for arrow in self.game_node.arrows()
             ])
             self.poutput(text)
         clock = self.game_node.clock()
         if (clock is not None
                 and (args.what == "clock" or args.what == "all")):
-            text = "Clock: " if not args.what == "all" else ""
+            text = "Clock: " if args.what == "all" else ""
             text += str(datetime.timedelta(seconds=clock)).strip("0")
             self.poutput(text)
 
@@ -386,9 +394,8 @@ class ChessCli(cmd2.Cmd):
     set_arrow_argparser = set_subcmds.add_parser(
         "arrow", aliases=["arr"], help="Draw an arrow on the board.")
     set_arrow_argparser.add_argument(
-        "from",
+        "_from",
         type=chess.parse_square,
-        dest="_from",
         help="The square from which the arrow is drawn.")
     set_arrow_argparser.add_argument(
         "to",
@@ -410,17 +417,18 @@ class ChessCli(cmd2.Cmd):
     @cmd2.with_argparser(set_argparser)  # type: ignore
     def do_set(self, args) -> None:
         " Set various things (like comments, nags or arrows) at the current move. "
-        if args.subcmd == "comment":
+        if args.subcmd in ["comment", "c"]:
             if args.append and self.game_node.comment:
                 self.game_node.comment = " ".join(
                     (self.game_node.comment, args.comment))
             else:
                 self.game_node.comment = args.comment
-        elif args.subcmd == "starting_comment":
+        elif args.subcmd in ["sc", "starting-comment"]:
             if not self.game_node.starts_variation():
                 self.poutput(
                     "Error: Only moves that starts a variation can have a starting comment and this move doesn't start a variation.\nYour attempt to set a starting comment for this move was a complete failure!"
                 )
+                return
             if args.append and self.game_node.starting_comment:
                 self.game_node.starting_comment = " ".join(
                     (self.game_node.starting_comment, args.comment))
@@ -438,11 +446,11 @@ class ChessCli(cmd2.Cmd):
                 self.game_node.nags = {nag}
             self.poutput(
                 f"Set NAG ({nags.ascii_glyph(nag)}): {nags.description(nag)}.")
-        elif args.subcmd == "eval":
-            if args.mate_in is not None:
-                score: chess.engine.Score = chess.engine.Mate(args.mate_in)
-            elif args.mated_in is not None:
-                score = chess.engine.Mate(-args.mated_in)
+        elif args.subcmd in ["eval", "evaluation"]:
+            if args.mate is not None:
+                score: chess.engine.Score = chess.engine.Mate(args.mate)
+            elif args.mated is not None:
+                score = chess.engine.Mate(-args.mated)
             else:
                 score = chess.engine.Cp(args.cp)
             self.game_node.set_eval(
@@ -477,6 +485,8 @@ class ChessCli(cmd2.Cmd):
             if time_groups[6]:
                 time += float("0." + time_groups[6])
             self.game_node.set_clock(time)
+        else:
+            assert False, "Unhandled subcommand."
 
     rm_argparser = cmd2.Cmd2ArgumentParser()
     rm_subcmds = rm_argparser.add_subparsers(dest="subcmd")
@@ -489,7 +499,7 @@ class ChessCli(cmd2.Cmd):
     rm_subcmds.add_parser("nags", help="Remove all NAGs at this move.")
     rm_nag_argparser = rm_subcmds.add_parser(
         "nag", help="Remove a specific NAG at this move.")
-    rm_nag_argparser.add_argument("which",
+    rm_nag_argparser.add_argument("nag",
                                   type=nags.parse_nag,
                                   help="A NAG to remove. Like '$16' or '??'.")
     rm_subcmds.add_parser(
@@ -522,13 +532,13 @@ class ChessCli(cmd2.Cmd):
     @cmd2.with_argparser(rm_argparser)  # type: ignore
     def do_rm(self, args) -> None:
         " Remove various things at the current move (like the comment or arrows). "
-        if args.subcmd == "comment":
+        if args.subcmd in ["c", "comment"]:
             self.game_node.comment = ""
-        elif args.subcmd == "starting_comment":
+        elif args.subcmd in ["sc", "starting_comment"]:
             self.game_node.starting_comment = ""
         elif args.subcmd == "nags":
             self.game_node.nags = set()
-        elif args.subcmd == "eval":
+        elif args.subcmd in ["eval", "evaluation"]:
             self.game_node.set_eval(None)
         elif args.subcmd == "clock":
             self.game_node.set_clock(None)
@@ -557,6 +567,8 @@ class ChessCli(cmd2.Cmd):
                  if args._from is None or not args._from == arr.tail
                  if args.to is None or not args.to == arr.head
                  if color is None or not color == arr.color))
+        else:
+            assert False, "Unhandled subcommand."
 
     moves_argparser = cmd2.Cmd2ArgumentParser()
     _moves_before_group = moves_argparser.add_mutually_exclusive_group()
@@ -1505,7 +1517,7 @@ class ChessCli(cmd2.Cmd):
                 res += f"{move_number} {analysis.board.san(info['pv'][0])}: "
             if "score" in info:
                 score: chess.engine.Score = info["score"].relative
-                res += score_str(score)
+                res += score_str(score) + ", "
                 wdl_from_score: Optional[chess.engine.Wdl] = score.wdl(
                     ply=analysis.board.ply())
             else:
@@ -1676,6 +1688,97 @@ class ChessCli(cmd2.Cmd):
             self.games[self.current_game] = self.game_node
             self.current_game = args.name
 
+    save_argparser = cmd2.Cmd2ArgumentParser()
+    save_argparser.add_argument(
+        "file",
+        nargs="?",
+        help="File to save to. Defaults to the loaded file.")
+
+    @cmd2.with_argparser(save_argparser)  # type: ignore
+    def do_save(self, args) -> None:
+        " Save the current game to a file. "
+        file_name = args.file or self.file_names.get(self.current_game)
+        if file_name is None:
+            self.poutput(
+                f"Error: This game '{self.current_game}' isn't associated with any file name. Please provide a file name yourself."
+            )
+            return
+        try:
+            with open(file_name, mode="w") as file:
+                print(self.game_node.game(), file=file)
+        except OSError as e:
+            self.poutput(f"Error: with {file_name}: {e}")
+            return
+        self.file_names[self.current_game] = file_name
+
+    promote_argparser = cmd2.Cmd2ArgumentParser()
+    promote_group = promote_argparser.add_mutually_exclusive_group()
+    promote_group.add_argument("-m",
+                               "--main",
+                               action="store_true",
+                               help="Promote this move to be main variation.")
+    promote_group.add_argument(
+        "-n",
+        "--steps",
+        type=int,
+        help="Promote this variation n number of steps.")
+
+    @cmd2.with_argparser(promote_argparser)  # type: ignore
+    def do_promote(self, args) -> None:
+        " If current move is a side line, promote it so that it'll be closer to main variation. "
+        if not isinstance(self.game_node, chess.pgn.ChildNode):
+            return
+        if args.main:
+            self.game_node.parent.variations.remove(self.game_node)
+            self.game_node.parent.variations.insert(0, self.game_node)
+        else:
+            n = args.steps or 1
+            for _ in range(n):
+                self.game_node.parent.promote(self.game_node)
+
+    demote_argparser = cmd2.Cmd2ArgumentParser()
+    demote_group = demote_argparser.add_mutually_exclusive_group()
+    demote_group.add_argument(
+        "-l",
+        "--last",
+        action="store_true",
+        help="Demote this move to be the last variation.")
+    demote_group.add_argument("-n",
+                              "--steps",
+                              type=int,
+                              help="Demote this variation n number of steps.")
+
+    @cmd2.with_argparser(demote_argparser)  # type: ignore
+    def do_demote(self, args) -> None:
+        " If current move is the main variation or if it isn't the last variation, demote it so it'll be far from the main variation."
+        if not isinstance(self.game_node, chess.pgn.ChildNode):
+            return
+        if args.last:
+            self.game_node.parent.variations.remove(self.game_node)
+            self.game_node.parent.variations.append(self.game_node)
+        else:
+            n = args.steps or 1
+            for _ in range(n):
+                self.game_node.parent.demote(self.game_node)
+
+    def do_variations(self, _) -> None:
+        " Print all variations following this move."
+        next = self.game_node.next()
+        if next is not None:
+            show_items = [move_str(next, include_side_line_arrows=False)]
+            for variation in self.game_node.variations[1:]:
+                show_items.append(
+                    move_str(variation,
+                             include_move_number=False,
+                             include_side_line_arrows=False))
+            self.poutput(", ".join(show_items))
+
 
 def run():
-    sys.exit(ChessCli().cmdloop())
+    argparser = argparse.ArgumentParser(
+        description="A repl to edit and analyse chess games.")
+    argparser.add_argument("pgn_file",
+                           nargs="?",
+                           help="Open the given pgn file.")
+    args = argparser.parse_args()
+    sys.exit(ChessCli(file_name=args.pgn_file).cmdloop())
