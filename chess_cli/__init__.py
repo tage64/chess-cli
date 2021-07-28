@@ -1620,8 +1620,8 @@ class ChessCli(cmd2.Cmd):
             except KeyError:
                 continue
             if removed in self.running_analysis:
-                self.stop_analysis(removed)
-            del self.analysis[removed]
+                self.stop_analysis(engine)
+            self.analysis.remove(removed)
             self.poutput(f"Removed analysis made by {engine}.")
 
     game_argparser = cmd2.Cmd2ArgumentParser()
