@@ -184,6 +184,15 @@ class ChessCli(cmd2.Cmd):
         self.analysis_by_node: defaultdict[chess.pgn.GameNode,
                                            dict[str,
                                                 Analysis]] = defaultdict(dict)
+        self.auto_analysis_engines: list[str] = []
+        self.auto_analysis_number_of_moves = 3  # This is just arbitrary, it'll be changed later.
+
+        def update_auto_analysis(
+                x: cmd2.plugin.PostcommandData) -> cmd2.plugin.PostcommandData:
+            self.update_auto_analysis()
+            return x
+
+        self.register_postcmd_hook(update_auto_analysis)
 
         if os.path.exists(self.config_file):
             with open(self.config_file) as f:
@@ -1445,6 +1454,33 @@ class ChessCli(cmd2.Cmd):
         help=
         "Remove analysis made by the selected engines at this move. Useful if you want to rerun the analysis."
     )
+    analysis_auto_argparser = analysis_subcmds.add_parser(
+        "auto", help="Start or stop automatic analysis at the current move.")
+    analysis_auto_subcmds = analysis_auto_argparser.add_subparsers(
+        dest="auto_subcmd")
+    analysis_auto_start_argparser = analysis_auto_subcmds.add_parser(
+        "start",
+        help=
+        "Begin to auto analyse the current move (as it changes) with the currently selected engines."
+    )
+    analysis_auto_start_argparser.add_argument(
+        "-n",
+        "--number-of-moves",
+        type=int,
+        default=5,
+        help="Number of moves to analyse at every position.")
+    analysis_auto_stop_argparser = analysis_auto_subcmds.add_parser(
+        "stop", help="Stop auto analysis.")
+    analysis_auto_stop_argparser.add_argument(
+        "-c",
+        "--current",
+        action="store_true",
+        help=
+        "Stop the running analysis at the current move as well. Otherwise they'll continue running."
+    )
+    analysis_auto_subcmds.add_parser("ls",
+                                     aliases=["list"],
+                                     help="List the auto analysing engines.")
 
     @cmd2.with_argparser(analysis_argparser)  # type: ignore
     def do_analysis(self, args) -> None:
@@ -1453,6 +1489,10 @@ class ChessCli(cmd2.Cmd):
             self.analysis_ls(args)
         elif args.subcmd == "show":
             self.analysis_show(args)
+        elif args.subcmd == "auto" and args.auto_subcmd == "stop":
+            self.analysis_auto_stop(args)
+        elif args.subcmd == "auto" and args.auto_subcmd in ["ls", "list"]:
+            self.analysis_auto_ls(args)
         else:
             if args.select:
                 for engine in args.select:
@@ -1480,8 +1520,33 @@ class ChessCli(cmd2.Cmd):
                 self.analysis_stop(selected_engines, args)
             elif args.subcmd in ["rm", "remove"]:
                 self.analysis_rm(selected_engines, args)
+            elif args.subcmd == "auto" and args.auto_subcmd == "start":
+                self.analysis_auto_start(selected_engines, args)
             else:
                 assert False, "Invalid command."
+
+    def start_analysis(self,
+                       engine: str,
+                       number_of_moves: int,
+                       root_moves: list[chess.Move] = [],
+                       limit: Optional[chess.engine.Limit] = None) -> None:
+        if engine in self.running_analysis:
+            self.stop_analysis(engine)
+        analysis: Analysis = Analysis(
+            result=self.loaded_engines[engine].analysis(
+                self.game_node.board(),
+                root_moves=root_moves if root_moves != [] else None,
+                limit=limit,
+                multipv=number_of_moves,
+                game="this"),
+            engine=engine,
+            board=self.game_node.board(),
+            san=(self.game_node.san()
+                 if isinstance(self.game_node, chess.pgn.ChildNode) else None),
+        )
+        self.analysis.append(analysis)
+        self.running_analysis[engine] = analysis
+        self.analysis_by_node[self.game_node][engine] = analysis
 
     def analysis_start(self, selected_engines: list[str], args) -> None:
         intersection: set[str] = set(
@@ -1507,23 +1572,8 @@ class ChessCli(cmd2.Cmd):
                                    nodes=args.nodes,
                                    mate=args.mate)
         for engine in selected_engines:
-            if engine in self.running_analysis:
-                self.stop_analysis(engine)
-            analysis: Analysis = Analysis(
-                result=self.loaded_engines[engine].analysis(
-                    board,
-                    root_moves=root_moves if root_moves != [] else None,
-                    limit=limit,
-                    multipv=args.number_of_moves,
-                    game="this"),
-                engine=engine,
-                board=board,
-                san=(self.game_node.san() if isinstance(
-                    self.game_node, chess.pgn.ChildNode) else None),
-            )
-            self.analysis.append(analysis)
-            self.running_analysis[engine] = analysis
-            self.analysis_by_node[self.game_node][engine] = analysis
+            self.start_analysis(engine, args.number_of_moves, root_moves,
+                                limit)
             self.poutput(f"{engine} is now analysing.")
 
     def stop_analysis(self, engine: str) -> None:
@@ -1538,6 +1588,28 @@ class ChessCli(cmd2.Cmd):
                 )
                 return
             self.stop_analysis(engine)
+
+    def update_auto_analysis(self) -> None:
+        for engine in self.auto_analysis_engines:
+            self.start_analysis(engine, self.auto_analysis_number_of_moves)
+
+    def analysis_auto_start(self, selected_engines: list[str], args) -> None:
+        self.auto_analysis_engines = selected_engines
+        self.auto_analysis_number_of_moves = args.number_of_moves
+        self.update_auto_analysis()
+
+    def analysis_auto_stop(self, args) -> None:
+        if args.current:
+            for engine in self.auto_analysis_engines:
+                self.stop_analysis(engine)
+        self.auto_analysis_engines = []
+
+    def analysis_auto_ls(self, args) -> None:
+        if not self.auto_analysis_engines:
+            self.poutput("There are no auto analysing engines.")
+        else:
+            for engine in self.auto_analysis_engines:
+                self.poutput(engine)
 
     def show_analysis(self, analysis: Analysis, verbose: bool = False) -> None:
         show_str: str = analysis.engine + " @ "
