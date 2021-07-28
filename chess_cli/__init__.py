@@ -160,7 +160,9 @@ class ChessCli(cmd2.Cmd):
                  config_file: Optional[str] = None):
         # Set cmd shortcuts
         shortcuts: dict[str, str] = dict(cmd2.DEFAULT_SHORTCUTS)
-        super().__init__(shortcuts=shortcuts, include_py=True)
+        super().__init__(shortcuts=shortcuts,
+                         include_py=True,
+                         allow_cli_args=False)
         self.self_in_py = True
         self.register_postloop_hook(self.close_engines)
 
