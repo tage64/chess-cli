@@ -23,6 +23,8 @@ import toml  # type: ignore
 
 __version__ = '0.1.0'
 
+MOVE_NUMBER_REGEX = re.compile("(\d+)((\.{3})|\.?)")
+
 
 class MoveNumber(NamedTuple):
     """ A move number is a fullmove number and the color that made the move.
@@ -43,22 +45,25 @@ class MoveNumber(NamedTuple):
         return MoveNumber(board.fullmove_number, board.turn).previous()
 
     @staticmethod
+    def from_regex_match(match: re.Match):
+        " Create a move number from a regex match. "
+        number: int = int(match.group(1))
+        if match.group(3) is not None:
+            color = chess.BLACK
+        else:
+            color = chess.WHITE
+        return MoveNumber(number, color)
+
+    @staticmethod
     def parse(move_text: str):
         """ Parse a chess move number like "3." or "5...".
         Plain numbers without any dots at the end will be parsed as if it was white who moved.
         Will raise ValueError if the parsing failes.
         """
-
-        if move_text.endswith("..."):
-            number = int(move_text[:-3])
-            color = chess.BLACK
-        elif move_text.endswith("."):
-            number = int(move_text[:-1])
-            color = chess.WHITE
-        else:
-            number = int(move_text)
-            color = chess.WHITE
-        return MoveNumber(number, color)
+        match = MOVE_NUMBER_REGEX.fullmatch(move_text)
+        if match is None:
+            raise ValueError(f"Invalid move number {move_text}")
+        return MoveNumber.from_regex_match(match)
 
     def previous(self):
         " Get previous move. "
@@ -112,12 +117,12 @@ class Analysis(NamedTuple):
 
 def move_str(game_node: chess.pgn.GameNode,
              include_move_number: bool = True,
-             include_side_line_arrows: bool = True) -> str:
+             include_sideline_arrows: bool = True) -> str:
     res: str = ""
     if not isinstance(game_node, chess.pgn.ChildNode):
         res += "start"
     else:
-        if include_side_line_arrows and not game_node.is_main_variation():
+        if include_sideline_arrows and not game_node.is_main_variation():
             res += "<"
         if include_move_number:
             res += str(MoveNumber.last(game_node)) + " "
@@ -133,7 +138,7 @@ def move_str(game_node: chess.pgn.GameNode,
     if game_node.comment or game_node.arrows() or game_node.eval(
     ) is not None or game_node.clock() is not None:
         res += "-"
-    if include_side_line_arrows and game_node.parent is not None and not game_node.parent.variations[
+    if include_sideline_arrows and game_node.parent is not None and not game_node.parent.variations[
             -1] == game_node:
         res += ">"
     return res
@@ -598,9 +603,7 @@ class ChessCli(cmd2.Cmd):
         "-s",
         "--start",
         action="store_true",
-        help=
-        "Print moves from the start of the game, this is the default if no other constraint is specified."
-    )
+        help="Print moves from the start of the game.")
     _moves_before_group.add_argument(
         "-f",
         "--from",
@@ -608,13 +611,10 @@ class ChessCli(cmd2.Cmd):
         help="Print moves from the given move number, defaults to current move."
     )
     _moves_after_group = moves_argparser.add_mutually_exclusive_group()
-    _moves_after_group.add_argument(
-        "-e",
-        "--end",
-        action="store_true",
-        help=
-        "Print moves to the end of the game, this is the default if no other constraint is specified."
-    )
+    _moves_after_group.add_argument("-e",
+                                    "--end",
+                                    action="store_true",
+                                    help="Print moves to the end of the game.")
     _moves_after_group.add_argument(
         "-t",
         "--to",
@@ -631,83 +631,176 @@ class ChessCli(cmd2.Cmd):
             args.start = True
             args.end = True
 
-        _start_node = self.game_node.game().next()
-        if _start_node is not None:
-            start_node: chess.pgn.ChildNode = _start_node
-        else:
-            # The game doesn't contains any moves.
-            return
         if args.start:
-            node: chess.pgn.ChildNode = start_node
-        elif args._from:
-            try:
-                from_move: MoveNumber = MoveNumber.parse(args._from)
-            except ValueError:
-                self.poutput(
-                    f"Error: Unable to parse move number: {args._from}")
+            next = self.game_node.game().next()
+            if next is None:
                 return
-            node = start_node
-            while from_move > MoveNumber.last(node) and not node.is_end():
-                node = node.next()  # type: ignore
+            start_node: chess.pgn.ChildNode = next
+        elif args._from is not None:
+            _node = self.find_move(args._from,
+                                   search_sidelines=False,
+                                   search_forwards=False)
+            if _node is None:
+                self.poutput(f"Error: Couldn't find the move {args.move}")
+                return
+            start_node = _node
         else:
-            node = self.game_node if isinstance(
-                self.game_node, chess.pgn.ChildNode) else start_node
+            next = self.game_node.next()
+            if next is None:
+                return
+            start_node = next
+        if args.end:
+            end = self.game_node.end()
+            if not isinstance(end, chess.pgn.ChildNode):
+                return
+            end_node: chess.pgn.ChildNode = end
+        elif args.to is not None:
+            _node = self.find_move(args.to, search_backwards=False)
+            if _node is None:
+                self.poutput(f"Error: Couldn't find the move {args.move}")
+                return
+            end_node = _node
+        else:
+            if not isinstance(self.game_node, chess.pgn.ChildNode):
+                return
+            end = self.game_node.parent
+            if not isinstance(end, chess.pgn.ChildNode):
+                return
+            end_node = end
 
-        if args.to:
-            try:
-                to_move: Optional[MoveNumber] = MoveNumber.parse(args._from)
-            except ValueError:
-                self.poutput(f"Error: Unable to parse move number: {args.to}")
-                return
-        else:
-            to_move = None
+        moves: deque[chess.pgn.ChildNode] = deque()
+        node: chess.pgn.ChildNode = end_node
+        while True:
+            moves.appendleft(node)
+            if not isinstance(node.parent, chess.pgn.ChildNode):
+                break
+            node = node.parent
 
         moves_per_line: int = 6
         lines: list[str] = []
         moves_at_last_line: int = 0
-        while node is not None:
-            if to_move and to_move > MoveNumber.last(node):
-                break
-            if moves_at_last_line >= moves_per_line:
-                lines.append("")
+        is_after_current: bool = moves[0].ply() > self.game_node.ply()
+        for node in moves:
+            if node == self.game_node:
+                is_after_current = True
+                lines.append("* ")
+                include_move_number: bool = True
+            elif moves_at_last_line >= moves_per_line or lines == []:
+                lines.append("  ")
                 moves_at_last_line = 0
+                include_move_number = True
+            else:
+                include_move_number = node.turn() == chess.BLACK
 
-            move_number: MoveNumber = MoveNumber.last(node)
-            if move_number.color == chess.WHITE or lines == []:
-                if lines == []:
-                    lines.append("")
-                lines[-1] += str(move_number) + " "
-            lines[-1] += node.san() + " "
-            if move_number.color == chess.BLACK:
+            lines[-1] += move_str(node,
+                                  include_move_number=include_move_number,
+                                  include_sideline_arrows=is_after_current)
+            lines[-1] += " "
+
+            if node.turn() == chess.BLACK:
                 moves_at_last_line += 1
-            node = node.next()  # type: ignore
         for line in lines:
             self.poutput(line)
 
+    def find_move(
+            self,
+            move_str: str,
+            search_sidelines: bool = True,
+            search_forwards: bool = True,
+            search_backwards: bool = True,
+            recurse_sidelines: bool = True) -> Optional[chess.pgn.ChildNode]:
+        """ Search for a move by a string of its move number and SAN.
+        Like 'e4' '8.Nxe5' or 8...'.
+        """
+        move_number_match = MOVE_NUMBER_REGEX.match(move_str)
+        if move_number_match is not None:
+            move_number: Optional[MoveNumber] = MoveNumber.from_regex_match(
+                move_number_match)
+            if len(move_str) > move_number_match.end():
+                move: Optional[str] = move_str[move_number_match.end():]
+            else:
+                move = None
+        else:
+            move_number = None
+            move = move_str
+
+        def check(node: chess.pgn.ChildNode) -> bool:
+            if move is not None:
+                try:
+                    if not node.move == node.parent.board().push_san(move):
+                        return False
+                except ValueError:
+                    return False
+            if (move_number is not None
+                    and not move_number == MoveNumber.last(node)):
+                return False
+            return True
+
+        if isinstance(self.game_node, chess.pgn.ChildNode):
+            current_node: chess.pgn.ChildNode = self.game_node
+        else:
+            next = self.game_node.next()
+            if next is not None and search_forwards:
+                current_node = next
+            else:
+                return None
+
+        search_queue: deque[chess.pgn.ChildNode] = deque()
+        search_queue.append(current_node)
+        if search_sidelines:
+            sidelines = current_node.parent.variations
+            search_queue.extend(
+                (x for x in sidelines if not x == current_node))
+
+        if (search_forwards
+                and (move_number is None
+                     or move_number >= MoveNumber.last(current_node))):
+            while search_queue:
+                node: chess.pgn.ChildNode = search_queue.popleft()
+                if check(node):
+                    return node
+                if (move_number is not None
+                        and move_number < MoveNumber.last(node)):
+                    break
+                if (search_sidelines
+                        and (node.is_main_variation or recurse_sidelines)):
+                    search_queue.extend(node.variations)
+                else:
+                    next = node.next()
+                    if next is not None:
+                        search_queue.append(next)
+
+        if (search_backwards
+                and (move_number is None
+                     or move_number < MoveNumber.last(current_node))):
+            node = current_node
+            while isinstance(node.parent, chess.pgn.ChildNode):
+                node = node.parent
+                if check(node):
+                    return node
+                if (move_number is not None
+                        and move_number > MoveNumber.last(node)):
+                    break
+        return None
+
     goto_argparser = cmd2.Cmd2ArgumentParser()
-    goto_argparser.add_argument("move_number",
-                                nargs="?",
-                                help="A move number like 10. or 9...")
-    goto_argparser.add_argument("move",
-                                nargs="?",
-                                help="A move like e4 or Nxd5+.")
-    goto_argparser.add_argument("-s",
-                                "--start",
+    goto_argparser.add_argument(
+        "move",
+        nargs="?",
+        help="A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'.")
+    goto_group = goto_argparser.add_mutually_exclusive_group()
+    goto_group.add_argument("-s",
+                            "--start",
+                            action="store_true",
+                            help="Go to the start of the game.")
+    goto_group.add_argument("-e",
+                            "--end",
+                            action="store_true",
+                            help="Go to the end of the game.")
+    goto_argparser.add_argument("-n",
+                                "--no-sidelines",
                                 action="store_true",
-                                help="Go to the start of the game.")
-    _goto_sidelines_group = goto_argparser.add_mutually_exclusive_group()
-    _goto_sidelines_group.add_argument(
-        "-r",
-        "--recurse-sidelines",
-        action="store_true",
-        help=
-        "Make a bredth first search BFS into sidelines. Only works forwards in the game."
-    )
-    _goto_sidelines_group.add_argument(
-        "-n",
-        "--no-sidelines",
-        action="store_true",
-        help="Don't search any sidelines at all.")
+                                help="Don't search any sidelines at all.")
     _goto_direction_group = goto_argparser.add_mutually_exclusive_group()
     _goto_direction_group.add_argument("-b",
                                        "--backwards-only",
@@ -725,99 +818,17 @@ class ChessCli(cmd2.Cmd):
         """
         if args.start:
             self.game_node = self.game_node.game()
-            return
-
-        # This hack is needed because argparse isn't smart enough to understand that it should skip to the next argument if the parsing of an optional argument failes.
-        if args.move_number is not None:
-            try:
-                args.move_number = MoveNumber.parse(args.move_number)
-            except ValueError:
-                if args.move is not None:
-                    self.poutput(
-                        "Error: Unable to parse move number: {args.move_number}"
-                    )
-                    return
-                else:
-                    args.move = args.move_number
-                    args.move_number = None
-
-        def check_move(node: chess.pgn.ChildNode) -> bool:
-            if args.move is not None:
-                try:
-                    if not node.move == node.parent.board().push_san(
-                            args.move):
-                        return False
-                except ValueError:
-                    return False
-            return True
-
-        if isinstance(self.game_node, chess.pgn.ChildNode):
-            current_node: chess.pgn.ChildNode = self.game_node
-        else:
-            next = self.game_node.next()
-            if next is not None:
-                current_node = next
-            else:
-                self.poutput("Error: No moves in the game.")
+        elif args.end:
+            self.game_node = self.game_node.end()
+        elif args.move is not None:
+            node = self.find_move(args.move,
+                                  search_sidelines=not args.no_sidelines,
+                                  search_forwards=not args.backwards_only,
+                                  search_backwards=not args.forwards_only)
+            if node is None:
+                self.poutput(f"Error: Couldn't find the move {args.move}")
                 return
-        search_queue: deque[chess.pgn.ChildNode] = deque()
-        search_queue.append(current_node)
-        if not args.no_sidelines:
-            sidelines = current_node.parent.variations
-            search_queue.extend(
-                (x for x in sidelines if not x == current_node))
-        if not args.backwards_only and (
-                args.move_number is None
-                or args.move_number >= MoveNumber.last(current_node)):
-            while search_queue:
-                node: chess.pgn.ChildNode = search_queue.popleft()
-                if args.move_number is not None:
-                    if args.move_number == MoveNumber.last(node):
-                        if check_move(node):
-                            self.game_node = node
-                            return
-                    elif args.move_number < MoveNumber.last(node):
-                        break
-                else:
-                    if check_move(node):
-                        self.game_node = node
-                        return
-                if args.recurse_sidelines or node.is_main_variation():
-                    if not args.no_sidelines:
-                        search_queue.extend(node.variations)
-                    else:
-                        next = node.next()
-                        if next is not None:
-                            search_queue.append(next)
-            if args.move_number is not None and args.move_number > MoveNumber.last(
-                    node):
-                self.poutput(
-                    "Error: The move number was beyond the end of the game.")
-                return
-        if not args.forwards_only and (
-                args.move_number is None
-                or args.move_number < MoveNumber.last(current_node)):
-            node = current_node
-            while isinstance(node.parent, chess.pgn.ChildNode):
-                node = node.parent
-                if args.move_number is not None:
-                    if args.move_number == MoveNumber.last(node):
-                        if check_move(node):
-                            self.game_node = node
-                            return
-                    elif args.move_number > MoveNumber.last(node):
-                        break
-                else:
-                    if check_move(node):
-                        self.game_node = node
-                        return
-            if args.move_number is not None and args.move_number < MoveNumber.last(
-                    node):
-                self.poutput(
-                    "Error: The move number was beyond the beginning of the game."
-                )
-                return
-        self.poutput("Error: Couldn't find the move.")
+            self.game_node = node
 
     delete_argparser = cmd2.Cmd2ArgumentParser()
 
@@ -1816,17 +1827,25 @@ class ChessCli(cmd2.Cmd):
             for _ in range(n):
                 self.game_node.parent.demote(self.game_node)
 
-    def do_variations(self, _) -> None:
-        " Print all variations following this move."
-        next = self.game_node.next()
+    def show_variations(self, node: chess.pgn.GameNode) -> None:
+        next = node.next()
         if next is not None:
-            show_items = [move_str(next, include_side_line_arrows=False)]
-            for variation in self.game_node.variations[1:]:
+            show_items = [move_str(next, include_sideline_arrows=False)]
+            for variation in node.variations[1:]:
                 show_items.append(
                     move_str(variation,
                              include_move_number=False,
-                             include_side_line_arrows=False))
+                             include_sideline_arrows=False))
             self.poutput(", ".join(show_items))
+
+    def do_variations(self, _) -> None:
+        " Print all variations following this move."
+        self.show_variations(self.game_node)
+
+    def do_sidelines(self, _) -> None:
+        " Show all sidelines to this move. "
+        if self.game_node.parent is not None:
+            self.show_variations(self.game_node.parent)
 
     def engine_log(self, args) -> None:
         if args.log_subcmd == "clear":
