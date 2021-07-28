@@ -1537,7 +1537,7 @@ class ChessCli(cmd2.Cmd):
             self.analysis.append(analysis)
             self.running_analysis[engine] = analysis
             self.analysis_by_node[self.game_node][engine] = analysis
-            self.poutput("Analysis started successfully.")
+            self.poutput(f"{engine} is now analysing.")
 
     def stop_analysis(self, engine: str) -> None:
         self.running_analysis[engine].result.stop()
