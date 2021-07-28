@@ -1437,25 +1437,12 @@ class ChessCli(cmd2.Cmd):
                                    help="List only stopped analysis.")
     analysis_show_argparser = analysis_subcmds.add_parser(
         "show", help="Show all analysis performed at the current move.")
-    analysis_clone_argparser = analysis_subcmds.add_parser(
-        "clone",
+    analysis_rm_argparser = analysis_subcmds.add_parser(
+        "rm",
+        aliases="remove",
         help=
-        "Clone the game until this move and add the analysed engine lines as variations. This will create a copy of the original game which can be altered or deleted as wanted. To delete the new game and go back, simply type `game rm`. Or to update the analysis lines in this new game, type `analyse update`."
+        "Remove analysis made by the selected engines at this move. Useful if you want to rerun the analysis."
     )
-    analysis_clone_argparser.add_argument(
-        "engine", help="Which engine's analysis to clone.")
-    analysis_clone_argparser.add_argument(
-        "--name",
-        help=
-        "A name for the new game. An auto generated name will be set if no name is specified."
-    )
-    analysis_update_argparser = analysis_subcmds.add_parser(
-        "update",
-        help=
-        "Update the variations from this node to match the given lines in an analysis. But be careful, this will delete all existing variations including comments from this move before. If you want to keep them, please clone the game with `analysis clone` first."
-    )
-    analysis_update_argparser.add_argument(
-        "engine", help="Which engine's analysis to update.")
 
     @cmd2.with_argparser(analysis_argparser)  # type: ignore
     def do_analysis(self, args) -> None:
@@ -1464,10 +1451,6 @@ class ChessCli(cmd2.Cmd):
             self.analysis_ls(args)
         elif args.subcmd == "show":
             self.analysis_show(args)
-        elif args.subcmd == "clone":
-            self.analysis_clone(args)
-        elif args.subcmd == "update":
-            self.analysis_update(args)
         else:
             if args.select:
                 for engine in args.select:
@@ -1493,6 +1476,8 @@ class ChessCli(cmd2.Cmd):
                 self.analysis_start(selected_engines, args)
             elif args.subcmd == "stop":
                 self.analysis_stop(selected_engines, args)
+            elif args.subcmd in ["rm", "remove"]:
+                self.analysis_rm(selected_engines, args)
             else:
                 assert False, "Invalid command."
 
@@ -1628,70 +1613,16 @@ class ChessCli(cmd2.Cmd):
             self.poutput(f"({engine}): ", end="")
             self.show_analysis(analysis, verbose=True)
 
-    def analysis_clone(self, args) -> None:
-        if not self.analysis_by_node[self.game_node]:
-            self.poutput("Error: No analysis at this move.")
-            return
-        if not args.engine in self.analysis_by_node[self.game_node]:
-            self.poutput(
-                f"Error: There's no analysis by {args.engine} at this move. List all analysis here with `analysis hsow`."
-            )
-        analysis: Analysis = self.analysis_by_node[self.game_node][args.engine]
-
-        def fix_parents(node: chess.pgn.GameNode) -> chess.pgn.GameNode:
-            node_copied = copy.copy(node)
-            if isinstance(node_copied, chess.pgn.ChildNode):
-                parent = fix_parents(node_copied.parent)
-                assert isinstance(node, chess.pgn.ChildNode)
-                parent.variations = [node_copied] + list(
-                    filter(lambda x: x is not node, parent.variations))
-                node_copied.parent = parent
-            return node_copied
-
-        new_game = fix_parents(self.game_node)
-        new_game.variations = []
-        for line in analysis.result.multipv:
-            moves = line["pv"]
-            new_game.add_line(moves)
-        if args.name is None:
-            if isinstance(new_game, chess.pgn.ChildNode):
-                suggested_name = f"{MoveNumber.last(new_game)}{new_game.san()}_{args.engine}"
-            else:
-                suggested_name = "start_{args.engine}_analysis"
-            if suggested_name in self.games:
-
-                def make_name(i: int = 2) -> str:
-                    try_name = f"{suggested_name}_{i}"
-                    if try_name in self.games:
-                        return make_name(i + 1)
-                    return try_name
-
-                name: str = make_name()
-            else:
-                name = suggested_name
-        else:
-            name = args.name
-        self.games[self.current_game] = self.game_node
-        self.games[name] = new_game
-        self.current_game = name
-        self.analysis_by_node[new_game][args.engine] = analysis
-        self.poutput(
-            f"Successfully cloned the game and set the analysis in the new game '{name}'."
-        )
-
-    def analysis_update(self, args) -> None:
-        if not self.analysis_by_node[self.game_node]:
-            self.poutput("Error: No analysis at this move.")
-            return
-        if not args.engine in self.analysis_by_node[self.game_node]:
-            self.poutput(
-                f"Error: There's no analysis by {args.engine} at this move. List all analysis here with `analysis hsow`."
-            )
-        analysis: Analysis = self.analysis_by_node[self.game_node][args.engine]
-        self.game_node.variations = []
-        for line in analysis.result.multipv:
-            moves = line["pv"]
-            self.game_node.add_line(moves)
+    def analysis_rm(self, selected_engines: list[str], _args) -> None:
+        for engine in selected_engines:
+            try:
+                removed = self.analysis_by_node[self.game_node].pop(engine)
+            except KeyError:
+                continue
+            if removed in self.running_analysis:
+                self.stop_analysis(removed)
+            del self.analysis[removed]
+            self.poutput(f"Removed analysis made by {engine}.")
 
     game_argparser = cmd2.Cmd2ArgumentParser()
     game_subcmds = game_argparser.add_subparsers(dest="subcmd")
