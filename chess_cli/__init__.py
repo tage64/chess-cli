@@ -854,7 +854,7 @@ class ChessCli(cmd2.Cmd):
     engine_argparser.add_argument(
         "-s",
         "--select",
-        nargs="*",
+        action="append",
         help=
         "Select a different engine for this command. The option can be repeated to select multiple engines."
     )
@@ -1021,7 +1021,7 @@ class ChessCli(cmd2.Cmd):
                     )
                 else:
                     self.poutput(
-                        "f Error: There is no engine named {args.engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
+                        f"Error: There is no engine named {args.engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
                     )
                 return
             if args.config_subcmd == "get":
@@ -1046,7 +1046,7 @@ class ChessCli(cmd2.Cmd):
                             )
                         else:
                             self.poutput(
-                                "f Error: There is no engine named {engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
+                                f"Error: There is no engine named {engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
                             )
                         return
                 selected_engines: list[str] = args.select
@@ -1069,7 +1069,7 @@ class ChessCli(cmd2.Cmd):
                     )
                 else:
                     self.poutput(
-                        "f Error: There is no engine named {engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
+                        f"Error: There is no engine named {engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
                     )
                 return
         self.selected_engines = args.engines
@@ -1415,7 +1415,7 @@ class ChessCli(cmd2.Cmd):
     analysis_argparser.add_argument(
         "-s",
         "--select",
-        nargs="?",
+        action="append",
         help=
         "Select a different engine for this command. The option can be repeated to select multiple engines."
     )
@@ -1514,7 +1514,7 @@ class ChessCli(cmd2.Cmd):
                             )
                         else:
                             self.poutput(
-                                "f Error: There is no engine named {engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
+                                f"Error: There is no engine named {engine}. You can list all availlable engines with `engine ls` or import an engine with the `engine import` command."
                             )
                         return
                 selected_engines: list[str] = args.select
