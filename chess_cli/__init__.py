@@ -102,7 +102,7 @@ class EngineConf(NamedTuple):
     " Configuration for an engine. "
     path: str  # Path of engine executable.
     protocol: str  # "uci" or "xboard"
-    options: dict[str, Optional[Union[str, int, bool]]] = {}
+    options: dict[str, Union[str, int, bool, None]] = {}
     fullname: Optional[str] = None  # Full name of the engine from id.name.
 
 
@@ -1139,6 +1139,20 @@ class ChessCli(cmd2.Cmd):
         self.selected_engines.append(name)
         self.engine_confs[name] = engine_conf._replace(
             fullname=engine.id.get("name"))
+        invalid_options: list[str] = []
+        for opt_name, value in engine_conf.options.items():
+            try:
+                self.set_engine_option(name, opt_name, value)
+            except ValueError as e:
+                self.poutput(
+                    f"Warning: Couldn't set {opt_name} to {value} as specified in the configuration."
+                )
+                self.poutput(f"    {e}")
+                invalid_options.append(opt_name)
+                self.poutput(
+                    f"  {opt_name} will be removed from the configuration.")
+        for x in invalid_options:
+            del engine_conf.options[x]
         self.show_engine(name, verbose=True)
 
     def engine_load(self, args) -> None:
@@ -1294,6 +1308,61 @@ class ChessCli(cmd2.Cmd):
                 continue
             self.show_engine_option(engine, name)
 
+    def set_engine_option(self, engine: str, name: str,
+                          value: Union[str, int, bool, None]) -> None:
+        options: Mapping[
+            str, chess.engine.Option] = self.loaded_engines[engine].options
+        if name not in options:
+            raise ValueError(
+                f"{name} is not a name for an option for {engine}. You can list availlable options with `engine config ls`."
+            )
+        option: chess.engine.Option = options[name]
+        if (option.type in ["string", "file", "path"]
+                and not isinstance(value, str)):
+            raise ValueError(
+                f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+            )
+        elif option.type == "combo":
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                )
+
+            if not option.var:
+                raise ValueError(
+                    f"There are no valid alternatives for {option.name}, so you cannot set it to any value. It's strange I know, but I'm probably not the engine's author so I can't do much about it."
+                )
+            if value not in option.var:
+                raise ValueError(
+                    f"{value} is not a valid alternative for the combobox {option.name}. The list of valid options is: {repr(option.var)}."
+                )
+        elif option.type == "spin":
+            if not isinstance(value, int):
+                raise ValueError(
+                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                )
+            if option.min is not None and value < option.min:
+                raise ValueError(
+                    f"The minimum value for {option.name} is {option.min}, you specified {value}."
+                )
+            if option.max is not None and value > option.max:
+                raise ValueError(
+                    f"The maximum value for {option.name} is {option.max}, you specified {value}."
+                )
+        elif option.type == "check":
+            if not isinstance(value, bool):
+                raise ValueError(
+                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                )
+        elif option.type in ["button", "reset", "save"]:
+            if value is not None:
+                raise ValueError(
+                    f"{name} is a button according to the engine but the given value is a {type(value)} which doesn't really make any sence."
+                )
+        else:
+            assert False, f"Unsupported option type: {option.type}"
+        self.loaded_engines[engine].configure({option.name: value})
+
     def engine_config_set(self, engine: str, args) -> None:
         options: Mapping[
             str, chess.engine.Option] = self.loaded_engines[engine].options
@@ -1304,36 +1373,14 @@ class ChessCli(cmd2.Cmd):
             )
             return
         option: chess.engine.Option = options[args.name]
-        if option.type in ["string", "file", "path"]:
-            value: Union[str, int, bool] = args.value
-        elif option.type == "combo":
-            if not option.var:
-                self.poutput(
-                    f"There are no valid alternatives for {option.name}, so you cannot set it to any value. It's strange I know, but I'm probably not the engine's author so I can't do much about it."
-                )
-                return
-            if args.value not in option.var:
-                self.poutput(
-                    f"Error: {args.value} is not a valid alternative for the combobox {option.name}. The list of valid options is: {repr(args.var)}."
-                )
-                return
-            value = args.value
+        if option.type in ["string", "combo", "file", "path"]:
+            value: Union[str, int, bool, None] = args.value
         elif option.type == "spin":
             try:
                 value = int(args.value)
             except ValueError:
                 self.poutput(
-                    f"Error: Invalid integer: {args.value}. Note: This option expects an integer and nothing else."
-                )
-                return
-            if option.min is not None and value < option.min:
-                self.poutput(
-                    f"Error: The minimum value for {option.name} is {option.min}, you specified {value}."
-                )
-                return
-            if option.max is not None and value > option.max:
-                self.poutput(
-                    f"Error: The maximum value for {option.name} is {option.max}, you specified {value}."
+                    f"Invalid integer: {args.value}. Note: This option expects an integer and nothing else."
                 )
                 return
         elif option.type == "check":
@@ -1343,22 +1390,23 @@ class ChessCli(cmd2.Cmd):
                 value = False
             else:
                 self.poutput(
-                    f"Error: {option.name} is a checkbox and can only be set to true/check or false/uncheck, but you set it to {args.value}. Please go ahead and correct your mistake."
+                    f"{option.name} is a checkbox and can only be set to true/check or false/uncheck, but you set it to {args.value}. Please go ahead and correct your mistake."
                 )
                 return
         elif option.type in ["button", "reset", "save"]:
             if not args.value.lower() == "trigger-on-startup":
                 self.poutput(
-                    f"Error: {option.name} is a button and buttons can only be configured to 'trigger-on-startup', (which means what it sounds like). If you want to trigger {option.name}, please go ahead and run `engine config trigger {option.name}` instead. Or you might just have made a typo when you entered this command, if so, go ahead and run `engine config set {option.name} trigger-on-startup`."
+                    f"{option.name} is a button and buttons can only be configured to 'trigger-on-startup', (which means what it sounds like). If you want to trigger {option.name}, please go ahead and run `engine config trigger {option.name}` instead. Or you might just have made a typo when you entered this command, if so, go ahead and run `engine config set {option.name} trigger-on-startup`."
                 )
                 return
-            value = "trigger-on-startup"
+            if not args.temporary:
+                conf.options[option.name] = None
+            return
         else:
             assert False, f"Unsupported option type: {option.type}"
         if not args.temporary:
             conf.options[option.name] = value
-        if option.type not in ["button", "reset", "save"]:
-            self.loaded_engines[engine].configure({option.name: value})
+        self.set_engine_option(engine, option.name, value)
 
     def engine_config_unset(self, engine: str, args) -> None:
         options: Mapping[
