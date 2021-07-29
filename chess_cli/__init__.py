@@ -1636,15 +1636,8 @@ class ChessCli(cmd2.Cmd):
             if "score" in info:
                 score: chess.engine.Score = info["score"].relative
                 res += score_str(score) + ", "
-                wdl_from_score: Optional[chess.engine.Wdl] = score.wdl(
-                    ply=analysis.board.ply())
-            else:
-                wdl_from_score = None
             if "wdl" in info:
-                wdl: Optional[chess.engine.Wdl] = info["wdl"].relative
-            else:
-                wdl = wdl_from_score
-            if wdl is not None:
+                wdl: chess.engine.Wdl = info["wdl"].relative
                 res += f"{round(wdl.expectation() * 100)} %, "
                 res += f"{round(wdl.wins * 100 / wdl.total())}% win, "
                 res += f"{round(wdl.draws * 100 / wdl.total())}% draw, "
