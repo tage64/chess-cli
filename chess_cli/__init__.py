@@ -1317,11 +1317,11 @@ class ChessCli(cmd2.Cmd):
                 f"{name} is not a name for an option for {engine}. You can list availlable options with `engine config ls`."
             )
         option: chess.engine.Option = options[name]
-        if (option.type in ["string", "file", "path"]
-                and not isinstance(value, str)):
-            raise ValueError(
-                f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
-            )
+        if option.type in ["string", "file", "path"]:
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                )
         elif option.type == "combo":
             if not isinstance(value, str):
                 raise ValueError(
