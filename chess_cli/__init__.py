@@ -11,7 +11,7 @@ import queue
 import re
 import sys
 import threading
-from typing import Any, Iterable, Mapping, NamedTuple, Optional, Union
+from typing import Any, Callable, Iterable, Mapping, NamedTuple, Optional, Union
 
 import appdirs  # type: ignore
 import chess
@@ -19,6 +19,7 @@ import chess.engine
 import chess.pgn
 import chess.svg
 import cmd2
+import more_itertools
 import toml  # type: ignore
 
 __version__ = '0.1.0'
@@ -135,8 +136,8 @@ def move_str(game_node: chess.pgn.GameNode,
                 res += nag_strs[0]
             else:
                 res += f"[{', '.join(nag_strs)}]"
-    if game_node.comment or game_node.arrows() or game_node.eval(
-    ) is not None or game_node.clock() is not None:
+    if (game_node.comment or game_node.arrows() or game_node.eval() is not None
+            or game_node.clock() is not None):
         res += "-"
     if include_sideline_arrows and game_node.parent is not None and not game_node.parent.variations[
             -1] == game_node:
@@ -160,6 +161,7 @@ def score_str(score: chess.engine.Score) -> str:
 
 class ChessCli(cmd2.Cmd):
     """A repl to edit and analyse chess games. """
+
     def __init__(self,
                  file_name: Optional[str] = None,
                  config_file: Optional[str] = None):
@@ -287,10 +289,20 @@ class ChessCli(cmd2.Cmd):
         help=
         "If a variation already exists from this move, add this new variation as the main line rather than a side line."
     )
+    play_argparser.add_argument("-s",
+                                "--sideline",
+                                action="store_true",
+                                help="Add a sideline to this move.")
 
     @cmd2.with_argparser(play_argparser)  # type: ignore
     def do_play(self, args) -> None:
         """Play a sequence of moves from the current position."""
+        if args.sideline:
+            if not isinstance(self.game_node, chess.pgn.ChildNode):
+                self.poutput(f"Cannot add a sideline to the root of the game.")
+                return
+            self.game_node = self.game_node.parent
+
         for move_text in args.moves:
             try:
                 move: chess.Move = self.game_node.board().parse_san(move_text)
@@ -598,27 +610,44 @@ class ChessCli(cmd2.Cmd):
             assert False, "Unhandled subcommand."
 
     moves_argparser = cmd2.Cmd2ArgumentParser()
-    _moves_before_group = moves_argparser.add_mutually_exclusive_group()
-    _moves_before_group.add_argument(
-        "-s",
-        "--start",
+    moves_argparser.add_argument(
+        "-c",
+        "--comments",
         action="store_true",
-        help="Print moves from the start of the game.")
-    _moves_before_group.add_argument(
+        help=
+        "Show all comments. Otherwise just a dash (\"-\") will be shown at each move with a comment."
+    )
+    _moves_from_group = moves_argparser.add_mutually_exclusive_group()
+    _moves_from_group.add_argument("--fc",
+                                   "--from-current",
+                                   dest="from_current",
+                                   action="store_true",
+                                   help="Print moves from the current move.")
+    _moves_from_group.add_argument(
         "-f",
         "--from",
         dest="_from",
-        help="Print moves from the given move number, defaults to current move."
+        help="Print moves from the given move number.")
+    _moves_to_group = moves_argparser.add_mutually_exclusive_group()
+    _moves_to_group.add_argument(
+        "--tc",
+        "--to-current",
+        dest="to_current",
+        action="store_true",
+        help="Print only moves upto and including the current move.")
+    _moves_to_group.add_argument("-t",
+                                 "--to",
+                                 help="Print moves to the given move number.")
+    moves_argparser.add_argument(
+        "-s",
+        "--sidelines",
+        action="store_true",
+        help="Print a short list of the sidelines at each move with variations."
     )
-    _moves_after_group = moves_argparser.add_mutually_exclusive_group()
-    _moves_after_group.add_argument("-e",
-                                    "--end",
-                                    action="store_true",
-                                    help="Print moves to the end of the game.")
-    _moves_after_group.add_argument(
-        "-t",
-        "--to",
-        help="Print moves to the given move number, defaults to current move.")
+    moves_argparser.add_argument("-r",
+                                 "--recurse",
+                                 action="store_true",
+                                 help="Recurse into sidelines.")
 
     @cmd2.with_argparser(moves_argparser)  # type: ignore
     def do_moves(self, args) -> None:
@@ -626,89 +655,200 @@ class ChessCli(cmd2.Cmd):
         Print all moves by default, but if some constraint is specified, print only those moves.
         """
 
-        # If No constraint is specified, print all moves.
-        if not (args.start or args.end or args._from or args.to):
-            args.start = True
-            args.end = True
+        if args._from is not None:
+            # If the user has specified a given move as start.
+            node = self.find_move(
+                args._from,
+                search_sidelines=False,
+            )
+            if node is None:
+                self.poutput(f"Error: Couldn't find the move {args._from}")
+                return
+            start_node: chess.pgn.ChildNode = node
+        elif args.from_current:
+            # Start printing at the current move.
+            if isinstance(self.game_node, chess.pgn.ChildNode):
+                start_node = self.game_node
+            else:
+                # If `self.game_node` is the root node.
+                next = self.game_node.next()
+                if next is None:
+                    return
+                start_node = next
+        else:
+            # Print moves from the start of the game.
+            first_move = self.game_node.game().next()
+            if first_move is None:
+                return
+            start_node = first_move
 
-        if args.start:
-            next = self.game_node.game().next()
-            if next is None:
+        if args.to is not None:
+            node = self.find_move(
+                args.to, break_search_backwards_at=lambda x: x is start_node)
+            if node is None:
+                self.poutput(f"Error: Couldn't find the move {args.to}")
                 return
-            start_node: chess.pgn.ChildNode = next
-        elif args._from is not None:
-            _node = self.find_move(args._from,
-                                   search_sidelines=False,
-                                   search_forwards=False)
-            if _node is None:
-                self.poutput(f"Error: Couldn't find the move {args.move}")
+            end_node = node
+        elif args.to_current:
+            if isinstance(self.game_node, chess.pgn.ChildNode):
+                end_node = self.game_node
+            else:
                 return
-            start_node = _node
         else:
-            next = self.game_node.next()
-            if next is None:
-                return
-            start_node = next
-        if args.end:
+            # Print moves until the end of the game.
             end = self.game_node.end()
-            if not isinstance(end, chess.pgn.ChildNode):
-                return
-            end_node: chess.pgn.ChildNode = end
-        elif args.to is not None:
-            _node = self.find_move(args.to, search_backwards=False)
-            if _node is None:
-                self.poutput(f"Error: Couldn't find the move {args.move}")
-                return
-            end_node = _node
-        else:
-            if not isinstance(self.game_node, chess.pgn.ChildNode):
-                return
-            end = self.game_node.parent
             if not isinstance(end, chess.pgn.ChildNode):
                 return
             end_node = end
 
-        moves: deque[chess.pgn.ChildNode] = deque()
+        lines: Iterable[str] = self.display_game_segment(
+            start_node,
+            end_node,
+            show_sidelines=args.sidelines,
+            recurse_sidelines=args.recurse,
+            show_comments=args.comments)
+
+        for line in lines:
+            self.poutput(f"  {line}")
+
+    def display_game_segment(self, start_node: chess.pgn.ChildNode,
+                             end_node: chess.pgn.ChildNode,
+                             show_sidelines: bool, recurse_sidelines: bool,
+                             show_comments: bool) -> Iterable[str]:
+        """ Given a start and end node in this game, which must be connected,
+        yield lines printing all moves between them (including endpoints).
+        There are also options to toggle visibility of comments, show a short
+        list of the sidelines at each move with sidelines, or even recurse and 
+        show the endire sidelines.
+        """
+
+        # Create a list of all moves that should be displayed following the
+        # main line (I.E not recursing into sidelines).
+        # The list is created in reversed order. This is important because we
+        # want to display the moves from the start to the end, but we don't
+        # know the path from the start to the end. Imagine for instance that we
+        # are not following the main line, then we don't know what variation to
+        # choose at a certain move number.
+        moves_on_mainline: deque[chess.pgn.ChildNode] = deque()
         node: chess.pgn.ChildNode = end_node
         while True:
-            moves.appendleft(node)
+            moves_on_mainline.appendleft(node)
+            if node is start_node:
+                break
             if not isinstance(node.parent, chess.pgn.ChildNode):
                 break
             node = node.parent
+        return self.display_moves(moves_on_mainline,
+                                  show_sidelines=show_sidelines,
+                                  recurse_sidelines=recurse_sidelines,
+                                  show_comments=show_comments)
+
+    def display_moves(
+            self,
+            moves: Iterable[chess.pgn.ChildNode],
+            show_sidelines: bool,
+            recurse_sidelines: bool,
+            show_comments: bool,
+            include_sidelines_at_first_move: bool = True) -> Iterable[str]:
+        """ Same as display_game_segment(), but this function takes an iterable
+        of moves instead of a starting and ending game node.
+        """
 
         moves_per_line: int = 6
-        lines: list[str] = []
-        moves_at_last_line: int = 0
-        is_after_current: bool = moves[0].ply() > self.game_node.ply()
-        for node in moves:
-            if node == self.game_node:
-                is_after_current = True
-                lines.append("* ")
-                include_move_number: bool = True
-            elif moves_at_last_line >= moves_per_line or lines == []:
-                lines.append("  ")
-                moves_at_last_line = 0
-                include_move_number = True
-            else:
-                include_move_number = node.turn() == chess.BLACK
+        current_line: str = ""
+        moves_at_current_line: int = 0
 
-            lines[-1] += move_str(node,
-                                  include_move_number=include_move_number,
-                                  include_sideline_arrows=is_after_current)
-            lines[-1] += " "
+        # Just a very small method that should be called when we've yielded a line.
+        def carriage_return():
+            nonlocal current_line; nonlocal moves_at_current_line
+            current_line = ""
+            moves_at_current_line = 0
 
+        for (i, node) in enumerate(moves):
+            if moves_at_current_line >= moves_per_line:
+                yield current_line
+                carriage_return()
+
+            include_move_number = (True if moves_at_current_line == 0 else
+                                   node.turn() == chess.BLACK)
+
+            # Add a space if current_line is not empty.
+            if current_line:
+                current_line += " "
+            current_line += move_str(node,
+                                     include_move_number=include_move_number,
+                                     include_sideline_arrows=True)
             if node.turn() == chess.BLACK:
-                moves_at_last_line += 1
-        for line in lines:
-            self.poutput(line)
+                moves_at_current_line += 1
+
+            if node.comment and show_comments:
+                yield current_line
+                carriage_return()
+                yield f"   {node.comment}"
+                # No carriage_return() is needed here.
+
+            # If this move has any sidelines.
+            if (len(node.parent.variations) > 1
+                    and (include_sidelines_at_first_move or not i == 0)):
+                if recurse_sidelines:
+                    # Flush the current line if needed.
+                    if current_line:
+                        yield current_line
+                        carriage_return()
+
+                    # Loop through the sidelines (siblings) to this node.
+                    for sideline in node.parent.variations:
+                        if sideline is node:
+                            continue
+
+                        # Display any possible starting_comment.
+                        if show_comments and sideline.starting_comment:
+                            yield f"     {sideline.starting_comment}"
+
+                        # Call this method recursively with the mainline
+                        # following the sideline as moves iterator.
+                        for line in self.display_moves(
+                                more_itertools.prepend(sideline,
+                                                       sideline.mainline()),
+                                show_sidelines=show_sidelines,
+                                recurse_sidelines=recurse_sidelines,
+                                show_comments=show_comments, include_sidelines_at_first_move=False):
+                            # Indent the sideline a bit.
+                            yield f"  {line}"
+                elif show_sidelines:
+                    # Only show a short list of all sideline moves.
+
+                    # Flush the current line if needed.
+                    if current_line:
+                        yield current_line
+                        carriage_return()
+                    current_line = ("  (" + "; ".join(
+                        map(
+                            lambda sideline:
+                            (" " if sideline is node else move_str(
+                                sideline,
+                                include_move_number=False,
+                                include_sideline_arrows=False)),
+                            node.parent.variations)) + ")")
+                    yield current_line
+                    carriage_return()
+
+        # A final flush!
+        if current_line:
+            yield current_line
 
     def find_move(
-            self,
-            move_str: str,
-            search_sidelines: bool = True,
-            search_forwards: bool = True,
-            search_backwards: bool = True,
-            recurse_sidelines: bool = True) -> Optional[chess.pgn.ChildNode]:
+        self,
+        move_str: str,
+        search_sidelines: bool = True,
+        search_forwards: bool = True,
+        search_backwards: bool = True,
+        recurse_sidelines: bool = True,
+        break_search_forwards_at: Optional[Callable[[chess.pgn.ChildNode],
+                                                    bool]] = None,
+        break_search_backwards_at: Optional[Callable[[chess.pgn.ChildNode],
+                                                     bool]] = None
+    ) -> Optional[chess.pgn.ChildNode]:
         """ Search for a move by a string of its move number and SAN.
         Like 'e4' '8.Nxe5' or 8...'.
         """
@@ -750,7 +890,7 @@ class ChessCli(cmd2.Cmd):
         if search_sidelines:
             sidelines = current_node.parent.variations
             search_queue.extend(
-                (x for x in sidelines if not x == current_node))
+                (x for x in sidelines if not x is current_node))
 
         if (search_forwards
                 and (move_number is None
@@ -759,6 +899,9 @@ class ChessCli(cmd2.Cmd):
                 node: chess.pgn.ChildNode = search_queue.popleft()
                 if check(node):
                     return node
+                if (break_search_forwards_at is not None
+                        and break_search_forwards_at(node)):
+                    break
                 if (move_number is not None
                         and move_number < MoveNumber.last(node)):
                     break
@@ -778,6 +921,9 @@ class ChessCli(cmd2.Cmd):
                 node = node.parent
                 if check(node):
                     return node
+                if (break_search_backwards_at is not None
+                        and break_search_backwards_at(node)):
+                    break
                 if (move_number is not None
                         and move_number > MoveNumber.last(node)):
                     break
