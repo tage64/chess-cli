@@ -10,6 +10,7 @@ import os
 import queue
 import re
 import sys
+import tempfile
 import threading
 from typing import Any, Callable, Iterable, Mapping, NamedTuple, Optional, Union
 
@@ -24,7 +25,8 @@ import toml  # type: ignore
 
 __version__ = '0.1.0'
 
-MOVE_NUMBER_REGEX = re.compile("(\d+)((\.{3})|\.?)")
+MOVE_NUMBER_REGEX: re.Pattern = re.compile("(\d+)((\.{3})|\.?)")
+COMMANDS_IN_COMMENTS_REGEX: re.Pattern = re.compile("\[%.+?\]")
 
 
 class MoveNumber(NamedTuple):
@@ -157,6 +159,22 @@ def score_str(score: chess.engine.Score) -> str:
     if cp > 0:
         return f"+{cp/100} pawns"
     return f"{cp/100} pawns"
+
+
+def comment_text(raw_comment: str) -> str:
+    """ Strip out all commands like [%cal xxx] or [%clk xxx] from a comment.
+    """
+    return " ".join(COMMANDS_IN_COMMENTS_REGEX.split(raw_comment)).strip()
+
+
+def commands_in_comment(raw_comment: str) -> str:
+    " Get a string with all embedded commands in a pgn comment. "
+    return " ".join(COMMANDS_IN_COMMENTS_REGEX.findall(raw_comment))
+
+
+def update_comment_text(original_comment: str, new_text: str) -> str:
+    " Return a new comment with the same embedded commands but with the text replaced. "
+    return f"{commands_in_comment(original_comment)}\n{new_text}"
 
 
 class ChessCli(cmd2.Cmd):
@@ -367,80 +385,99 @@ class ChessCli(cmd2.Cmd):
             text += str(datetime.timedelta(seconds=clock)).strip("0")
             self.poutput(text)
 
-    set_argparser = cmd2.Cmd2ArgumentParser()
-    set_subcmds = set_argparser.add_subparsers(dest="subcmd")
-    set_comment_argparser = set_subcmds.add_parser(
+    add_argparser = cmd2.Cmd2ArgumentParser()
+    add_subcmds = add_argparser.add_subparsers(dest="subcmd")
+    add_comment_argparser = add_subcmds.add_parser(
         "comment", aliases=["c"], help="Set comment for this move.")
-    set_comment_argparser.add_argument("comment", help="The new text.")
-    set_comment_argparser.add_argument(
-        "-a",
-        "--append",
+    add_comment_argparser.add_argument("comment",
+                                       default="",
+                                       nargs="?",
+                                       help="The new text.")
+    add_comment_argparser.add_argument("-a",
+                                   "--append",
+                                   action="store_true",
+                                   help="Append this text to the old comment.")
+    add_comment_argparser.add_argument(
+        "-r",
+        "--raw",
         action="store_true",
-        help="Append this text to the old comment.")
-    set_starting_comment_argparser = set_subcmds.add_parser(
+        help=
+        "Replace the raw pgn comment which will override embedded commands like arrows and clocks."
+    )
+    add_comment_argparser.add_argument("-e",
+                                   "--edit",
+                                   action="store_true",
+                                   help="Open the comment in your editor.")
+    add_starting_comment_argparser = add_subcmds.add_parser(
         "starting-comment",
         aliases=["sc"],
         help=
         "Set starting_comment for this move. Only moves that starts a variation can have a starting comment."
     )
-    set_starting_comment_argparser.add_argument("comment",
-                                                help="The new text.")
-    set_starting_comment_argparser.add_argument(
+    add_starting_comment_argparser.add_argument("comment",
+                                       default="",
+                                       nargs="?",
+                                       help="The new text.")
+    add_starting_comment_argparser.add_argument(
         "-a",
         "--append",
         action="store_true",
         help="Append this text to the old comment.")
-    set_nag_argparser = set_subcmds.add_parser(
+    add_starting_comment_argparser.add_argument("-e",
+                                   "--edit",
+                                   action="store_true",
+                                   help="Open the comment in your editor.")
+    add_nag_argparser = add_subcmds.add_parser(
         "nag", help="Set a nag (numeric annotation glyph) on this move.")
-    set_nag_argparser.add_argument(
+    add_nag_argparser.add_argument(
         "nag",
         help=
         "Nag, either a number like '$17' or an ascii glyph like '!' or '?!'.")
-    set_nag_argparser.add_argument(
+    add_nag_argparser.add_argument(
         "-a",
         "--append",
         action="store_true",
         help=
         "Append this nag to the list of existing nags at this move instead of replacing them."
     )
-    set_eval_argparser = set_subcmds.add_parser(
+    add_eval_argparser = add_subcmds.add_parser(
         "evaluation",
         aliases=["eval"],
         help="Set an evaluation for this move.")
-    set_eval_group = set_eval_argparser.add_mutually_exclusive_group(
+    add_eval_group = add_eval_argparser.add_mutually_exclusive_group(
         required=True)
-    set_eval_group.add_argument(
+    add_eval_group.add_argument(
         "--cp",
         type=int,
         help=
         "Relative score in centi pawns from the player to move's point of view."
     )
-    set_eval_group.add_argument(
+    add_eval_group.add_argument(
         "--mate",
         "--mate-in",
         type=int,
         help="The player to move can force mate in the given number of moves.")
-    set_eval_group.add_argument(
+    add_eval_group.add_argument(
         "--mated",
         "--mated-in",
         type=int,
         help="The player to move will be mated in the given number of moves.")
-    set_eval_argparser.add_argument(
+    add_eval_argparser.add_argument(
         "-d",
         "--depth",
         type=int,
         help="The depth at which the analysis was made.")
-    set_arrow_argparser = set_subcmds.add_parser(
+    add_arrow_argparser = add_subcmds.add_parser(
         "arrow", aliases=["arr"], help="Draw an arrow on the board.")
-    set_arrow_argparser.add_argument(
+    add_arrow_argparser.add_argument(
         "_from",
         type=chess.parse_square,
         help="The square from which the arrow is drawn.")
-    set_arrow_argparser.add_argument(
+    add_arrow_argparser.add_argument(
         "to",
         type=chess.parse_square,
         help="The square which the arrow is pointing to.")
-    set_arrow_argparser.add_argument(
+    add_arrow_argparser.add_argument(
         "color",
         choices=["red", "r", "yellow", "y", "green", "g", "blue", "b"],
         default="green",
@@ -448,27 +485,52 @@ class ChessCli(cmd2.Cmd):
         help=
         "Color of the arrow. Red/yellow/green/blue can be abbreviated as r/y/g/b."
     )
-    set_clock_argparser = set_subcmds.add_parser(
+    add_clock_argparser = add_subcmds.add_parser(
         "clock",
         help="Set the remaining time for the player making this move.")
-    set_clock_argparser.add_argument("time", help="Remaining time.")
+    add_clock_argparser.add_argument("time", help="Remaining time.")
 
-    @cmd2.with_argparser(set_argparser)  # type: ignore
-    def do_set(self, args) -> None:
-        " Set various things (like comments, nags or arrows) at the current move. "
+    @cmd2.with_argparser(add_argparser)  # type: ignore
+    def do_add(self, args) -> None:
+        " Add various things (like comments, nags or arrows) at the current move. "
         if args.subcmd in ["comment", "c"]:
-            if args.append and self.game_node.comment:
-                self.game_node.comment = " ".join(
-                    (self.game_node.comment, args.comment))
+            if args.edit:
+                with tempfile.NamedTemporaryFile(mode="w+") as file:
+                    file.write(self.game_node.comment if args.raw else
+                                    comment_text(self.game_node.comment))
+                    file.flush()
+                    self.do_shell(f"{self.editor} '{file.name}'")
+                    file.seek(0)
+                    new_comment: str = file.read().strip()
+                    self.game_node.comment = (
+                        new_comment if args.raw else update_comment_text(
+                            self.game_node.comment, new_comment))
+            elif args.append and self.game_node.comment:
+                raw_comment: str = self.game_node.comment
+                to_edit = (raw_comment
+                           if args.raw else comment_text(raw_comment))
+                appended: str = " ".join((to_edit, args.comment))
+                self.game_node.comment = (appended
+                                          if args.raw else update_comment_text(
+                                              raw_comment, appended))
             else:
-                self.game_node.comment = args.comment
+                self.game_node.comment = (
+                    args.comment if args.raw else update_comment_text(
+                        self.game_node.comment, args.comment))
         elif args.subcmd in ["sc", "starting-comment"]:
             if not self.game_node.starts_variation():
                 self.poutput(
                     "Error: Only moves that starts a variation can have a starting comment and this move doesn't start a variation.\nYour attempt to set a starting comment for this move was a complete failure!"
                 )
                 return
-            if args.append and self.game_node.starting_comment:
+            if args.edit:
+                with tempfile.NamedTemporaryFile(mode="w+") as file:
+                    file.write(self.game_node.starting_comment)
+                    file.flush()
+                    self.do_shell(f"{self.editor} '{file.name}'")
+                    file.seek(0)
+                    self.game_node.starting_comment = file.read().strip()
+            elif args.append and self.game_node.starting_comment:
                 self.game_node.starting_comment = " ".join(
                     (self.game_node.starting_comment, args.comment))
             else:
@@ -495,7 +557,7 @@ class ChessCli(cmd2.Cmd):
             self.game_node.set_eval(
                 chess.engine.PovScore(score, self.game_node.turn()),
                 args.depth)
-        elif args.subcmd == "arrow":
+        elif args.subcmd in ["arr", "arrow"]:
             color_abbreviations: dict[str, str] = {
                 "g": "green",
                 "y": "yellow",
@@ -529,9 +591,15 @@ class ChessCli(cmd2.Cmd):
 
     rm_argparser = cmd2.Cmd2ArgumentParser()
     rm_subcmds = rm_argparser.add_subparsers(dest="subcmd")
-    rm_subcmds.add_parser("comment",
-                          aliases=["c"],
-                          help="Remove the comment at this move.")
+    rm_comment_argparser = rm_subcmds.add_parser(
+        "comment", aliases=["c"], help="Remove the comment at this move.")
+    rm_comment_argparser.add_argument(
+        "-r",
+        "--raw",
+        action="store_true",
+        help=
+        "Remove the entire raw comment which will include all embedded commands like arrows and evaluations."
+    )
     rm_subcmds.add_parser("starting-comment",
                           aliases=["sc"],
                           help="Remove the starting comment at this move.")
@@ -546,18 +614,22 @@ class ChessCli(cmd2.Cmd):
         aliases=["eval"],
         help="Remove the evaluation annotation at this move if any.")
     rm_arrows_argparser = rm_subcmds.add_parser(
-        "arrows", help="Remove arrows at this move.")
+        "arrows",
+        aliases=["arr"],
+        help=
+        "Remove arrows at this move. Please specify some options if you not intend to remove all arrows at this move."
+    )
     rm_arrows_argparser.add_argument(
         "-f",
         "--from",
         dest="_from",
         type=chess.parse_square,
-        help="Remove arrows starting at this square.")
+        help="Remove only arrows starting at this square.")
     rm_arrows_argparser.add_argument(
         "-t",
         "--to",
         type=chess.parse_square,
-        help="Remove arrows ending at this square.")
+        help="Remove only arrows ending at this square.")
     rm_arrows_argparser.add_argument(
         "-c",
         "--color",
@@ -572,7 +644,11 @@ class ChessCli(cmd2.Cmd):
     def do_rm(self, args) -> None:
         " Remove various things at the current move (like the comment or arrows). "
         if args.subcmd in ["c", "comment"]:
-            self.game_node.comment = ""
+            if args.raw:
+                self.game_node.comment = ""
+            else:
+                self.game_node.comment = update_comment_text(
+                    self.game_node.comment, "")
         elif args.subcmd in ["sc", "starting_comment"]:
             self.game_node.starting_comment = ""
         elif args.subcmd == "nags":
@@ -588,7 +664,7 @@ class ChessCli(cmd2.Cmd):
                 self.poutput(
                     f"Error: The NAG {nags.ascii_glyph(args.nag)} was not set for this move so it couldn't be removed."
                 )
-        elif args.subcmd == "arrows":
+        elif args.subcmd in ["arrows", "arr"]:
             color_abbreviations: dict[str, str] = {
                 "g": "green",
                 "y": "yellow",
@@ -760,7 +836,8 @@ class ChessCli(cmd2.Cmd):
 
         # Just a very small method that should be called when we've yielded a line.
         def carriage_return():
-            nonlocal current_line; nonlocal moves_at_current_line
+            nonlocal current_line
+            nonlocal moves_at_current_line
             current_line = ""
             moves_at_current_line = 0
 
@@ -812,7 +889,8 @@ class ChessCli(cmd2.Cmd):
                                                        sideline.mainline()),
                                 show_sidelines=show_sidelines,
                                 recurse_sidelines=recurse_sidelines,
-                                show_comments=show_comments, include_sidelines_at_first_move=False):
+                                show_comments=show_comments,
+                                include_sidelines_at_first_move=False):
                             # Indent the sideline a bit.
                             yield f"  {line}"
                 elif show_sidelines:
