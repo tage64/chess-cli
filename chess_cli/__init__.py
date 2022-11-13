@@ -1074,7 +1074,7 @@ class ChessCli(cmd2.Cmd):
                                                           i] + parent.variations[
                                                               i + 1:]
 
-    engine_argparser = cmd2.Cmd2ArgumentParser()
+    engine_argparser = cmd2.Cmd2ArgumentParser(description = "Everything related to chess engines. See subcommands for detailes")
     engine_argparser.add_argument(
         "-s",
         "--select",
