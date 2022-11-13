@@ -1,15 +1,5 @@
-ascii_nags: dict[int, str] = {
-    1: "!",
-    2: "?",
-    3: "!!",
-    4: "??",
-    5: "!?",
-    6: "?!"
-}
-nag_asciis: dict[str, int] = {
-    glyph: number
-    for (number, glyph) in ascii_nags.items()
-}
+ascii_nags: dict[int, str] = {1: "!", 2: "?", 3: "!!", 4: "??", 5: "!?", 6: "?!"}
+nag_asciis: dict[str, int] = {glyph: number for (number, glyph) in ascii_nags.items()}
 
 nag_descriptions: dict[int, str] = {
     1: "good move",
@@ -150,7 +140,7 @@ nag_descriptions: dict[int, str] = {
     136: "White has moderate time control pressure",
     137: "Black has moderate time control pressure",
     138: "White has severe time control pressure / zeitnot",
-    139: "Black has severe time control pressure / zeitnot"
+    139: "Black has severe time control pressure / zeitnot",
 }
 
 
@@ -173,5 +163,6 @@ def parse_nag(text: str) -> int:
         return nag_asciis[text]
     if not text.startswith("$"):
         raise ValueError(
-            f"Invalid NAG. Must either be an ascii glyph or start with a '$'")
+            f"Invalid NAG. Must either be an ascii glyph or start with a '$'"
+        )
     return int(text[1:])

@@ -23,14 +23,14 @@ import cmd2
 import more_itertools
 import toml  # type: ignore
 
-__version__ = '0.1.0'
+__version__ = "0.1.0"
 
 MOVE_NUMBER_REGEX: re.Pattern = re.compile("(\d+)((\.{3})|\.?)")
 COMMANDS_IN_COMMENTS_REGEX: re.Pattern = re.compile("\[%.+?\]")
 
 
 class MoveNumber(NamedTuple):
-    """ A move number is a fullmove number and the color that made the move.
+    """A move number is a fullmove number and the color that made the move.
     E.G. "1." would be move number 1 and color white while "10..." would be move number 10 and color black.
     """
 
@@ -39,8 +39,7 @@ class MoveNumber(NamedTuple):
 
     @staticmethod
     def last(pos: Union[chess.Board, chess.pgn.ChildNode]):
-        """ Get the move number from the previously executed move.
-        """
+        """Get the move number from the previously executed move."""
         if isinstance(pos, chess.pgn.ChildNode):
             board = pos.board()
         else:
@@ -49,7 +48,7 @@ class MoveNumber(NamedTuple):
 
     @staticmethod
     def from_regex_match(match: re.Match):
-        " Create a move number from a regex match. "
+        "Create a move number from a regex match."
         number: int = int(match.group(1))
         if match.group(3) is not None:
             color = chess.BLACK
@@ -59,7 +58,7 @@ class MoveNumber(NamedTuple):
 
     @staticmethod
     def parse(move_text: str):
-        """ Parse a chess move number like "3." or "5...".
+        """Parse a chess move number like "3." or "5...".
         Plain numbers without any dots at the end will be parsed as if it was white who moved.
         Will raise ValueError if the parsing failes.
         """
@@ -69,40 +68,55 @@ class MoveNumber(NamedTuple):
         return MoveNumber.from_regex_match(match)
 
     def previous(self):
-        " Get previous move. "
+        "Get previous move."
         if self.color == chess.WHITE:
             return MoveNumber(self.move_number - 1, chess.BLACK)
         else:
             return MoveNumber(self.move_number, chess.WHITE)
 
     def next(self):
-        " Get next move. "
+        "Get next move."
         if self.color == chess.WHITE:
             return MoveNumber(self.move_number, chess.BLACK)
         else:
             return MoveNumber(self.move_number + 1, chess.WHITE)
 
     def __str__(self) -> str:
-        return str(
-            self.move_number) + ("." if self.color == chess.WHITE else "...")
+        return str(self.move_number) + ("." if self.color == chess.WHITE else "...")
 
     def __lt__(self, other) -> bool:
-        return self.move_number < other.move_number or self.move_number == other.move_number and self.color == chess.WHITE and other.color == chess.BLACK
+        return (
+            self.move_number < other.move_number
+            or self.move_number == other.move_number
+            and self.color == chess.WHITE
+            and other.color == chess.BLACK
+        )
 
     def __gt__(self, other) -> bool:
-        return self.move_number > other.move_number or self.move_number == other.move_number and self.color == chess.BLACK and other.color == chess.WHITE
+        return (
+            self.move_number > other.move_number
+            or self.move_number == other.move_number
+            and self.color == chess.BLACK
+            and other.color == chess.WHITE
+        )
 
     def __le__(self, other) -> bool:
-        return self.move_number < other.move_number or self.move_number == other.move_number and (
-            self.color == chess.WHITE or other.color == chess.BLACK)
+        return (
+            self.move_number < other.move_number
+            or self.move_number == other.move_number
+            and (self.color == chess.WHITE or other.color == chess.BLACK)
+        )
 
     def __ge__(self, other) -> bool:
-        return self.move_number > other.move_number or self.move_number == other.move_number and (
-            self.color == chess.BLACK or other.color == chess.WHITE)
+        return (
+            self.move_number > other.move_number
+            or self.move_number == other.move_number
+            and (self.color == chess.BLACK or other.color == chess.WHITE)
+        )
 
 
 class EngineConf(NamedTuple):
-    " Configuration for an engine. "
+    "Configuration for an engine."
     path: str  # Path of engine executable.
     protocol: str  # "uci" or "xboard"
     options: dict[str, Union[str, int, bool, None]] = {}
@@ -110,7 +124,7 @@ class EngineConf(NamedTuple):
 
 
 class Analysis(NamedTuple):
-    " Information about analysis."
+    "Information about analysis."
 
     result: chess.engine.SimpleAnalysisResult
     engine: str
@@ -118,9 +132,11 @@ class Analysis(NamedTuple):
     san: Optional[str]
 
 
-def move_str(game_node: chess.pgn.GameNode,
-             include_move_number: bool = True,
-             include_sideline_arrows: bool = True) -> str:
+def move_str(
+    game_node: chess.pgn.GameNode,
+    include_move_number: bool = True,
+    include_sideline_arrows: bool = True,
+) -> str:
     res: str = ""
     if not isinstance(game_node, chess.pgn.ChildNode):
         res += "start"
@@ -138,11 +154,18 @@ def move_str(game_node: chess.pgn.GameNode,
                 res += nag_strs[0]
             else:
                 res += f"[{', '.join(nag_strs)}]"
-    if (game_node.comment or game_node.arrows() or game_node.eval() is not None
-            or game_node.clock() is not None):
+    if (
+        game_node.comment
+        or game_node.arrows()
+        or game_node.eval() is not None
+        or game_node.clock() is not None
+    ):
         res += "-"
-    if include_sideline_arrows and game_node.parent is not None and not game_node.parent.variations[
-            -1] == game_node:
+    if (
+        include_sideline_arrows
+        and game_node.parent is not None
+        and not game_node.parent.variations[-1] == game_node
+    ):
         res += ">"
     return res
 
@@ -162,37 +185,35 @@ def score_str(score: chess.engine.Score) -> str:
 
 
 def comment_text(raw_comment: str) -> str:
-    """ Strip out all commands like [%cal xxx] or [%clk xxx] from a comment.
-    """
+    """Strip out all commands like [%cal xxx] or [%clk xxx] from a comment."""
     return " ".join(COMMANDS_IN_COMMENTS_REGEX.split(raw_comment)).strip()
 
 
 def commands_in_comment(raw_comment: str) -> str:
-    " Get a string with all embedded commands in a pgn comment. "
+    "Get a string with all embedded commands in a pgn comment."
     return " ".join(COMMANDS_IN_COMMENTS_REGEX.findall(raw_comment))
 
 
 def update_comment_text(original_comment: str, new_text: str) -> str:
-    " Return a new comment with the same embedded commands but with the text replaced. "
+    "Return a new comment with the same embedded commands but with the text replaced."
     return f"{commands_in_comment(original_comment)}\n{new_text}"
 
 
 class ChessCli(cmd2.Cmd):
-    """A repl to edit and analyse chess games. """
+    """A repl to edit and analyse chess games."""
 
-    def __init__(self,
-                 file_name: Optional[str] = None,
-                 config_file: Optional[str] = None):
+    def __init__(
+        self, file_name: Optional[str] = None, config_file: Optional[str] = None
+    ):
         # Set cmd shortcuts
         shortcuts: dict[str, str] = dict(cmd2.DEFAULT_SHORTCUTS)
-        super().__init__(shortcuts=shortcuts,
-                         include_py=True,
-                         allow_cli_args=False)
+        super().__init__(shortcuts=shortcuts, include_py=True, allow_cli_args=False)
         self.self_in_py = True
         self.register_postloop_hook(self.close_engines)
 
-        self.config_file: str = (config_file or os.path.join(
-            appdirs.user_config_dir("chess-cli"), "config.toml"))
+        self.config_file: str = config_file or os.path.join(
+            appdirs.user_config_dir("chess-cli"), "config.toml"
+        )
 
         self.engine_confs: dict[str, EngineConf] = {}
         self.loaded_engines: dict[str, chess.engine.SimpleEngine] = {}
@@ -200,20 +221,22 @@ class ChessCli(cmd2.Cmd):
         self.engines_log_queue: queue.SimpleQueue[str] = queue.SimpleQueue()
         log_handler = logging.handlers.QueueHandler(self.engines_log_queue)
         log_handler.setLevel(logging.WARNING)
-        log_handler.setFormatter(
-            logging.Formatter("%(levelname)s: %(message)s"))
+        log_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
         chess.engine.LOGGER.addHandler(log_handler)
         self.selected_engines: list[str] = []
         self.running_analysis: dict[str, Analysis] = dict()
         self.analysis: list[Analysis] = []
-        self.analysis_by_node: defaultdict[chess.pgn.GameNode,
-                                           dict[str,
-                                                Analysis]] = defaultdict(dict)
+        self.analysis_by_node: defaultdict[
+            chess.pgn.GameNode, dict[str, Analysis]
+        ] = defaultdict(dict)
         self.auto_analysis_engines: list[str] = []
-        self.auto_analysis_number_of_moves = 3  # This is just arbitrary, it'll be changed later.
+        self.auto_analysis_number_of_moves = (
+            3  # This is just arbitrary, it'll be changed later.
+        )
 
         def update_auto_analysis(
-                x: cmd2.plugin.PostcommandData) -> cmd2.plugin.PostcommandData:
+            x: cmd2.plugin.PostcommandData,
+        ) -> cmd2.plugin.PostcommandData:
             self.update_auto_analysis()
             return x
 
@@ -225,8 +248,7 @@ class ChessCli(cmd2.Cmd):
                     items = toml.load(f)
                     engine_confs = items["engine-configurations"]
                     if not isinstance(engine_confs, dict):
-                        raise Exception(
-                            "'engine-configurations' must be a list.")
+                        raise Exception("'engine-configurations' must be a list.")
                     self.engine_confs = {
                         name: EngineConf(**values)
                         for (name, values) in engine_confs.items()
@@ -242,10 +264,8 @@ class ChessCli(cmd2.Cmd):
                         "This session will be started with an empty configuration."
                     )
         elif config_file is not None:
-            self.poutput(
-                f"Warning: Couldn't find config file at '{config_file}'.")
-            self.poutput(
-                "This session will be started with an empty configuration.")
+            self.poutput(f"Warning: Couldn't find config file at '{config_file}'.")
+            self.poutput("This session will be started with an empty configuration.")
 
         # Read the pgn file
         if file_name is not None:
@@ -259,9 +279,9 @@ class ChessCli(cmd2.Cmd):
         else:
             game_node = chess.pgn.Game()
         self.games: dict[str, chess.pgn.GameNode] = {"main": game_node}
-        self.file_names: dict[str, str] = ({} if file_name is None else {
-            "main": file_name
-        })
+        self.file_names: dict[str, str] = (
+            {} if file_name is None else {"main": file_name}
+        )
         self.current_game: str = "main"
 
         self.register_postcmd_hook(self.set_prompt)
@@ -291,26 +311,22 @@ class ChessCli(cmd2.Cmd):
 
     play_argparser = cmd2.Cmd2ArgumentParser()
     play_argparser.add_argument(
-        "moves",
-        nargs="+",
-        help="A list of moves in standard algibraic notation.")
+        "moves", nargs="+", help="A list of moves in standard algibraic notation."
+    )
     play_argparser.add_argument(
         "-c",
         "--comment",
-        help=
-        "Add a comment for the move (or the last move if more than one is supplied."
+        help="Add a comment for the move (or the last move if more than one is supplied.",
     )
     play_argparser.add_argument(
         "-m",
         "--main-line",
         action="store_true",
-        help=
-        "If a variation already exists from this move, add this new variation as the main line rather than a side line."
+        help="If a variation already exists from this move, add this new variation as the main line rather than a side line.",
     )
-    play_argparser.add_argument("-s",
-                                "--sideline",
-                                action="store_true",
-                                help="Add a sideline to this move.")
+    play_argparser.add_argument(
+        "-s", "--sideline", action="store_true", help="Add a sideline to this move."
+    )
 
     @cmd2.with_argparser(play_argparser)  # type: ignore
     def do_play(self, args) -> None:
@@ -335,52 +351,59 @@ class ChessCli(cmd2.Cmd):
             self.game_node.comment = args.comment
 
     show_argparser = cmd2.Cmd2ArgumentParser()
-    show_argparser.add_argument("what",
-                                choices=[
-                                    "comment", "nags", "evaluation", "arrows",
-                                    "clock", "starting-comment", "all"
-                                ],
-                                default="all",
-                                nargs="?",
-                                help="What to show.")
+    show_argparser.add_argument(
+        "what",
+        choices=[
+            "comment",
+            "nags",
+            "evaluation",
+            "arrows",
+            "clock",
+            "starting-comment",
+            "all",
+        ],
+        default="all",
+        nargs="?",
+        help="What to show.",
+    )
 
     @cmd2.with_argparser(show_argparser)  # type: ignore
     def do_show(self, args) -> None:
-        " Show various things like comments and arrows about the current move. "
-        if (isinstance(self.game_node, chess.pgn.ChildNode)
-                and self.game_node.starting_comment
-                and (args.what == "starting_comment" or args.what == "all")):
+        "Show various things like comments and arrows about the current move."
+        if (
+            isinstance(self.game_node, chess.pgn.ChildNode)
+            and self.game_node.starting_comment
+            and (args.what == "starting_comment" or args.what == "all")
+        ):
             self.poutput(self.game_node.starting_comment)
             self.poutput(
                 f"    {MoveNumber.last(self.game_node)} {self.game_node.san()}"
             )
-        if (self.game_node and (args.what == "comment" or args.what == "all")):
+        if self.game_node and (args.what == "comment" or args.what == "all"):
             self.poutput(self.game_node.comment)
-        if (self.game_node.nags
-                and (args.what == "nags" or args.what == "all")):
+        if self.game_node.nags and (args.what == "nags" or args.what == "all"):
             for nag in self.game_node.nags:
                 text: str = "NAG: " if args.what == "all" else ""
                 text += f"({nags.ascii_glyph(nag)}) {nags.description(nag)}"
                 self.poutput(text)
         eval = self.game_node.eval()
-        if (eval is not None
-                and (args.what == "evaluation" or args.what == "all")):
+        if eval is not None and (args.what == "evaluation" or args.what == "all"):
             text = "Evaluation: " if args.what == "all" else ""
             text += score_str(eval.relative)
             if self.game_node.eval_depth() is not None:
                 text += f", Depth: {self.game_node.eval_depth()}"
             self.poutput(text)
-        if (self.game_node.arrows()
-                and (args.what == "arrows" or args.what == "all")):
+        if self.game_node.arrows() and (args.what == "arrows" or args.what == "all"):
             text = "Arows: " if args.what == "all" else ""
-            text += str([
-                f"{arrow.color} {chess.square_name(arrow.tail)}-{chess.square_name(arrow.head)}"
-                for arrow in self.game_node.arrows()
-            ])
+            text += str(
+                [
+                    f"{arrow.color} {chess.square_name(arrow.tail)}-{chess.square_name(arrow.head)}"
+                    for arrow in self.game_node.arrows()
+                ]
+            )
             self.poutput(text)
         clock = self.game_node.clock()
-        if (clock is not None
-                and (args.what == "clock" or args.what == "all")):
+        if clock is not None and (args.what == "clock" or args.what == "all"):
             text = "Clock: " if args.what == "all" else ""
             text += str(datetime.timedelta(seconds=clock)).strip("0")
             self.poutput(text)
@@ -388,135 +411,136 @@ class ChessCli(cmd2.Cmd):
     add_argparser = cmd2.Cmd2ArgumentParser()
     add_subcmds = add_argparser.add_subparsers(dest="subcmd")
     add_comment_argparser = add_subcmds.add_parser(
-        "comment", aliases=["c"], help="Set comment for this move.")
-    add_comment_argparser.add_argument("comment",
-                                       default="",
-                                       nargs="?",
-                                       help="The new text.")
-    add_comment_argparser.add_argument("-a",
-                                   "--append",
-                                   action="store_true",
-                                   help="Append this text to the old comment.")
+        "comment", aliases=["c"], help="Set comment for this move."
+    )
+    add_comment_argparser.add_argument(
+        "comment", default="", nargs="?", help="The new text."
+    )
+    add_comment_argparser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help="Append this text to the old comment.",
+    )
     add_comment_argparser.add_argument(
         "-r",
         "--raw",
         action="store_true",
-        help=
-        "Replace the raw pgn comment which will override embedded commands like arrows and clocks."
+        help="Replace the raw pgn comment which will override embedded commands like arrows and clocks.",
     )
-    add_comment_argparser.add_argument("-e",
-                                   "--edit",
-                                   action="store_true",
-                                   help="Open the comment in your editor.")
+    add_comment_argparser.add_argument(
+        "-e", "--edit", action="store_true", help="Open the comment in your editor."
+    )
     add_starting_comment_argparser = add_subcmds.add_parser(
         "starting-comment",
         aliases=["sc"],
-        help=
-        "Set starting_comment for this move. Only moves that starts a variation can have a starting comment."
+        help="Set starting_comment for this move. Only moves that starts a variation can have a starting comment.",
     )
-    add_starting_comment_argparser.add_argument("comment",
-                                       default="",
-                                       nargs="?",
-                                       help="The new text.")
+    add_starting_comment_argparser.add_argument(
+        "comment", default="", nargs="?", help="The new text."
+    )
     add_starting_comment_argparser.add_argument(
         "-a",
         "--append",
         action="store_true",
-        help="Append this text to the old comment.")
-    add_starting_comment_argparser.add_argument("-e",
-                                   "--edit",
-                                   action="store_true",
-                                   help="Open the comment in your editor.")
+        help="Append this text to the old comment.",
+    )
+    add_starting_comment_argparser.add_argument(
+        "-e", "--edit", action="store_true", help="Open the comment in your editor."
+    )
     add_nag_argparser = add_subcmds.add_parser(
-        "nag", help="Set a nag (numeric annotation glyph) on this move.")
+        "nag", help="Set a nag (numeric annotation glyph) on this move."
+    )
     add_nag_argparser.add_argument(
         "nag",
-        help=
-        "Nag, either a number like '$17' or an ascii glyph like '!' or '?!'.")
+        help="Nag, either a number like '$17' or an ascii glyph like '!' or '?!'.",
+    )
     add_nag_argparser.add_argument(
         "-a",
         "--append",
         action="store_true",
-        help=
-        "Append this nag to the list of existing nags at this move instead of replacing them."
+        help="Append this nag to the list of existing nags at this move instead of replacing them.",
     )
     add_eval_argparser = add_subcmds.add_parser(
-        "evaluation",
-        aliases=["eval"],
-        help="Set an evaluation for this move.")
-    add_eval_group = add_eval_argparser.add_mutually_exclusive_group(
-        required=True)
+        "evaluation", aliases=["eval"], help="Set an evaluation for this move."
+    )
+    add_eval_group = add_eval_argparser.add_mutually_exclusive_group(required=True)
     add_eval_group.add_argument(
         "--cp",
         type=int,
-        help=
-        "Relative score in centi pawns from the player to move's point of view."
+        help="Relative score in centi pawns from the player to move's point of view.",
     )
     add_eval_group.add_argument(
         "--mate",
         "--mate-in",
         type=int,
-        help="The player to move can force mate in the given number of moves.")
+        help="The player to move can force mate in the given number of moves.",
+    )
     add_eval_group.add_argument(
         "--mated",
         "--mated-in",
         type=int,
-        help="The player to move will be mated in the given number of moves.")
+        help="The player to move will be mated in the given number of moves.",
+    )
     add_eval_argparser.add_argument(
-        "-d",
-        "--depth",
-        type=int,
-        help="The depth at which the analysis was made.")
+        "-d", "--depth", type=int, help="The depth at which the analysis was made."
+    )
     add_arrow_argparser = add_subcmds.add_parser(
-        "arrow", aliases=["arr"], help="Draw an arrow on the board.")
+        "arrow", aliases=["arr"], help="Draw an arrow on the board."
+    )
     add_arrow_argparser.add_argument(
         "_from",
         type=chess.parse_square,
-        help="The square from which the arrow is drawn.")
+        help="The square from which the arrow is drawn.",
+    )
     add_arrow_argparser.add_argument(
-        "to",
-        type=chess.parse_square,
-        help="The square which the arrow is pointing to.")
+        "to", type=chess.parse_square, help="The square which the arrow is pointing to."
+    )
     add_arrow_argparser.add_argument(
         "color",
         choices=["red", "r", "yellow", "y", "green", "g", "blue", "b"],
         default="green",
         nargs="?",
-        help=
-        "Color of the arrow. Red/yellow/green/blue can be abbreviated as r/y/g/b."
+        help="Color of the arrow. Red/yellow/green/blue can be abbreviated as r/y/g/b.",
     )
     add_clock_argparser = add_subcmds.add_parser(
-        "clock",
-        help="Set the remaining time for the player making this move.")
+        "clock", help="Set the remaining time for the player making this move."
+    )
     add_clock_argparser.add_argument("time", help="Remaining time.")
 
     @cmd2.with_argparser(add_argparser)  # type: ignore
     def do_add(self, args) -> None:
-        " Add various things (like comments, nags or arrows) at the current move. "
+        "Add various things (like comments, nags or arrows) at the current move."
         if args.subcmd in ["comment", "c"]:
             if args.edit:
                 with tempfile.NamedTemporaryFile(mode="w+") as file:
-                    file.write(self.game_node.comment if args.raw else
-                                    comment_text(self.game_node.comment))
+                    file.write(
+                        self.game_node.comment
+                        if args.raw
+                        else comment_text(self.game_node.comment)
+                    )
                     file.flush()
                     self.do_shell(f"{self.editor} '{file.name}'")
                     file.seek(0)
                     new_comment: str = file.read().strip()
                     self.game_node.comment = (
-                        new_comment if args.raw else update_comment_text(
-                            self.game_node.comment, new_comment))
+                        new_comment
+                        if args.raw
+                        else update_comment_text(self.game_node.comment, new_comment)
+                    )
             elif args.append and self.game_node.comment:
                 raw_comment: str = self.game_node.comment
-                to_edit = (raw_comment
-                           if args.raw else comment_text(raw_comment))
+                to_edit = raw_comment if args.raw else comment_text(raw_comment)
                 appended: str = " ".join((to_edit, args.comment))
-                self.game_node.comment = (appended
-                                          if args.raw else update_comment_text(
-                                              raw_comment, appended))
+                self.game_node.comment = (
+                    appended if args.raw else update_comment_text(raw_comment, appended)
+                )
             else:
                 self.game_node.comment = (
-                    args.comment if args.raw else update_comment_text(
-                        self.game_node.comment, args.comment))
+                    args.comment
+                    if args.raw
+                    else update_comment_text(self.game_node.comment, args.comment)
+                )
         elif args.subcmd in ["sc", "starting-comment"]:
             if not self.game_node.starts_variation():
                 self.poutput(
@@ -532,7 +556,8 @@ class ChessCli(cmd2.Cmd):
                     self.game_node.starting_comment = file.read().strip()
             elif args.append and self.game_node.starting_comment:
                 self.game_node.starting_comment = " ".join(
-                    (self.game_node.starting_comment, args.comment))
+                    (self.game_node.starting_comment, args.comment)
+                )
             else:
                 self.game_node.starting_comment = args.comment
         elif args.subcmd == "nag":
@@ -545,8 +570,7 @@ class ChessCli(cmd2.Cmd):
                 self.game_node.nags.add(nag)
             else:
                 self.game_node.nags = {nag}
-            self.poutput(
-                f"Set NAG ({nags.ascii_glyph(nag)}): {nags.description(nag)}.")
+            self.poutput(f"Set NAG ({nags.ascii_glyph(nag)}): {nags.description(nag)}.")
         elif args.subcmd in ["eval", "evaluation"]:
             if args.mate is not None:
                 score: chess.engine.Score = chess.engine.Mate(args.mate)
@@ -555,25 +579,25 @@ class ChessCli(cmd2.Cmd):
             else:
                 score = chess.engine.Cp(args.cp)
             self.game_node.set_eval(
-                chess.engine.PovScore(score, self.game_node.turn()),
-                args.depth)
+                chess.engine.PovScore(score, self.game_node.turn()), args.depth
+            )
         elif args.subcmd in ["arr", "arrow"]:
             color_abbreviations: dict[str, str] = {
                 "g": "green",
                 "y": "yellow",
                 "r": "red",
-                "b": "blue"
+                "b": "blue",
             }
             if args.color in color_abbreviations:
                 color = color_abbreviations[args.color]
             else:
                 color = args.color
             self.game_node.set_arrows(
-                self.game_node.arrows() +
-                [chess.svg.Arrow(args._from, args.to, color=color)])
+                self.game_node.arrows()
+                + [chess.svg.Arrow(args._from, args.to, color=color)]
+            )
         elif args.subcmd == "clock":
-            time_parsed = re.fullmatch("(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?",
-                                       args.time)
+            time_parsed = re.fullmatch("(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?", args.time)
             if time_parsed is None:
                 self.poutput(f"Error: Couldn't parse time '{args.time}'.")
                 return
@@ -592,63 +616,67 @@ class ChessCli(cmd2.Cmd):
     rm_argparser = cmd2.Cmd2ArgumentParser()
     rm_subcmds = rm_argparser.add_subparsers(dest="subcmd")
     rm_comment_argparser = rm_subcmds.add_parser(
-        "comment", aliases=["c"], help="Remove the comment at this move.")
+        "comment", aliases=["c"], help="Remove the comment at this move."
+    )
     rm_comment_argparser.add_argument(
         "-r",
         "--raw",
         action="store_true",
-        help=
-        "Remove the entire raw comment which will include all embedded commands like arrows and evaluations."
+        help="Remove the entire raw comment which will include all embedded commands like arrows and evaluations.",
     )
-    rm_subcmds.add_parser("starting-comment",
-                          aliases=["sc"],
-                          help="Remove the starting comment at this move.")
+    rm_subcmds.add_parser(
+        "starting-comment",
+        aliases=["sc"],
+        help="Remove the starting comment at this move.",
+    )
     rm_subcmds.add_parser("nags", help="Remove all NAGs at this move.")
     rm_nag_argparser = rm_subcmds.add_parser(
-        "nag", help="Remove a specific NAG at this move.")
-    rm_nag_argparser.add_argument("nag",
-                                  type=nags.parse_nag,
-                                  help="A NAG to remove. Like '$16' or '??'.")
+        "nag", help="Remove a specific NAG at this move."
+    )
+    rm_nag_argparser.add_argument(
+        "nag", type=nags.parse_nag, help="A NAG to remove. Like '$16' or '??'."
+    )
     rm_subcmds.add_parser(
         "evaluation",
         aliases=["eval"],
-        help="Remove the evaluation annotation at this move if any.")
+        help="Remove the evaluation annotation at this move if any.",
+    )
     rm_arrows_argparser = rm_subcmds.add_parser(
         "arrows",
         aliases=["arr"],
-        help=
-        "Remove arrows at this move. Please specify some options if you not intend to remove all arrows at this move."
+        help="Remove arrows at this move. Please specify some options if you not intend to remove all arrows at this move.",
     )
     rm_arrows_argparser.add_argument(
         "-f",
         "--from",
         dest="_from",
         type=chess.parse_square,
-        help="Remove only arrows starting at this square.")
+        help="Remove only arrows starting at this square.",
+    )
     rm_arrows_argparser.add_argument(
         "-t",
         "--to",
         type=chess.parse_square,
-        help="Remove only arrows ending at this square.")
+        help="Remove only arrows ending at this square.",
+    )
     rm_arrows_argparser.add_argument(
         "-c",
         "--color",
         choices=["red", "r", "yellow", "y", "green", "g", "blue", "b"],
-        help=
-        "Remove only arrows with this color. Red/yellow/green/blue can be abbreviated as r/y/g/b."
+        help="Remove only arrows with this color. Red/yellow/green/blue can be abbreviated as r/y/g/b.",
     )
     rm_subcmds.add_parser(
-        "clock", help="Remove the clock annotation at this move if any.")
+        "clock", help="Remove the clock annotation at this move if any."
+    )
 
     @cmd2.with_argparser(rm_argparser)  # type: ignore
     def do_rm(self, args) -> None:
-        " Remove various things at the current move (like the comment or arrows). "
+        "Remove various things at the current move (like the comment or arrows)."
         if args.subcmd in ["c", "comment"]:
             if args.raw:
                 self.game_node.comment = ""
             else:
-                self.game_node.comment = update_comment_text(
-                    self.game_node.comment, "")
+                self.game_node.comment = update_comment_text(self.game_node.comment, "")
         elif args.subcmd in ["sc", "starting_comment"]:
             self.game_node.starting_comment = ""
         elif args.subcmd == "nags":
@@ -669,7 +697,7 @@ class ChessCli(cmd2.Cmd):
                 "g": "green",
                 "y": "yellow",
                 "r": "red",
-                "b": "blue"
+                "b": "blue",
             }
             if args.color is None:
                 color: Optional[str] = None
@@ -678,10 +706,14 @@ class ChessCli(cmd2.Cmd):
             else:
                 color = args.color
             self.game_node.set_arrows(
-                (arr for arr in self.game_node.arrows()
-                 if args._from is None or not args._from == arr.tail
-                 if args.to is None or not args.to == arr.head
-                 if color is None or not color == arr.color))
+                (
+                    arr
+                    for arr in self.game_node.arrows()
+                    if args._from is None or not args._from == arr.tail
+                    if args.to is None or not args.to == arr.head
+                    if color is None or not color == arr.color
+                )
+            )
         else:
             assert False, "Unhandled subcommand."
 
@@ -690,40 +722,39 @@ class ChessCli(cmd2.Cmd):
         "-c",
         "--comments",
         action="store_true",
-        help=
-        "Show all comments. Otherwise just a dash (\"-\") will be shown at each move with a comment."
+        help='Show all comments. Otherwise just a dash ("-") will be shown at each move with a comment.',
     )
     _moves_from_group = moves_argparser.add_mutually_exclusive_group()
-    _moves_from_group.add_argument("--fc",
-                                   "--from-current",
-                                   dest="from_current",
-                                   action="store_true",
-                                   help="Print moves from the current move.")
     _moves_from_group.add_argument(
-        "-f",
-        "--from",
-        dest="_from",
-        help="Print moves from the given move number.")
+        "--fc",
+        "--from-current",
+        dest="from_current",
+        action="store_true",
+        help="Print moves from the current move.",
+    )
+    _moves_from_group.add_argument(
+        "-f", "--from", dest="_from", help="Print moves from the given move number."
+    )
     _moves_to_group = moves_argparser.add_mutually_exclusive_group()
     _moves_to_group.add_argument(
         "--tc",
         "--to-current",
         dest="to_current",
         action="store_true",
-        help="Print only moves upto and including the current move.")
-    _moves_to_group.add_argument("-t",
-                                 "--to",
-                                 help="Print moves to the given move number.")
+        help="Print only moves upto and including the current move.",
+    )
+    _moves_to_group.add_argument(
+        "-t", "--to", help="Print moves to the given move number."
+    )
     moves_argparser.add_argument(
         "-s",
         "--sidelines",
         action="store_true",
-        help="Print a short list of the sidelines at each move with variations."
+        help="Print a short list of the sidelines at each move with variations.",
     )
-    moves_argparser.add_argument("-r",
-                                 "--recurse",
-                                 action="store_true",
-                                 help="Recurse into sidelines.")
+    moves_argparser.add_argument(
+        "-r", "--recurse", action="store_true", help="Recurse into sidelines."
+    )
 
     @cmd2.with_argparser(moves_argparser)  # type: ignore
     def do_moves(self, args) -> None:
@@ -760,7 +791,8 @@ class ChessCli(cmd2.Cmd):
 
         if args.to is not None:
             node = self.find_move(
-                args.to, break_search_backwards_at=lambda x: x is start_node)
+                args.to, break_search_backwards_at=lambda x: x is start_node
+            )
             if node is None:
                 self.poutput(f"Error: Couldn't find the move {args.to}")
                 return
@@ -782,19 +814,24 @@ class ChessCli(cmd2.Cmd):
             end_node,
             show_sidelines=args.sidelines,
             recurse_sidelines=args.recurse,
-            show_comments=args.comments)
+            show_comments=args.comments,
+        )
 
         for line in lines:
             self.poutput(f"  {line}")
 
-    def display_game_segment(self, start_node: chess.pgn.ChildNode,
-                             end_node: chess.pgn.ChildNode,
-                             show_sidelines: bool, recurse_sidelines: bool,
-                             show_comments: bool) -> Iterable[str]:
-        """ Given a start and end node in this game, which must be connected,
+    def display_game_segment(
+        self,
+        start_node: chess.pgn.ChildNode,
+        end_node: chess.pgn.ChildNode,
+        show_sidelines: bool,
+        recurse_sidelines: bool,
+        show_comments: bool,
+    ) -> Iterable[str]:
+        """Given a start and end node in this game, which must be connected,
         yield lines printing all moves between them (including endpoints).
         There are also options to toggle visibility of comments, show a short
-        list of the sidelines at each move with sidelines, or even recurse and 
+        list of the sidelines at each move with sidelines, or even recurse and
         show the endire sidelines.
         """
 
@@ -814,19 +851,22 @@ class ChessCli(cmd2.Cmd):
             if not isinstance(node.parent, chess.pgn.ChildNode):
                 break
             node = node.parent
-        return self.display_moves(moves_on_mainline,
-                                  show_sidelines=show_sidelines,
-                                  recurse_sidelines=recurse_sidelines,
-                                  show_comments=show_comments)
+        return self.display_moves(
+            moves_on_mainline,
+            show_sidelines=show_sidelines,
+            recurse_sidelines=recurse_sidelines,
+            show_comments=show_comments,
+        )
 
     def display_moves(
-            self,
-            moves: Iterable[chess.pgn.ChildNode],
-            show_sidelines: bool,
-            recurse_sidelines: bool,
-            show_comments: bool,
-            include_sidelines_at_first_move: bool = True) -> Iterable[str]:
-        """ Same as display_game_segment(), but this function takes an iterable
+        self,
+        moves: Iterable[chess.pgn.ChildNode],
+        show_sidelines: bool,
+        recurse_sidelines: bool,
+        show_comments: bool,
+        include_sidelines_at_first_move: bool = True,
+    ) -> Iterable[str]:
+        """Same as display_game_segment(), but this function takes an iterable
         of moves instead of a starting and ending game node.
         """
 
@@ -846,15 +886,18 @@ class ChessCli(cmd2.Cmd):
                 yield current_line
                 carriage_return()
 
-            include_move_number = (True if moves_at_current_line == 0 else
-                                   node.turn() == chess.BLACK)
+            include_move_number = (
+                True if moves_at_current_line == 0 else node.turn() == chess.BLACK
+            )
 
             # Add a space if current_line is not empty.
             if current_line:
                 current_line += " "
-            current_line += move_str(node,
-                                     include_move_number=include_move_number,
-                                     include_sideline_arrows=True)
+            current_line += move_str(
+                node,
+                include_move_number=include_move_number,
+                include_sideline_arrows=True,
+            )
             if node.turn() == chess.BLACK:
                 moves_at_current_line += 1
 
@@ -865,8 +908,9 @@ class ChessCli(cmd2.Cmd):
                 # No carriage_return() is needed here.
 
             # If this move has any sidelines.
-            if (len(node.parent.variations) > 1
-                    and (include_sidelines_at_first_move or not i == 0)):
+            if len(node.parent.variations) > 1 and (
+                include_sidelines_at_first_move or not i == 0
+            ):
                 if recurse_sidelines:
                     # Flush the current line if needed.
                     if current_line:
@@ -885,12 +929,12 @@ class ChessCli(cmd2.Cmd):
                         # Call this method recursively with the mainline
                         # following the sideline as moves iterator.
                         for line in self.display_moves(
-                                more_itertools.prepend(sideline,
-                                                       sideline.mainline()),
-                                show_sidelines=show_sidelines,
-                                recurse_sidelines=recurse_sidelines,
-                                show_comments=show_comments,
-                                include_sidelines_at_first_move=False):
+                            more_itertools.prepend(sideline, sideline.mainline()),
+                            show_sidelines=show_sidelines,
+                            recurse_sidelines=recurse_sidelines,
+                            show_comments=show_comments,
+                            include_sidelines_at_first_move=False,
+                        ):
                             # Indent the sideline a bit.
                             yield f"  {line}"
                 elif show_sidelines:
@@ -900,14 +944,24 @@ class ChessCli(cmd2.Cmd):
                     if current_line:
                         yield current_line
                         carriage_return()
-                    current_line = ("  (" + "; ".join(
-                        map(
-                            lambda sideline:
-                            (" " if sideline is node else move_str(
-                                sideline,
-                                include_move_number=False,
-                                include_sideline_arrows=False)),
-                            node.parent.variations)) + ")")
+                    current_line = (
+                        "  ("
+                        + "; ".join(
+                            map(
+                                lambda sideline: (
+                                    " "
+                                    if sideline is node
+                                    else move_str(
+                                        sideline,
+                                        include_move_number=False,
+                                        include_sideline_arrows=False,
+                                    )
+                                ),
+                                node.parent.variations,
+                            )
+                        )
+                        + ")"
+                    )
                     yield current_line
                     carriage_return()
 
@@ -922,20 +976,23 @@ class ChessCli(cmd2.Cmd):
         search_forwards: bool = True,
         search_backwards: bool = True,
         recurse_sidelines: bool = True,
-        break_search_forwards_at: Optional[Callable[[chess.pgn.ChildNode],
-                                                    bool]] = None,
-        break_search_backwards_at: Optional[Callable[[chess.pgn.ChildNode],
-                                                     bool]] = None
+        break_search_forwards_at: Optional[
+            Callable[[chess.pgn.ChildNode], bool]
+        ] = None,
+        break_search_backwards_at: Optional[
+            Callable[[chess.pgn.ChildNode], bool]
+        ] = None,
     ) -> Optional[chess.pgn.ChildNode]:
-        """ Search for a move by a string of its move number and SAN.
+        """Search for a move by a string of its move number and SAN.
         Like 'e4' '8.Nxe5' or 8...'.
         """
         move_number_match = MOVE_NUMBER_REGEX.match(move_str)
         if move_number_match is not None:
             move_number: Optional[MoveNumber] = MoveNumber.from_regex_match(
-                move_number_match)
+                move_number_match
+            )
             if len(move_str) > move_number_match.end():
-                move: Optional[str] = move_str[move_number_match.end():]
+                move: Optional[str] = move_str[move_number_match.end() :]
             else:
                 move = None
         else:
@@ -949,8 +1006,7 @@ class ChessCli(cmd2.Cmd):
                         return False
                 except ValueError:
                     return False
-            if (move_number is not None
-                    and not move_number == MoveNumber.last(node)):
+            if move_number is not None and not move_number == MoveNumber.last(node):
                 return False
             return True
 
@@ -967,43 +1023,41 @@ class ChessCli(cmd2.Cmd):
         search_queue.append(current_node)
         if search_sidelines:
             sidelines = current_node.parent.variations
-            search_queue.extend(
-                (x for x in sidelines if not x is current_node))
+            search_queue.extend((x for x in sidelines if not x is current_node))
 
-        if (search_forwards
-                and (move_number is None
-                     or move_number >= MoveNumber.last(current_node))):
+        if search_forwards and (
+            move_number is None or move_number >= MoveNumber.last(current_node)
+        ):
             while search_queue:
                 node: chess.pgn.ChildNode = search_queue.popleft()
                 if check(node):
                     return node
-                if (break_search_forwards_at is not None
-                        and break_search_forwards_at(node)):
+                if break_search_forwards_at is not None and break_search_forwards_at(
+                    node
+                ):
                     break
-                if (move_number is not None
-                        and move_number < MoveNumber.last(node)):
+                if move_number is not None and move_number < MoveNumber.last(node):
                     break
-                if (search_sidelines
-                        and (node.is_main_variation or recurse_sidelines)):
+                if search_sidelines and (node.is_main_variation or recurse_sidelines):
                     search_queue.extend(node.variations)
                 else:
                     next = node.next()
                     if next is not None:
                         search_queue.append(next)
 
-        if (search_backwards
-                and (move_number is None
-                     or move_number < MoveNumber.last(current_node))):
+        if search_backwards and (
+            move_number is None or move_number < MoveNumber.last(current_node)
+        ):
             node = current_node
             while isinstance(node.parent, chess.pgn.ChildNode):
                 node = node.parent
                 if check(node):
                     return node
-                if (break_search_backwards_at is not None
-                        and break_search_backwards_at(node)):
+                if break_search_backwards_at is not None and break_search_backwards_at(
+                    node
+                ):
                     break
-                if (move_number is not None
-                        and move_number > MoveNumber.last(node)):
+                if move_number is not None and move_number > MoveNumber.last(node):
                     break
         return None
 
@@ -1011,29 +1065,34 @@ class ChessCli(cmd2.Cmd):
     goto_argparser.add_argument(
         "move",
         nargs="?",
-        help="A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'.")
+        help="A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'.",
+    )
     goto_group = goto_argparser.add_mutually_exclusive_group()
-    goto_group.add_argument("-s",
-                            "--start",
-                            action="store_true",
-                            help="Go to the start of the game.")
-    goto_group.add_argument("-e",
-                            "--end",
-                            action="store_true",
-                            help="Go to the end of the game.")
-    goto_argparser.add_argument("-n",
-                                "--no-sidelines",
-                                action="store_true",
-                                help="Don't search any sidelines at all.")
+    goto_group.add_argument(
+        "-s", "--start", action="store_true", help="Go to the start of the game."
+    )
+    goto_group.add_argument(
+        "-e", "--end", action="store_true", help="Go to the end of the game."
+    )
+    goto_argparser.add_argument(
+        "-n",
+        "--no-sidelines",
+        action="store_true",
+        help="Don't search any sidelines at all.",
+    )
     _goto_direction_group = goto_argparser.add_mutually_exclusive_group()
-    _goto_direction_group.add_argument("-b",
-                                       "--backwards-only",
-                                       action="store_true",
-                                       help="Only search the game backwards.")
-    _goto_direction_group.add_argument("-f",
-                                       "--forwards-only",
-                                       action="store_true",
-                                       help="Only search the game forwards.")
+    _goto_direction_group.add_argument(
+        "-b",
+        "--backwards-only",
+        action="store_true",
+        help="Only search the game backwards.",
+    )
+    _goto_direction_group.add_argument(
+        "-f",
+        "--forwards-only",
+        action="store_true",
+        help="Only search the game forwards.",
+    )
 
     @cmd2.with_argparser(goto_argparser)  # type: ignore
     def do_goto(self, args) -> None:
@@ -1045,10 +1104,12 @@ class ChessCli(cmd2.Cmd):
         elif args.end:
             self.game_node = self.game_node.end()
         elif args.move is not None:
-            node = self.find_move(args.move,
-                                  search_sidelines=not args.no_sidelines,
-                                  search_forwards=not args.backwards_only,
-                                  search_backwards=not args.forwards_only)
+            node = self.find_move(
+                args.move,
+                search_sidelines=not args.no_sidelines,
+                search_forwards=not args.backwards_only,
+                search_backwards=not args.forwards_only,
+            )
             if node is None:
                 self.poutput(f"Error: Couldn't find the move {args.move}")
                 return
@@ -1058,7 +1119,7 @@ class ChessCli(cmd2.Cmd):
 
     @cmd2.with_argparser(delete_argparser)  # type: ignore
     def do_delete(self, _args) -> None:
-        " Delete the current move. "
+        "Delete the current move."
         if isinstance(self.game_node, chess.pgn.ChildNode):
             parent = self.game_node.parent
             new_node = parent
@@ -1070,157 +1131,160 @@ class ChessCli(cmd2.Cmd):
                         self.game_node = parent.variations[i - 1]
                     else:
                         self.game_node = parent
-                    parent.variations = parent.variations[:
-                                                          i] + parent.variations[
-                                                              i + 1:]
+                    parent.variations = (
+                        parent.variations[:i] + parent.variations[i + 1 :]
+                    )
 
-    engine_argparser = cmd2.Cmd2ArgumentParser(description = "Everything related to chess engines. See subcommands for detailes")
+    engine_argparser = cmd2.Cmd2ArgumentParser(
+        description="Everything related to chess engines. See subcommands for detailes"
+    )
     engine_argparser.add_argument(
         "-s",
         "--select",
         action="append",
-        help=
-        "Select a different engine for this command. The option can be repeated to select multiple engines."
+        help="Select a different engine for this command. The option can be repeated to select multiple engines.",
     )
     engine_subcmds = engine_argparser.add_subparsers(dest="subcmd")
     engine_ls_argparser = engine_subcmds.add_parser(
-        "ls", help="List loaded chess engines.")
+        "ls", help="List loaded chess engines."
+    )
     engine_ls_argparser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Display more information about the engines.")
+        help="Display more information about the engines.",
+    )
     engine_ls_argparser.add_argument(
         "-c",
         "--configured",
         action="store_true",
-        help="List all configured engines, even those that aren't loaded.")
-    engine_ls_argparser.add_argument("-s",
-                                     "--selected",
-                                     action="store_true",
-                                     help="List the selected engines.")
+        help="List all configured engines, even those that aren't loaded.",
+    )
+    engine_ls_argparser.add_argument(
+        "-s", "--selected", action="store_true", help="List the selected engines."
+    )
     engine_load_argparser = engine_subcmds.add_parser(
-        "load", help="Load a chess engine.")
+        "load", help="Load a chess engine."
+    )
     engine_load_argparser.add_argument(
         "name",
-        help=
-        "Name of the engine. List availlable engines with the command `engine ls`"
+        help="Name of the engine. List availlable engines with the command `engine ls`",
     )
     engine_load_argparser.add_argument(
         "--as",
         dest="load_as",
-        help=
-        "Load the engine with a different name. Useful if you want to have multiple instances of an engine running at the same time."
+        help="Load the engine with a different name. Useful if you want to have multiple instances of an engine running at the same time.",
     )
     engine_import_argparser = engine_subcmds.add_parser(
-        "import", help="Import a chess engine.")
-    engine_import_argparser.add_argument("path",
-                                         help="Path to engine executable.")
-    engine_import_argparser.add_argument(
-        "name",
-        help="A short name for the engine, (PRO TIP: avoid spaces in the name)."
+        "import", help="Import a chess engine."
     )
-    engine_import_argparser.add_argument("-p",
-                                         "--protocol",
-                                         choices=["uci", "xboard"],
-                                         default="uci",
-                                         help="Type of engine protocol.")
+    engine_import_argparser.add_argument("path", help="Path to engine executable.")
+    engine_import_argparser.add_argument(
+        "name", help="A short name for the engine, (PRO TIP: avoid spaces in the name)."
+    )
+    engine_import_argparser.add_argument(
+        "-p",
+        "--protocol",
+        choices=["uci", "xboard"],
+        default="uci",
+        help="Type of engine protocol.",
+    )
     engine_quit_argparser = engine_subcmds.add_parser(
-        "quit", help="Quit all selected engines.")
+        "quit", help="Quit all selected engines."
+    )
     engine_select_argparser = engine_subcmds.add_parser(
         "select",
-        help=
-        "Select a loaded engine. The selected engine will be default commands like `engine analyse` or `engine config`."
+        help="Select a loaded engine. The selected engine will be default commands like `engine analyse` or `engine config`.",
     )
-    engine_select_argparser.add_argument("engines",
-                                         nargs="+",
-                                         help="List of engines to select.")
+    engine_select_argparser.add_argument(
+        "engines", nargs="+", help="List of engines to select."
+    )
     engine_config_argparser = engine_subcmds.add_parser(
         "config",
         aliases=["conf", "configure"],
-        help=
-        "Set values for or get current values of different engine specific parameters."
+        help="Set values for or get current values of different engine specific parameters.",
     )
     engine_config_argparser.add_argument("engine", help="Engine to configure.")
-    engine_config_subcmds = engine_config_argparser.add_subparsers(
-        dest="config_subcmd")
+    engine_config_subcmds = engine_config_argparser.add_subparsers(dest="config_subcmd")
     engine_config_get_argparser = engine_config_subcmds.add_parser(
-        "get", help="Get the value of an option for the selected engine.")
-    engine_config_get_argparser.add_argument("name",
-                                             help="Name of the option.")
+        "get", help="Get the value of an option for the selected engine."
+    )
+    engine_config_get_argparser.add_argument("name", help="Name of the option.")
     engine_config_ls_argparser = engine_config_subcmds.add_parser(
         "ls",
         aliases=["list"],
-        help=
-        "List availlable options and their current values for the selected engine."
+        help="List availlable options and their current values for the selected engine.",
     )
     engine_config_ls_argparser.add_argument(
         "-r",
         "--regex",
-        help="Filter option names by a case insensitive regular expression.")
+        help="Filter option names by a case insensitive regular expression.",
+    )
     engine_config_ls_argparser.add_argument(
         "-t",
         "--type",
-        choices=["checkbox", "combobox"
-                 "integer", "text", "button"],
+        choices=["checkbox", "combobox" "integer", "text", "button"],
         nargs="+",
-        help="Filter options by the given type.")
-    engine_config_ls_configured_group = engine_config_ls_argparser.add_mutually_exclusive_group(
+        help="Filter options by the given type.",
+    )
+    engine_config_ls_configured_group = (
+        engine_config_ls_argparser.add_mutually_exclusive_group()
     )
     engine_config_ls_configured_group.add_argument(
         "--configured",
         action="store_true",
-        help="Only list options that are already configured in some way.")
+        help="Only list options that are already configured in some way.",
+    )
     engine_config_ls_configured_group.add_argument(
         "--not-configured",
         action="store_true",
-        help="Only list options that are not configured.")
+        help="Only list options that are not configured.",
+    )
     engine_config_ls_argparser.add_argument(
         "--include-auto",
         "--include-automatically-managed",
         action="store_true",
-        help=
-        "By default, some options like MultiPV or Ponder are managed automatically. There is no reason to change them so they are hidden by default. This options makes them vissable."
+        help="By default, some options like MultiPV or Ponder are managed automatically. There is no reason to change them so they are hidden by default. This options makes them vissable.",
     )
     engine_config_set_argparser = engine_config_subcmds.add_parser(
-        "set", help="Set a value of an option for the selected engine.")
-    engine_config_set_argparser.add_argument("name",
-                                             help="Name of the option to set.")
+        "set", help="Set a value of an option for the selected engine."
+    )
+    engine_config_set_argparser.add_argument("name", help="Name of the option to set.")
     engine_config_set_argparser.add_argument(
         "value",
-        help=
-        "The new value. Use true/check or false/uncheck to set a checkbox. Buttons can only be set to 'trigger-on-startup', but note that you must use the `engine config trigger` command to trigger it right now."
+        help="The new value. Use true/check or false/uncheck to set a checkbox. Buttons can only be set to 'trigger-on-startup', but note that you must use the `engine config trigger` command to trigger it right now.",
     )
     engine_config_set_argparser.add_argument(
         "-t",
         "--temporary",
         action="store_true",
-        help=
-        "Set the value in the running engine but don't store it in the engine configuration. It'll not be set if you save this configuration and load the engine again."
+        help="Set the value in the running engine but don't store it in the engine configuration. It'll not be set if you save this configuration and load the engine again.",
     )
     engine_config_unset_argparser = engine_config_subcmds.add_parser(
         "unset",
-        help=
-        "Change an option back to its default value and remove it from the configuration."
+        help="Change an option back to its default value and remove it from the configuration.",
     )
     engine_config_unset_argparser.add_argument(
-        "name", help="Name of the option to unset.")
+        "name", help="Name of the option to unset."
+    )
     engine_config_unset_argparser.add_argument(
         "-t",
         "--temporary",
         action="store_true",
-        help=
-        "Unset the value in the running engine but keep it in the engine configuration. It'll still be set if you save this configuration and load the engine again."
+        help="Unset the value in the running engine but keep it in the engine configuration. It'll still be set if you save this configuration and load the engine again.",
     )
     engine_config_trigger_argparser = engine_config_subcmds.add_parser(
-        "trigger", help="Trigger an option of type button.")
+        "trigger", help="Trigger an option of type button."
+    )
     engine_config_trigger_argparser.add_argument(
-        "name", help="Name of the option to trigger.")
+        "name", help="Name of the option to trigger."
+    )
     engine_config_save_argparser = engine_config_subcmds.add_parser(
-        "save", help="Save the current configuration.")
+        "save", help="Save the current configuration."
+    )
     engine_log_argparser = engine_subcmds.add_parser(
-        "log",
-        help="Show the logged things (like stderr) from the loaded engines.")
+        "log", help="Show the logged things (like stderr) from the loaded engines."
+    )
     engine_log_subcmds = engine_log_argparser.add_subparsers(dest="log_subcmd")
     engine_log_subcmds.add_parser("clear", help="Clear the log.")
     engine_log_subcmds.add_parser("show", help="Show the log.")
@@ -1334,11 +1398,13 @@ class ChessCli(cmd2.Cmd):
         engine_conf: EngineConf = self.engine_confs[name]
         try:
             if engine_conf.protocol == "uci":
-                engine = chess.engine.SimpleEngine.popen_uci(engine_conf.path,
-                                                             timeout=120)
+                engine = chess.engine.SimpleEngine.popen_uci(
+                    engine_conf.path, timeout=120
+                )
             elif engine_conf.protocol == "xboard":
                 engine = chess.engine.SimpleEngine.popen_xboard(
-                    engine_conf.path, timeout=120)
+                    engine_conf.path, timeout=120
+                )
         except chess.engine.EngineError as e:
             self.poutput(
                 f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it should. Either it is broken, or this program containes a bug. It might also be that you've specified wrong path to the engine executable."
@@ -1361,8 +1427,7 @@ class ChessCli(cmd2.Cmd):
             raise e
         self.loaded_engines[name] = engine
         self.selected_engines.append(name)
-        self.engine_confs[name] = engine_conf._replace(
-            fullname=engine.id.get("name"))
+        self.engine_confs[name] = engine_conf._replace(fullname=engine.id.get("name"))
         invalid_options: list[str] = []
         for opt_name, value in engine_conf.options.items():
             try:
@@ -1373,8 +1438,7 @@ class ChessCli(cmd2.Cmd):
                 )
                 self.poutput(f"    {e}")
                 invalid_options.append(opt_name)
-                self.poutput(
-                    f"  {opt_name} will be removed from the configuration.")
+                self.poutput(f"  {opt_name} will be removed from the configuration.")
         for x in invalid_options:
             del engine_conf.options[x]
         self.show_engine(name, verbose=True)
@@ -1419,15 +1483,12 @@ class ChessCli(cmd2.Cmd):
                 f"Error: The name {args.name} is already in use, please pick another name or consider removing or updating the existing configuration with the `engine config` command."
             )
             return
-        engine_conf: EngineConf = EngineConf(path=args.path,
-                                             protocol=args.protocol)
+        engine_conf: EngineConf = EngineConf(path=args.path, protocol=args.protocol)
         self.engine_confs[args.name] = engine_conf
         try:
             self.load_engine(args.name)
-            self.poutput(
-                f"Successfully imported, loaded and selected {args.name}.")
-        except (OSError, chess.engine.EngineError,
-                chess.engine.EngineTerminatedError):
+            self.poutput(f"Successfully imported, loaded and selected {args.name}.")
+        except (OSError, chess.engine.EngineError, chess.engine.EngineTerminatedError):
             del self.engine_confs[args.name]
             self.poutput(f"Importing of the engine {engine_conf.path} failed.")
 
@@ -1439,8 +1500,9 @@ class ChessCli(cmd2.Cmd):
 
     def show_engine_option(self, engine: str, name: str) -> None:
         opt: chess.engine.Option = self.loaded_engines[engine].options[name]
-        configured_val: Optional[Union[
-            str, int, bool]] = self.engine_confs[engine].options.get(name)
+        configured_val: Optional[Union[str, int, bool]] = self.engine_confs[
+            engine
+        ].options.get(name)
         val: Optional[Union[str, int, bool]] = configured_val or opt.default
 
         show_str: str = name
@@ -1493,8 +1555,7 @@ class ChessCli(cmd2.Cmd):
         self.poutput(show_str)
 
     def engine_config_get(self, engine: str, args) -> None:
-        options: Mapping[
-            str, chess.engine.Option] = self.loaded_engines[engine].options
+        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].options
         if args.name in options:
             self.show_engine_option(engine, args.name)
         else:
@@ -1505,37 +1566,40 @@ class ChessCli(cmd2.Cmd):
     def engine_config_ls(self, engine: str, args) -> None:
         conf: EngineConf = self.engine_confs[engine]
         for name, opt in self.loaded_engines[engine].options.items():
-            if ((args.configured and name not in conf.options)
-                    or (args.not_configured and name in conf.options)):
+            if (args.configured and name not in conf.options) or (
+                args.not_configured and name in conf.options
+            ):
                 continue
-            if (opt.is_managed() and not args.include_auto
-                    and name not in conf.options):
+            if opt.is_managed() and not args.include_auto and name not in conf.options:
                 continue
             if args.regex:
                 try:
                     pattern: re.Pattern = re.compile(args.regex)
                 except re.error as e:
                     self.poutput(
-                        f"Error: Invalid regular expression \"{args.regex}\": {e}"
+                        f'Error: Invalid regular expression "{args.regex}": {e}'
                     )
                     return
                 if not pattern.fullmatch(name):
                     continue
-            if (args.type
-                    and ((opt.type == "check" and not "checkbox" in args.type)
-                         or opt.type == "combo" and not "combobox" in args.type
-                         or opt.type == "spin" and not "integer" in args.type
-                         or opt.type in ["button", "reset", "save"]
-                         and not "button" in args.type
-                         or opt.type in ["string", "file", "path"]
-                         and not "string" in args.type)):
+            if args.type and (
+                (opt.type == "check" and not "checkbox" in args.type)
+                or opt.type == "combo"
+                and not "combobox" in args.type
+                or opt.type == "spin"
+                and not "integer" in args.type
+                or opt.type in ["button", "reset", "save"]
+                and not "button" in args.type
+                or opt.type in ["string", "file", "path"]
+                and not "string" in args.type
+            ):
                 continue
             self.show_engine_option(engine, name)
 
-    def set_engine_option(self, engine: str, name: str,
-                          value: Union[str, int, bool, None]) -> None:
-        options: Mapping[
-            str, chess.engine.Option] = self.loaded_engines[engine].options
+    def set_engine_option(
+        self, engine: str, name: str, value: Union[str, int, bool, None]
+    ) -> None:
+        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].options
         if name not in options:
             raise ValueError(
                 f"{name} is not a name for an option for {engine}. You can list availlable options with `engine config ls`."
@@ -1588,8 +1652,7 @@ class ChessCli(cmd2.Cmd):
         self.loaded_engines[engine].configure({option.name: value})
 
     def engine_config_set(self, engine: str, args) -> None:
-        options: Mapping[
-            str, chess.engine.Option] = self.loaded_engines[engine].options
+        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].options
         conf: EngineConf = self.engine_confs[engine]
         if args.name not in options:
             self.poutput(
@@ -1633,8 +1696,7 @@ class ChessCli(cmd2.Cmd):
         self.set_engine_option(engine, option.name, value)
 
     def engine_config_unset(self, engine: str, args) -> None:
-        options: Mapping[
-            str, chess.engine.Option] = self.loaded_engines[engine].options
+        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].options
         if args.name not in options:
             self.poutput(
                 f"Error: {args.name} is not a name for an option for {engine}. You can list availlable options with `engine config ls`."
@@ -1661,8 +1723,7 @@ class ChessCli(cmd2.Cmd):
             conf.options.pop(args.name, None)
 
     def engine_config_trigger(self, engine: str, args) -> None:
-        options: Mapping[
-            str, chess.engine.Option] = self.loaded_engines[engine].options
+        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].options
         if args.name not in options:
             self.poutput(
                 f"Error: {args.name} is not a name for an option for {engine}. You can list availlable options with `engine config ls`."
@@ -1677,8 +1738,7 @@ class ChessCli(cmd2.Cmd):
         os.makedirs(os.path.split(self.config_file)[0], exist_ok=True)
         with open(self.config_file, "w") as f:
             engine_confs = {
-                name: conf._asdict()
-                for (name, conf) in self.engine_confs.items()
+                name: conf._asdict() for (name, conf) in self.engine_confs.items()
             }
             items = {"engine-configurations": engine_confs}
             toml.dump(items, f)
@@ -1688,86 +1748,85 @@ class ChessCli(cmd2.Cmd):
         "-s",
         "--select",
         action="append",
-        help=
-        "Select a different engine for this command. The option can be repeated to select multiple engines."
+        help="Select a different engine for this command. The option can be repeated to select multiple engines.",
     )
     analysis_subcmds = analysis_argparser.add_subparsers(dest="subcmd")
     analysis_start_argparser = analysis_subcmds.add_parser(
-        "start", help="Start to analyse current position.")
-    analysis_start_argparser.add_argument("moves",
-                                          nargs="*",
-                                          help="List of moves to analysis.")
-    analysis_start_argparser.add_argument("-n",
-                                          "--number-of-moves",
-                                          type=int,
-                                          default=3,
-                                          help="Show the n best moves.")
+        "start", help="Start to analyse current position."
+    )
     analysis_start_argparser.add_argument(
-        "--time", type=float, help="Analyse only the given number of seconds.")
+        "moves", nargs="*", help="List of moves to analysis."
+    )
     analysis_start_argparser.add_argument(
-        "--depth", type=int, help="Analyse until the given depth is reached.")
+        "-n", "--number-of-moves", type=int, default=3, help="Show the n best moves."
+    )
     analysis_start_argparser.add_argument(
-        "--nodes", type=int, help="Search only the given number of nodes.")
+        "--time", type=float, help="Analyse only the given number of seconds."
+    )
+    analysis_start_argparser.add_argument(
+        "--depth", type=int, help="Analyse until the given depth is reached."
+    )
+    analysis_start_argparser.add_argument(
+        "--nodes", type=int, help="Search only the given number of nodes."
+    )
     analysis_start_argparser.add_argument(
         "--mate",
         type=int,
-        help="Search for a mate in the given number of moves and stop then.")
+        help="Search for a mate in the given number of moves and stop then.",
+    )
     analysis_stop_argparser = analysis_subcmds.add_parser(
-        "stop", help="Stop analysing.")
-    analysis_ls_argparser = analysis_subcmds.add_parser("ls",
-                                                        help="List analysis.")
-    analysis_ls_argparser.add_argument("-v",
-                                       "--verbose",
-                                       action="store_true",
-                                       help="Print out more info.")
+        "stop", help="Stop analysing."
+    )
+    analysis_ls_argparser = analysis_subcmds.add_parser("ls", help="List analysis.")
+    analysis_ls_argparser.add_argument(
+        "-v", "--verbose", action="store_true", help="Print out more info."
+    )
     analysis_ls_group = analysis_ls_argparser.add_mutually_exclusive_group()
-    analysis_ls_group.add_argument("-r",
-                                   "--running",
-                                   action="store_true",
-                                   help="List only running analysis.")
-    analysis_ls_group.add_argument("-s",
-                                   "--stopped",
-                                   action="store_true",
-                                   help="List only stopped analysis.")
+    analysis_ls_group.add_argument(
+        "-r", "--running", action="store_true", help="List only running analysis."
+    )
+    analysis_ls_group.add_argument(
+        "-s", "--stopped", action="store_true", help="List only stopped analysis."
+    )
     analysis_show_argparser = analysis_subcmds.add_parser(
-        "show", help="Show all analysis performed at the current move.")
+        "show", help="Show all analysis performed at the current move."
+    )
     analysis_rm_argparser = analysis_subcmds.add_parser(
         "rm",
         aliases="remove",
-        help=
-        "Remove analysis made by the selected engines at this move. Useful if you want to rerun the analysis."
+        help="Remove analysis made by the selected engines at this move. Useful if you want to rerun the analysis.",
     )
     analysis_auto_argparser = analysis_subcmds.add_parser(
-        "auto", help="Start or stop automatic analysis at the current move.")
-    analysis_auto_subcmds = analysis_auto_argparser.add_subparsers(
-        dest="auto_subcmd")
+        "auto", help="Start or stop automatic analysis at the current move."
+    )
+    analysis_auto_subcmds = analysis_auto_argparser.add_subparsers(dest="auto_subcmd")
     analysis_auto_start_argparser = analysis_auto_subcmds.add_parser(
         "start",
-        help=
-        "Begin to auto analyse the current move (as it changes) with the currently selected engines."
+        help="Begin to auto analyse the current move (as it changes) with the currently selected engines.",
     )
     analysis_auto_start_argparser.add_argument(
         "-n",
         "--number-of-moves",
         type=int,
         default=5,
-        help="Number of moves to analyse at every position.")
+        help="Number of moves to analyse at every position.",
+    )
     analysis_auto_stop_argparser = analysis_auto_subcmds.add_parser(
-        "stop", help="Stop auto analysis.")
+        "stop", help="Stop auto analysis."
+    )
     analysis_auto_stop_argparser.add_argument(
         "-c",
         "--current",
         action="store_true",
-        help=
-        "Stop the running analysis at the current move as well. Otherwise they'll continue running."
+        help="Stop the running analysis at the current move as well. Otherwise they'll continue running.",
     )
-    analysis_auto_subcmds.add_parser("ls",
-                                     aliases=["list"],
-                                     help="List the auto analysing engines.")
+    analysis_auto_subcmds.add_parser(
+        "ls", aliases=["list"], help="List the auto analysing engines."
+    )
 
     @cmd2.with_argparser(analysis_argparser)  # type: ignore
     def do_analysis(self, args) -> None:
-        """ Manage analysis. """
+        """Manage analysis."""
         if args.subcmd == "ls":
             self.analysis_ls(args)
         elif args.subcmd == "show":
@@ -1808,11 +1867,13 @@ class ChessCli(cmd2.Cmd):
             else:
                 assert False, "Invalid command."
 
-    def start_analysis(self,
-                       engine: str,
-                       number_of_moves: int,
-                       root_moves: list[chess.Move] = [],
-                       limit: Optional[chess.engine.Limit] = None) -> None:
+    def start_analysis(
+        self,
+        engine: str,
+        number_of_moves: int,
+        root_moves: list[chess.Move] = [],
+        limit: Optional[chess.engine.Limit] = None,
+    ) -> None:
         if engine in self.running_analysis:
             self.stop_analysis(engine)
         analysis: Analysis = Analysis(
@@ -1821,11 +1882,15 @@ class ChessCli(cmd2.Cmd):
                 root_moves=root_moves if root_moves != [] else None,
                 limit=limit,
                 multipv=number_of_moves,
-                game="this"),
+                game="this",
+            ),
             engine=engine,
             board=self.game_node.board(),
-            san=(self.game_node.san()
-                 if isinstance(self.game_node, chess.pgn.ChildNode) else None),
+            san=(
+                self.game_node.san()
+                if isinstance(self.game_node, chess.pgn.ChildNode)
+                else None
+            ),
         )
         self.analysis.append(analysis)
         self.running_analysis[engine] = analysis
@@ -1833,8 +1898,8 @@ class ChessCli(cmd2.Cmd):
 
     def analysis_start(self, selected_engines: list[str], args) -> None:
         intersection: set[str] = set(
-            self.analysis_by_node[self.game_node].keys()).intersection(
-                set(selected_engines))
+            self.analysis_by_node[self.game_node].keys()
+        ).intersection(set(selected_engines))
         if intersection:
             the_engine: str = intersection.pop()
             self.poutput(
@@ -1847,16 +1912,13 @@ class ChessCli(cmd2.Cmd):
             try:
                 root_moves.append(board.parse_san(san))
             except ValueError as e:
-                self.poutput(
-                    f"Error: {san} is not a valid move in this position: {e}")
+                self.poutput(f"Error: {san} is not a valid move in this position: {e}")
                 return
-        limit = chess.engine.Limit(time=args.time,
-                                   depth=args.depth,
-                                   nodes=args.nodes,
-                                   mate=args.mate)
+        limit = chess.engine.Limit(
+            time=args.time, depth=args.depth, nodes=args.nodes, mate=args.mate
+        )
         for engine in selected_engines:
-            self.start_analysis(engine, args.number_of_moves, root_moves,
-                                limit)
+            self.start_analysis(engine, args.number_of_moves, root_moves, limit)
             self.poutput(f"{engine} is now analysing.")
 
     def stop_analysis(self, engine: str) -> None:
@@ -1931,8 +1993,13 @@ class ChessCli(cmd2.Cmd):
                 show_str += analysis.result.info["string"] + "\n    "
             for (key, val) in analysis.result.info.items():
                 if key not in [
-                        "score", "pv", "multipv", "currmove", "currmovenumber",
-                        "wdl", "string"
+                    "score",
+                    "pv",
+                    "multipv",
+                    "currmove",
+                    "currmovenumber",
+                    "wdl",
+                    "string",
                 ]:
                     show_str += f"{key}: {val}, "
             for i, info in enumerate(analysis.result.multipv, 1):
@@ -1943,13 +2010,15 @@ class ChessCli(cmd2.Cmd):
 
     def analysis_ls(self, args) -> None:
         for analysis in self.analysis:
-            if (args.running and
-                    not (analysis.engine in self.running_analysis and analysis
-                         == self.running_analysis[analysis.engine])):
+            if args.running and not (
+                analysis.engine in self.running_analysis
+                and analysis == self.running_analysis[analysis.engine]
+            ):
                 continue
-            if (args.stopped and
-                (analysis.engine in self.running_analysis
-                 and analysis == self.running_analysis[analysis.engine])):
+            if args.stopped and (
+                analysis.engine in self.running_analysis
+                and analysis == self.running_analysis[analysis.engine]
+            ):
                 continue
             self.show_analysis(analysis, verbose=args.verbose)
 
@@ -1975,23 +2044,22 @@ class ChessCli(cmd2.Cmd):
     game_argparser = cmd2.Cmd2ArgumentParser()
     game_subcmds = game_argparser.add_subparsers(dest="subcmd")
     game_ls_argparser = game_subcmds.add_parser("ls", help="List all games.")
-    game_rm_argparser = game_subcmds.add_parser("rm",
-                                                aliases=["remove"],
-                                                help="Remove a game.")
+    game_rm_argparser = game_subcmds.add_parser(
+        "rm", aliases=["remove"], help="Remove a game."
+    )
     game_rm_argparser.add_argument(
-        "name",
-        nargs="?",
-        help="Name of game to remove. Defaults to the current game.")
-    game_goto_argparser = game_subcmds.add_parser("goto",
-                                                  aliases=["gt"],
-                                                  help="Goto a game.")
+        "name", nargs="?", help="Name of game to remove. Defaults to the current game."
+    )
+    game_goto_argparser = game_subcmds.add_parser(
+        "goto", aliases=["gt"], help="Goto a game."
+    )
     game_goto_argparser.add_argument(
-        "name",
-        help="Name of the game to goto. List all games with `game ls`.")
+        "name", help="Name of the game to goto. List all games with `game ls`."
+    )
 
     @cmd2.with_argparser(game_argparser)  # type: ignore
     def do_game(self, args) -> None:
-        " Switch between, delete or create new games. "
+        "Switch between, delete or create new games."
         if args.subcmd == "ls":
             for name, game in self.games.items():
                 if game.game() is self.game_node.game():
@@ -2021,13 +2089,12 @@ class ChessCli(cmd2.Cmd):
 
     save_argparser = cmd2.Cmd2ArgumentParser()
     save_argparser.add_argument(
-        "file",
-        nargs="?",
-        help="File to save to. Defaults to the loaded file.")
+        "file", nargs="?", help="File to save to. Defaults to the loaded file."
+    )
 
     @cmd2.with_argparser(save_argparser)  # type: ignore
     def do_save(self, args) -> None:
-        " Save the current game to a file. "
+        "Save the current game to a file."
         file_name = args.file or self.file_names.get(self.current_game)
         if file_name is None:
             self.poutput(
@@ -2044,19 +2111,19 @@ class ChessCli(cmd2.Cmd):
 
     promote_argparser = cmd2.Cmd2ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()
-    promote_group.add_argument("-m",
-                               "--main",
-                               action="store_true",
-                               help="Promote this move to be main variation.")
     promote_group.add_argument(
-        "-n",
-        "--steps",
-        type=int,
-        help="Promote this variation n number of steps.")
+        "-m",
+        "--main",
+        action="store_true",
+        help="Promote this move to be main variation.",
+    )
+    promote_group.add_argument(
+        "-n", "--steps", type=int, help="Promote this variation n number of steps."
+    )
 
     @cmd2.with_argparser(promote_argparser)  # type: ignore
     def do_promote(self, args) -> None:
-        " If current move is a side line, promote it so that it'll be closer to main variation. "
+        "If current move is a side line, promote it so that it'll be closer to main variation."
         if not isinstance(self.game_node, chess.pgn.ChildNode):
             return
         if args.main:
@@ -2073,15 +2140,15 @@ class ChessCli(cmd2.Cmd):
         "-l",
         "--last",
         action="store_true",
-        help="Demote this move to be the last variation.")
-    demote_group.add_argument("-n",
-                              "--steps",
-                              type=int,
-                              help="Demote this variation n number of steps.")
+        help="Demote this move to be the last variation.",
+    )
+    demote_group.add_argument(
+        "-n", "--steps", type=int, help="Demote this variation n number of steps."
+    )
 
     @cmd2.with_argparser(demote_argparser)  # type: ignore
     def do_demote(self, args) -> None:
-        " If current move is the main variation or if it isn't the last variation, demote it so it'll be far from the main variation."
+        "If current move is the main variation or if it isn't the last variation, demote it so it'll be far from the main variation."
         if not isinstance(self.game_node, chess.pgn.ChildNode):
             return
         if args.last:
@@ -2098,17 +2165,20 @@ class ChessCli(cmd2.Cmd):
             show_items = [move_str(next, include_sideline_arrows=False)]
             for variation in node.variations[1:]:
                 show_items.append(
-                    move_str(variation,
-                             include_move_number=False,
-                             include_sideline_arrows=False))
+                    move_str(
+                        variation,
+                        include_move_number=False,
+                        include_sideline_arrows=False,
+                    )
+                )
             self.poutput(", ".join(show_items))
 
     def do_variations(self, _) -> None:
-        " Print all variations following this move."
+        "Print all variations following this move."
         self.show_variations(self.game_node)
 
     def do_sidelines(self, _) -> None:
-        " Show all sidelines to this move. "
+        "Show all sidelines to this move."
         if self.game_node.parent is not None:
             self.show_variations(self.game_node.parent)
 
@@ -2123,8 +2193,7 @@ class ChessCli(cmd2.Cmd):
         elif args.log_subcmd == "show":
             try:
                 while True:
-                    self.engines_saved_log.append(
-                        self.engines_log_queue.get_nowait())
+                    self.engines_saved_log.append(self.engines_log_queue.get_nowait())
             except queue.Empty:
                 pass
             for line in self.engines_saved_log:
@@ -2135,9 +2204,8 @@ class ChessCli(cmd2.Cmd):
 
 def run():
     argparser = argparse.ArgumentParser(
-        description="A repl to edit and analyse chess games.")
-    argparser.add_argument("pgn_file",
-                           nargs="?",
-                           help="Open the given pgn file.")
+        description="A repl to edit and analyse chess games."
+    )
+    argparser.add_argument("pgn_file", nargs="?", help="Open the given pgn file.")
     args = argparser.parse_args()
     sys.exit(ChessCli(file_name=args.pgn_file).cmdloop())
