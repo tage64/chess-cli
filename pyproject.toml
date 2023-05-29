@@ -9,16 +9,16 @@ license = "GPL-3.0-or-later"
 chess-cli = 'chess_cli:run'
 
 [tool.poetry.dependencies]
-python = "^3.9"
-cmd2 = "^2.1.1"
-chess = "^1.6.1"
+python = "^3.11"
+cmd2 = "^2.4"
+chess = "^1.9"
 appdirs = "^1.4.4"
 toml = "^0.10.2"
-more-itertools = "^8.13.0"
+more-itertools = "^8.14"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
-mypy = "^0.910"
+mypy = "^1.3"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
