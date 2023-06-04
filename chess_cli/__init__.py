@@ -9,10 +9,11 @@ import logging.handlers
 import os
 import queue
 import re
+import shutil
 import sys
 import tempfile
 import threading
-from typing import Any, Callable, Iterable, Mapping, NamedTuple, Optional, Union
+from typing import Any, Callable, Iterable, Mapping, NamedTuple, Optional, TextIO, Union
 
 import appdirs  # type: ignore
 import chess
@@ -199,6 +200,24 @@ def update_comment_text(original_comment: str, new_text: str) -> str:
     return f"{commands_in_comment(original_comment)}\n{new_text}"
 
 
+class GameHandle(NamedTuple):
+    "The headers of a game together with either the offset of the game in a file or a node in the parsed game."
+    headers: chess.pgn.Headers
+    offset_or_game: int | chess.pgn.GameNode
+
+    @property
+    def offset(self) -> Optional[int]:
+        if isinstance(self.offset_or_game, int):
+            return self.offset_or_game
+        return None
+
+    @property
+    def game_node(self) -> Optional[chess.pgn.GameNode]:
+        if isinstance(self.offset_or_game, chess.pgn.GameNode):
+            return self.offset_or_game
+        return None
+
+
 class ChessCli(cmd2.Cmd):
     """A repl to edit and analyse chess games."""
 
@@ -211,7 +230,7 @@ class ChessCli(cmd2.Cmd):
         self.self_in_py = True
 
         # Close engines when REPL is quit.
-        self.register_postloop_hook(self.close_engines)
+        self.register_postloop_hook(self.close_engines)  # type: ignore
 
         self.config_file: str = config_file or os.path.join(
             appdirs.user_config_dir("chess-cli"), "config.toml"
@@ -271,33 +290,20 @@ class ChessCli(cmd2.Cmd):
             self.poutput(f"Warning: Couldn't find config file at '{config_file}'.")
             self.poutput("This session will be started with an empty configuration.")
 
-        # Read the pgn file
+        # A list of all opened games.
+        self.games: list[GameHandle] = []
+
+        self.pgn_file: Optional[TextIO] = None
         if file_name is not None:
-            with open(file_name) as pgn_file:
-                res = chess.pgn.read_game(pgn_file)
-            if res is None:
-                self.poutput(f"Error: Couldn't find any game in {file_name}")
-                game_node: chess.pgn.GameNode = chess.pgn.Game()
-            else:
-                game_node = res
+            self.load_games(file_name)
+        self.current_game: int = 0
+        if not self.games:
+            self.add_new_game()
         else:
-            game_node = chess.pgn.Game()
-        self.games: dict[str, chess.pgn.GameNode] = {"main": game_node}
-        self.file_names: dict[str, str] = (
-            {} if file_name is None else {"main": file_name}
-        )
-        self.current_game: str = "main"
+            self.select_game(0)
 
         self.register_postcmd_hook(self.set_prompt)
         self.set_prompt(None)  # type: ignore
-
-    @property
-    def game_node(self) -> chess.pgn.GameNode:
-        return self.games[self.current_game]
-
-    @game_node.setter
-    def game_node(self, value: chess.pgn.GameNode) -> None:
-        self.games[self.current_game] = value
 
     def close_engines(self) -> None:
         for _, analysis in self.running_analysis.items():
@@ -306,6 +312,51 @@ class ChessCli(cmd2.Cmd):
         for engine in self.loaded_engines.values():
             engine.quit()
         self.loaded_engines.clear()
+
+    def load_games(self, file_name: str) -> None:
+        self.pgn_file = open(file_name)
+        while True:
+            offset: int = self.pgn_file.tell()
+            headers = chess.pgn.read_headers(self.pgn_file)
+            if headers is None:
+                break
+            self.games.append(GameHandle(headers, offset))
+        if not self.games:
+            self.poutput(f"Error: Couldn't find any game in {file_name}")
+            self.pgn_file.close()
+            self.pgn_file = None
+
+    def select_game(self, idx: int) -> None:
+        assert 0 <= idx < len(self.games)
+        game_handle = self.games[idx]
+        if game_handle.offset is not None:
+            assert self.pgn_file is not None
+            self.pgn_file.seek(game_handle.offset)
+            game_node = chess.pgn.read_game(self.pgn_file)
+            assert game_node is not None
+            self.games[idx] = GameHandle(game_node.headers, game_node)
+        assert self.games[idx].game_node is not None
+        self.current_game = idx
+
+    def add_new_game(self, idx: Optional[int] = None) -> None:
+        game: chess.pgn.Game = chess.pgn.Game()
+        game_handle: GameHandle = GameHandle(game.headers, game)
+        if idx is None:
+            self.games.append(game_handle)
+            self.current_game = len(self.games) - 1
+        else:
+            self.games.insert(idx, game_handle)
+            self.current_game = idx
+
+    @property
+    def game_node(self) -> chess.pgn.GameNode:
+        x = self.games[self.current_game].game_node
+        assert x is not None
+        return x
+
+    @game_node.setter
+    def game_node(self, val: chess.pgn.GameNode) -> None:
+        self.games[self.current_game] = GameHandle(val.game().headers, val)
 
     def set_prompt(
         self, postcommand_data: cmd2.plugin.PostcommandData
@@ -357,22 +408,14 @@ class ChessCli(cmd2.Cmd):
         if args.comment is not None:
             self.game_node.comment = args.comment
 
-    show_argparser = cmd2.Cmd2ArgumentParser()
-    show_subcmds = show_argparser.add_subparsers(dest="subcmd")
-    show_subcmds.add_parser(
-        "this",
-        help="Show the current position and various other things like comments and evaluations at the current move.",
-    )
-    show_moves_argparser = show_subcmds.add_parser(
-        "moves", aliases=["m"], help="Show all or a subset of the moves in the game."
-    )
-    show_moves_argparser.add_argument(
+    moves_argparser = cmd2.Cmd2ArgumentParser()
+    moves_argparser.add_argument(
         "-c",
         "--comments",
         action="store_true",
         help='Show all comments. Otherwise just a dash ("-") will be shown at each move with a comment.',
     )
-    _moves_from_group = show_moves_argparser.add_mutually_exclusive_group()
+    _moves_from_group = moves_argparser.add_mutually_exclusive_group()
     _moves_from_group.add_argument(
         "--fc",
         "--from-current",
@@ -383,7 +426,7 @@ class ChessCli(cmd2.Cmd):
     _moves_from_group.add_argument(
         "-f", "--from", dest="_from", help="Print moves from the given move number."
     )
-    _moves_to_group = show_moves_argparser.add_mutually_exclusive_group()
+    _moves_to_group = moves_argparser.add_mutually_exclusive_group()
     _moves_to_group.add_argument(
         "--tc",
         "--to-current",
@@ -394,101 +437,30 @@ class ChessCli(cmd2.Cmd):
     _moves_to_group.add_argument(
         "-t", "--to", help="Print moves to the given move number."
     )
-    show_moves_argparser.add_argument(
+    moves_argparser.add_argument(
         "-s",
         "--sidelines",
         action="store_true",
         help="Print a short list of the sidelines at each move with variations.",
     )
-    show_moves_argparser.add_argument(
+    moves_argparser.add_argument(
         "-r", "--recurse", action="store_true", help="Recurse into sidelines."
     )
 
-    @cmd2.with_argparser(show_argparser)  # type: ignore
-    def do_show(self, args) -> None:
-        "Show things like all moves in the game or the comment and evaluation of the current move. (See subcommands.)"
-        match args.subcmd:
-            case "this":
-                self.show_this(args)
-            case "moves" | "m":
-                self.show_moves(args)
-            case _:
-                assert False, "Unhandled subcommand."
+    game_argparser = cmd2.Cmd2ArgumentParser()
+    game_argparser.add_argument("-a", "--all", action="store_true", help="Print the entire game from the start.")
 
-    def show_evaluation(self) -> Optional[str]:
-        eval = self.game_node.eval()
-        if eval is None:
-            return None
-        text: str = score_str(eval.relative)
-        if self.game_node.eval_depth() is not None:
-            text += f", Depth: {self.game_node.eval_depth()}"
-        return text
+    @cmd2.with_argparser(game_argparser)  # type: ignore
+    def do_game(self, args) -> None:
+        "Print the rest of the game with sidelines and comments in a nice and readable format."
+        if args.all:
+            self.onecmd("moves -s -r -c")
+        else:
+            self.onecmd("moves -s -r -c --fc")
 
-    def show_fen(self) -> str:
-        return self.game_node.board().fen()
 
-    def show_nags(self) -> Iterable[str]:
-        for nag in self.game_node.nags:
-            yield f"  {nags.ascii_glyph(nag)}  {nags.description(nag)}"
-
-    def show_board(self) -> str:
-        text: str = "  a b c d e f g h  \n"
-        for row in range(7, -1, -1):
-            text += f"{row + 1} "
-            for col in range(0, 8):
-                try:
-                    square_content: str = str(
-                        self.game_node.board().piece_map()[8 * row + col]
-                    )
-                except KeyError:
-                    square_content = "-"
-                text += f"{square_content} "
-            text += f"{row + 1}\n"
-        text += "  a b c d e f g h  \n"
-        return text
-
-    def show_arrows(self) -> Optional[str]:
-        arrows: list = self.game_node.arrows()
-        if not arrows:
-            return None
-        return str(
-            [
-                f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
-                for arrow in self.game_node.arrows()
-            ]
-        )
-
-    def show_clock(self) -> Optional[str]:
-        clock = self.game_node.clock()
-        if clock is None:
-            return None
-        return str(datetime.timedelta(seconds=clock)).strip("0")
-
-    def show_this(self, args) -> None:
-        self.poutput(f"FEN: {self.show_fen()}")
-        self.poutput(f"\n{self.show_board()}")
-        starting_comment: str = comment_text(self.game_node.starting_comment)
-        if isinstance(self.game_node, chess.pgn.ChildNode) and starting_comment:
-            self.poutput(starting_comment)
-            self.poutput(
-                f"    {MoveNumber.last(self.game_node)} {self.game_node.san()}"
-            )
-        comment: str = comment_text(self.game_node.comment)
-        if comment:
-            self.poutput(comment)
-        for nag in self.show_nags():
-            self.poutput("NAG: {nag}")
-        evaluation: Optional[str] = self.show_evaluation()
-        if evaluation is not None:
-            self.poutput("Evaluation: {evaluation}")
-        arrows: Optional[str] = self.show_arrows()
-        if arrows is not None:
-            self.poutput(f"Arrows: {arrows}")
-        clock: Optional[str] = self.show_clock()
-        if clock is not None:
-            self.poutput(f"Clock: {clock}")
-
-    def show_moves(self, args) -> None:
+    @cmd2.with_argparser(moves_argparser)  # type: ignore
+    def do_moves(self, args) -> None:
         if args._from is not None:
             # If the user has specified a given move as start.
             node = self.find_move(
@@ -695,6 +667,97 @@ class ChessCli(cmd2.Cmd):
         # A final flush!
         if current_line:
             yield current_line
+
+    def show_evaluation(self) -> Optional[str]:
+        eval = self.game_node.eval()
+        if eval is None:
+            return None
+        text: str = score_str(eval.relative)
+        if self.game_node.eval_depth() is not None:
+            text += f", Depth: {self.game_node.eval_depth()}"
+        return text
+
+    def show_fen(self) -> str:
+        return self.game_node.board().fen()
+
+    def show_nags(self) -> Iterable[str]:
+        for nag in self.game_node.nags:
+            yield f"  {nags.ascii_glyph(nag)}  {nags.description(nag)}"
+
+    def show_board(self) -> str:
+        text: str = "  a b c d e f g h  \n"
+        for row in range(7, -1, -1):
+            text += f"{row + 1} "
+            for col in range(0, 8):
+                try:
+                    square_content: str = str(
+                        self.game_node.board().piece_map()[8 * row + col]
+                    )
+                except KeyError:
+                    square_content = "-"
+                text += f"{square_content} "
+            text += f"{row + 1}\n"
+        text += "  a b c d e f g h  \n"
+        return text
+
+    def show_arrows(self) -> Optional[str]:
+        arrows: list = self.game_node.arrows()
+        if not arrows:
+            return None
+        return str(
+            [
+                f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
+                for arrow in self.game_node.arrows()
+            ]
+        )
+
+    def show_clock(self) -> Optional[str]:
+        clock = self.game_node.clock()
+        if clock is None:
+            return None
+        return str(datetime.timedelta(seconds=clock)).strip("0")
+
+    show_argparser = cmd2.Cmd2ArgumentParser()
+
+    @cmd2.with_argparser(show_argparser)  # type: ignore
+    def do_show(self, args) -> None:
+        "Show position, comments, NAGs and more about the current move."
+        self.poutput(f"FEN: {self.show_fen()}")
+        self.poutput(f"\n{self.show_board()}")
+        starting_comment: str = comment_text(self.game_node.starting_comment)
+        if isinstance(self.game_node, chess.pgn.ChildNode) and starting_comment:
+            self.poutput(starting_comment)
+            self.poutput(
+                f"    {MoveNumber.last(self.game_node)} {self.game_node.san()}"
+            )
+        comment: str = comment_text(self.game_node.comment)
+        if comment:
+            self.poutput(comment)
+        for nag in self.show_nags():
+            self.poutput("NAG: {nag}")
+        evaluation: Optional[str] = self.show_evaluation()
+        if evaluation is not None:
+            self.poutput("Evaluation: {evaluation}")
+        arrows: Optional[str] = self.show_arrows()
+        if arrows is not None:
+            self.poutput(f"Arrows: {arrows}")
+        clock: Optional[str] = self.show_clock()
+        if clock is not None:
+            self.poutput(f"Clock: {clock}")
+
+    fen_argparser = cmd2.Cmd2ArgumentParser()
+
+    @cmd2.with_argparser(fen_argparser)  # type: ignore
+    def do_fen(self, args) -> None:
+        "Show the position as FEN (Forsynth-Edwards Notation)."
+        self.poutput(self.show_fen())
+
+    board_argparser = cmd2.Cmd2ArgumentParser()
+
+    @cmd2.with_argparser(board_argparser)  # type: ignore
+    def do_board(self, args) -> None:
+        "Show the current position as an ASCII chess board."
+        self.poutput(self.show_board())
 
     comment_argparser = cmd2.Cmd2ArgumentParser()
     comment_argparser.add_argument(
@@ -2060,73 +2123,133 @@ class ChessCli(cmd2.Cmd):
             self.analysis.remove(removed)
             self.poutput(f"Removed analysis made by {engine}.")
 
-    game_argparser = cmd2.Cmd2ArgumentParser()
-    game_subcmds = game_argparser.add_subparsers(dest="subcmd")
-    game_ls_argparser = game_subcmds.add_parser("ls", help="List all games.")
-    game_rm_argparser = game_subcmds.add_parser(
-        "rm", aliases=["remove"], help="Remove a game."
+    games_argparser = cmd2.Cmd2ArgumentParser()
+    games_subcmds = games_argparser.add_subparsers(dest="subcmd")
+    games_ls_argparser = games_subcmds.add_parser("ls", help="List all games.")
+    games_rm_argparser = games_subcmds.add_parser(
+        "rm", aliases=["remove"], help="Remove the current game."
     )
-    game_rm_argparser.add_argument(
-        "name", nargs="?", help="Name of game to remove. Defaults to the current game."
+    games_rm_subcmds = games_rm_argparser.add_subparsers(dest="subcmd")
+    games_rm_subcmds.add_parser("this", help="Remove the currently selected game.")
+    games_rm_subcmds.add_parser(
+        "others", help="Remove all but the currently selected game."
     )
-    game_goto_argparser = game_subcmds.add_parser(
-        "goto", aliases=["gt"], help="Goto a game."
+    games_rm_subcmds.add_parser(
+        "all", help="Remove all games. Including the current game."
     )
-    game_goto_argparser.add_argument(
-        "name", help="Name of the game to goto. List all games with `game ls`."
+    games_select_argparser = games_subcmds.add_parser(
+        "select", aliases=["s", "sel"], help="Select another game in the file."
+    )
+    games_select_argparser.add_argument(
+        "index",
+        type=int,
+        help="Index of the game to select. Use the `game ls` command to get the index of a particular game.",
+    )
+    games_add_argparser = games_subcmds.add_parser(
+        "add", help="Add a new game to the file."
+    )
+    games_add_argparser.add_argument(
+        "index",
+        type=int,
+        help="The index where the game should be inserted. Defaults to the end of the game list.",
     )
 
-    @cmd2.with_argparser(game_argparser)  # type: ignore
-    def do_game(self, args) -> None:
-        "Switch between, delete or create new games."
-        if args.subcmd == "ls":
-            for name, game in self.games.items():
-                if game.game() is self.game_node.game():
-                    show_str: str = ">"
-                else:
-                    show_str = " "
-                show_str += name
-                if isinstance(game, chess.pgn.ChildNode):
-                    show_str += f" @ {MoveNumber.last(game)} {game.san()}"
-                else:
-                    suggested_name = " @ start"
-                self.poutput(show_str)
-        elif args.subcmd == "rm":
-            name = args.name or self.current_game
-            del self.games[name]
-            if not self.games:
-                self.games = {"main": chess.pgn.Game()}
-            self.current_game = list(self.games.keys())[0]
-        elif args.subcmd == "goto":
-            if args.name not in self.games:
-                self.poutput(
-                    f"Error: {args.name} is not the name of a game. List all games with `game ls`."
-                )
-                return
-            self.games[self.current_game] = self.game_node
-            self.current_game = args.name
+    @cmd2.with_argparser(games_argparser)  # type: ignore
+    def do_games(self, args) -> None:
+        "List, select, delete or create new games."
+        match args.subcmd:
+            case "ls":
+                for i, game in enumerate(self.games):
+                    show_str: str = f"{i+1}. "
+                    if i == self.current_game:
+                        show_str += "[*] "
+                    show_str += f"{game.headers['White']} - {game.headers['Black']}"
+                    if isinstance(game.game_node, chess.pgn.ChildNode):
+                        show_str += f" @ {MoveNumber.last(game.game_node)} {game.game_node.san()}"
+                    self.poutput(show_str)
+            case "rm":
+                self.games.pop(self.current_game)
+                if self.current_game == len(self.games):
+                    if self.games:
+                        self.current_game -= 1
+                    else:
+                        self.add_new_game()
+            case "s" | "sel" | "select":
+                self.select_game(args.index)
+            case "add":
+                self.add_new_game(args.index)
+            case _:
+                assert False, "Unknown subcommand."
 
     save_argparser = cmd2.Cmd2ArgumentParser()
     save_argparser.add_argument(
         "file", nargs="?", help="File to save to. Defaults to the loaded file."
     )
+    save_argparser.add_argument(
+        "-t",
+        "--this",
+        action="store_true",
+        help="Save only the current game and discard any changes in the other games.",
+    )
 
     @cmd2.with_argparser(save_argparser)  # type: ignore
     def do_save(self, args) -> None:
-        "Save the current game to a file."
-        file_name = args.file or self.file_names.get(self.current_game)
-        if file_name is None:
-            self.poutput(
-                f"Error: This game '{self.current_game}' isn't associated with any file name. Please provide a file name yourself."
-            )
-            return
+        "Save the games to a PGN file."
+        current_game: int = self.current_game
+        if args.file is None:
+            if self.pgn_file is None:
+                self.poutput("Error: No file selected.")
+                return
+            file_name: str = self.pgn_file.name
+        else:
+            file_name = args.file
+        file = tempfile.NamedTemporaryFile(mode="w+", delete=False)
+        tempfile_name = file.name
         try:
-            with open(file_name, mode="w") as file:
+            if args.this:
+                if len(self.games) > 1 and any(
+                    (
+                        x.game_node is not None
+                        for i, x in enumerate(self.games)
+                        if i != self.current_game
+                    )
+                ):
+                    while True:
+                        answer: str = self.read_input(
+                            "Warning: Any changes made to other games will be lost, do you want to continue? [Y/n] "
+                        )
+                        match answer.lower():
+                            case "n":
+                                return
+                            case "y":
+                                break
+                            case _:
+                                self.poutput("Expects Y / n for Yes / no.")
                 print(self.game_node.game(), file=file)
-        except OSError as e:
-            self.poutput(f"Error: with {file_name}: {e}")
-            return
-        self.file_names[self.current_game] = file_name
+            else:
+                for i in range(len(self.games)):
+                    self.select_game(i)
+                    print(self.game_node.game(), file=file)
+            file.close()
+        except Exception:
+            file.close()
+            os.remove(tempfile_name)
+        shutil.move(tempfile_name, file_name)
+
+        if args.this:
+            self.games = []
+            self.load_games(file_name)
+            self.select_game(0)
+        else:
+            self.pgn_file = open(file_name)
+            for i, game in enumerate(self.games):
+                offset: int = self.pgn_file.tell()
+                headers = chess.pgn.read_headers(self.pgn_file)
+                assert headers is not None
+                assert headers == game.headers
+                if game.game_node is None:
+                    self.games[i] = GameHandle(headers, offset)
+            self.select_game(current_game)
 
     promote_argparser = cmd2.Cmd2ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()
