@@ -14,7 +14,7 @@ $ pip install poetry
 
 ### Running in Development Environment
 
-Install the virtual environment with:
+nstall the virtual environment with:
 ```Bash
 $ poetry install
 ```
@@ -32,6 +32,17 @@ $ poetry build
 # The result is in the dist directory, install with:
 $ pip install dist/*.whl
 ```
+
+### Building an Windows executable
+
+Inside Powershell, run:
+```
+$ windows_build.bat
+```
+
+Answer yes on all queries. (It might take some time and consume alot of memory.)
+
+The resulting standalone executable is named "chess-cli.exe".
 
 ## Usage
 
