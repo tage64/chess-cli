@@ -25,6 +25,7 @@ import chess.pgn
 import chess.svg
 import cmd2
 import more_itertools
+import psutil
 import toml  # type: ignore
 
 __version__ = "0.1.0"
@@ -137,6 +138,15 @@ class Analysis(NamedTuple):
     engine: str
     board: chess.Board
     san: Optional[str]
+
+
+def sizeof_fmt(num, suffix="B"):
+    "Print byte size with correct prefix."
+    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f}Yi{suffix}"
 
 
 def move_str(
@@ -1581,6 +1591,7 @@ class ChessCli(cmd2.Cmd):
             case "Windows":
                 url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-windows-x86-64-avx2.zip"
                 archive_format = "zip"
+                executable= "stockfish/stockfish-windows-x86-64-avx2.exe"
             case x:
                 self.poutput(f"Error: Unsupported platform: {x}")
                 return
@@ -1592,6 +1603,22 @@ class ChessCli(cmd2.Cmd):
             self.onecmd("engine rm stockfish")
         executable_path: str = os.path.join(dir, executable)
         self.onecmd(f'engine import "{executable_path}" stockfish')
+        ncores: int = psutil.cpu_count()
+        ncores_use: int = ncores - 1 if ncores > 1 else 1
+        self.poutput(
+            f"You seem to have {ncores} logical cores on your system. So the engine will use {ncores_use} of them."
+        )
+        self.onecmd(f"engine config set threads {ncores_use}")
+        ram: int = psutil.virtual_memory().total
+        ram_use_MiB: int = int(0.75 * ram / 2**20)
+        ram_use: int = ram_use_MiB * 2**20
+        self.poutput(
+            f"You seem to have a RAM of {sizeof_fmt(ram)} bytes, so stockfish will be configured to use {sizeof_fmt(ram_use)} bytes (75 %) thereof for the hash."
+        )
+        self.onecmd(f"engine config set hash {ram_use_MiB}")
+        self.poutput(
+            "You can change these settings and more with the engine config command."
+        )
 
     def engine_quit(self, _args) -> None:
         if self.selected_engine is None:
@@ -1719,7 +1746,7 @@ class ChessCli(cmd2.Cmd):
                 continue
             if args.regex:
                 try:
-                    pattern: re.Pattern = re.compile(args.regex)
+                    pattern: re.Pattern = re.compile(args.regex, flags=re.IGNORECASE)
                 except re.error as e:
                     self.poutput(
                         f'Error: Invalid regular expression "{args.regex}": {e}'
