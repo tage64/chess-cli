@@ -1595,7 +1595,9 @@ class ChessCli(cmd2.Cmd):
             case x:
                 self.poutput(f"Error: Unsupported platform: {x}")
                 return
+        self.poutput(f"Downloading Stockfish...")
         engine_archive, _ = urllib.request.urlretrieve(url)
+        self.poutput(f"Download complete. Unpacking...")
         shutil.unpack_archive(engine_archive, dir, archive_format)
         urllib.request.urlcleanup()
         if "stockfish" in self.engine_confs:
