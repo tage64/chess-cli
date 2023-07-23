@@ -1,6 +1,7 @@
 # Chess-CLI - A repl to read, edit and analyse chess games in the terminal
 
 A REPL for editing and analysing chess games.
+See [manual here][3].
 
 ## Building
 
@@ -50,10 +51,11 @@ If you managed to run the program with `poetry run chess-cli` (as described abov
 To get a list of all commands, enter "help" followed by enter.
 To get help information about a specific command, run `<COMMAND> --help`.
 
-TODO: Add much more documentation.
+See a more complete manual [here][3].
 
 
 
 
 [1]: https://www.python.org/downloads/
 [2]: https://python-poetry.org
+[3]: doc/manual.md
