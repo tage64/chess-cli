@@ -245,6 +245,14 @@ class ChessCli(cmd2.Cmd):
     def __init__(
         self, file_name: Optional[str] = None, config_file: Optional[str] = None
     ):
+        self.init_cmd2()
+        self.init_engines()
+        self.load_config(config_file)
+        self.init_analysis()
+        self.init_games(file_name)
+        self.set_prompt(None)  # type: ignore
+
+    def init_cmd2(self) -> None:
         # Set cmd shortcuts
         shortcuts: dict[str, str] = dict(cmd2.DEFAULT_SHORTCUTS)
         super().__init__(shortcuts=shortcuts, include_py=True, allow_cli_args=False)
@@ -253,6 +261,16 @@ class ChessCli(cmd2.Cmd):
         # Close engines when REPL is quit.
         self.register_postloop_hook(self.close_engines)  # type: ignore
 
+        def update_auto_analysis(
+            x: cmd2.plugin.PostcommandData,
+        ) -> cmd2.plugin.PostcommandData:
+            self.update_auto_analysis()
+            return x
+
+        self.register_postcmd_hook(update_auto_analysis)
+        self.register_postcmd_hook(self.set_prompt)
+
+    def init_engines(self) -> None:
         self.engine_confs: dict[str, EngineConf] = {}
         self.loaded_engines: dict[str, chess.engine.SimpleEngine] = {}
         self.engines_saved_log: deque[str] = deque()
@@ -265,36 +283,6 @@ class ChessCli(cmd2.Cmd):
         # A list of the currently selected engines.
         self.selected_engine: Optional[str] = None
         self.running_analysis: dict[str, Analysis] = dict()
-        self.analysis: list[Analysis] = []
-        self.analysis_by_node: defaultdict[
-            chess.pgn.GameNode, dict[str, Analysis]
-        ] = defaultdict(dict)
-        self.auto_analysis_engines: Set[str] = set()
-
-        def update_auto_analysis(
-            x: cmd2.plugin.PostcommandData,
-        ) -> cmd2.plugin.PostcommandData:
-            self.update_auto_analysis()
-            return x
-
-        self.register_postcmd_hook(update_auto_analysis)
-
-        self.load_config(config_file)
-
-        # A list of all opened games.
-        self.games: list[GameHandle] = []
-
-        self.pgn_file: Optional[TextIO] = None
-        if file_name is not None:
-            self.load_games(file_name)
-        self.current_game: int = 0
-        if not self.games:
-            self.add_new_game()
-        else:
-            self.select_game(0)
-
-        self.register_postcmd_hook(self.set_prompt)
-        self.set_prompt(None)  # type: ignore
 
     def load_config(self, config_file: Optional[str]) -> None:
         self.config_file: str = config_file or os.path.join(
@@ -325,26 +313,62 @@ class ChessCli(cmd2.Cmd):
             if config_file is not None:
                 self.poutput(f"Warning: Couldn't find config file at '{config_file}'.")
 
-    def close_engines(self) -> None:
+    def init_analysis(self) -> None:
+        self.analysis: list[Analysis] = []
+        self.analysis_by_node: defaultdict[
+            chess.pgn.GameNode, dict[str, Analysis]
+        ] = defaultdict(dict)
+        self.auto_analysis_engines: Set[str] = set()
+
+    def init_games(self, file_name: Optional[str]) -> None:
+        # A list of all opened games.
+        self.games: list[GameHandle] = []
+
+        self.pgn_file: Optional[TextIO] = None
+        self.current_game: int = 0
+        if file_name is not None:
+            self.load_games(file_name)
+        else:
+            self.add_new_game()
+
+    def load_games(self, file_name: str) -> None:
+        try:
+            pgn_file = open(file_name)
+            games: list[GameHandle] = []
+            while True:
+                offset: int = pgn_file.tell()
+                headers = chess.pgn.read_headers(pgn_file)
+                if headers is None:
+                    break
+                games.append(GameHandle(headers, offset))
+            if not games:
+                self.poutput(f"Error: Couldn't find any game in {file_name}")
+                raise CommandFailure()
+        except Exception as ex:
+            pgn_file.close()
+            raise ex
+        except OSError as ex:
+            self.poutput(f"Error: Loading of {file_name} failed: {ex}")
+        else:
+            # Reset analysis.
+            self.stop_engines()
+            self.init_analysis()
+            self.games = games
+            self.pgn_file = pgn_file
+            self.select_game(0)
+
+    def stop_engines(self) -> None:
+        "Stop all running analysis."
         for _, analysis in self.running_analysis.items():
             analysis.result.stop()
         self.running_analysis.clear()
+
+    def close_engines(self) -> None:
+        "Stop and quit all engines."
+        self.stop_engines()
         for engine in self.loaded_engines.values():
             engine.quit()
         self.loaded_engines.clear()
-
-    def load_games(self, file_name: str) -> None:
-        self.pgn_file = open(file_name)
-        while True:
-            offset: int = self.pgn_file.tell()
-            headers = chess.pgn.read_headers(self.pgn_file)
-            if headers is None:
-                break
-            self.games.append(GameHandle(headers, offset))
-        if not self.games:
-            self.poutput(f"Error: Couldn't find any game in {file_name}")
-            self.pgn_file.close()
-            self.pgn_file = None
 
     def select_game(self, idx: int) -> None:
         assert 0 <= idx < len(self.games)
@@ -428,6 +452,19 @@ class ChessCli(cmd2.Cmd):
         if args.comment is not None:
             self.game_node.comment = args.comment
 
+    game_argparser = cmd2.Cmd2ArgumentParser()
+    game_argparser.add_argument(
+        "-a", "--all", action="store_true", help="Print the entire game from the start."
+    )
+
+    @cmd2.with_argparser(game_argparser)  # type: ignore
+    def do_game(self, args) -> None:
+        "Print the rest of the game with sidelines and comments in a nice and readable format."
+        if args.all:
+            self.onecmd("moves -s -r -c")
+        else:
+            self.onecmd("moves -s -r -c --fc")
+
     moves_argparser = cmd2.Cmd2ArgumentParser()
     moves_argparser.add_argument(
         "-c",
@@ -467,26 +504,14 @@ class ChessCli(cmd2.Cmd):
         "-r", "--recurse", action="store_true", help="Recurse into sidelines."
     )
 
-    game_argparser = cmd2.Cmd2ArgumentParser()
-    game_argparser.add_argument(
-        "-a", "--all", action="store_true", help="Print the entire game from the start."
-    )
-
-    @cmd2.with_argparser(game_argparser)  # type: ignore
-    def do_game(self, args) -> None:
-        "Print the rest of the game with sidelines and comments in a nice and readable format."
-        if args.all:
-            self.onecmd("moves -s -r -c")
-        else:
-            self.onecmd("moves -s -r -c --fc")
-
     @cmd2.with_argparser(moves_argparser)  # type: ignore
     def do_moves(self, args) -> None:
         if args._from is not None:
             # If the user has specified a given move as start.
             node = self.find_move(
                 args._from,
-                search_sidelines=False,
+                search_sidelines=args.sidelines,
+                recurse_sidelines=args.recurse,
             )
             if node is None:
                 self.poutput(f"Error: Couldn't find the move {args._from}")
@@ -511,7 +536,10 @@ class ChessCli(cmd2.Cmd):
 
         if args.to is not None:
             node = self.find_move(
-                args.to, break_search_backwards_at=lambda x: x is start_node
+                args.to,
+                search_sidelines=args.sidelines,
+                recurse_sidelines=args.recurse,
+                break_search_backwards_at=lambda x: x is start_node,
             )
             if node is None:
                 self.poutput(f"Error: Couldn't find the move {args.to}")
@@ -669,9 +697,7 @@ class ChessCli(cmd2.Cmd):
                         + "; ".join(
                             map(
                                 lambda sideline: (
-                                    " "
-                                    if sideline is node
-                                    else move_str(
+                                    move_str(
                                         sideline,
                                         include_move_number=False,
                                         include_sideline_arrows=False,
@@ -1075,10 +1101,10 @@ class ChessCli(cmd2.Cmd):
     def find_move(
         self,
         move_str: str,
-        search_sidelines: bool = True,
+        search_sidelines: bool,
+        recurse_sidelines: bool,
         search_forwards: bool = True,
         search_backwards: bool = True,
-        recurse_sidelines: bool = True,
         break_search_forwards_at: Optional[
             Callable[[chess.pgn.ChildNode], bool]
         ] = None,
@@ -1103,6 +1129,8 @@ class ChessCli(cmd2.Cmd):
             move = move_str
 
         def check(node: chess.pgn.ChildNode) -> bool:
+            if node is self.game_node:
+                return False
             if move is not None:
                 try:
                     if not node.move == node.parent.board().push_san(move):
@@ -1141,12 +1169,13 @@ class ChessCli(cmd2.Cmd):
                     break
                 if move_number is not None and move_number < MoveNumber.last(node):
                     break
-                if search_sidelines and (node.is_main_variation() or recurse_sidelines):
-                    search_queue.extend(node.variations)
-                else:
-                    next = node.next()
-                    if next is not None:
-                        search_queue.append(next)
+                if node.is_main_variation() or recurse_sidelines:
+                    if search_sidelines:
+                        search_queue.extend(node.variations)
+                    else:
+                        next = node.next()
+                        if next is not None:
+                            search_queue.append(next)
 
         if search_backwards and (
             move_number is None or move_number < MoveNumber.last(current_node)
@@ -1167,21 +1196,21 @@ class ChessCli(cmd2.Cmd):
     goto_argparser = cmd2.Cmd2ArgumentParser()
     goto_argparser.add_argument(
         "move",
-        nargs="?",
-        help="A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'.",
+        help="A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'. Or the"
+        "string 'start'/'s' or 'end'/'e' for jumping to the start or end of the game.",
     )
-    goto_group = goto_argparser.add_mutually_exclusive_group()
-    goto_group.add_argument(
-        "-s", "--start", action="store_true", help="Go to the start of the game."
-    )
-    goto_group.add_argument(
-        "-e", "--end", action="store_true", help="Go to the end of the game."
-    )
-    goto_argparser.add_argument(
-        "-n",
-        "--no-sidelines",
+    goto_sidelines_group = goto_argparser.add_mutually_exclusive_group()
+    goto_sidelines_group.add_argument(
+        "-r",
+        "--recurse",
         action="store_true",
-        help="Don't search any sidelines at all.",
+        help="Search sidelines recursively for the move.",
+    )
+    goto_sidelines_group.add_argument(
+        "-m",
+        "--mainline",
+        action="store_true",
+        help="Only search along the mainline and ignore all sidelines.",
     )
     _goto_direction_group = goto_argparser.add_mutually_exclusive_group()
     _goto_direction_group.add_argument(
@@ -1202,21 +1231,23 @@ class ChessCli(cmd2.Cmd):
         """Goto a move specified by a move number or a move in standard algibraic notation.
         If a move number is specified, it will follow the main line to that move if it does exist. If a move like "e4" or "Nxd5+" is specified as well, it will go to the specific move number and search between variations at that level for the specified move. If only a move but not a move number and no other constraints are given, it'll first search sidelines at the current move, then follow the mainline and check if any move or sideline matches, but not recurse into sidelines. Lastly, it'll search backwards in the game.
         """
-        if args.start:
-            self.game_node = self.game_node.game()
-        elif args.end:
-            self.game_node = self.game_node.end()
-        elif args.move is not None:
-            node = self.find_move(
-                args.move,
-                search_sidelines=not args.no_sidelines,
-                search_forwards=not args.backwards_only,
-                search_backwards=not args.forwards_only,
-            )
-            if node is None:
-                self.poutput(f"Error: Couldn't find the move {args.move}")
-                return
-            self.game_node = node
+        match args.move:
+            case "s" | "start":
+                self.game_node = self.game_node.game()
+            case "e" | "end":
+                self.game_node = self.game_node.end()
+            case move:
+                node = self.find_move(
+                    move,
+                    search_sidelines=not args.mainline,
+                    recurse_sidelines=args.recurse,
+                    search_forwards=not args.backwards_only,
+                    search_backwards=not args.forwards_only,
+                )
+                if node is None:
+                    self.poutput(f"Error: Couldn't find the move {move}")
+                    return
+                self.game_node = node
 
     delete_argparser = cmd2.Cmd2ArgumentParser()
 
@@ -1591,7 +1622,7 @@ class ChessCli(cmd2.Cmd):
             case "Windows":
                 url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-windows-x86-64-avx2.zip"
                 archive_format = "zip"
-                executable= "stockfish/stockfish-windows-x86-64-avx2.exe"
+                executable = "stockfish/stockfish-windows-x86-64-avx2.exe"
             case x:
                 self.poutput(f"Error: Unsupported platform: {x}")
                 return
@@ -2287,9 +2318,7 @@ class ChessCli(cmd2.Cmd):
         shutil.move(tempfile_name, file_name)
 
         if args.this:
-            self.games = []
             self.load_games(file_name)
-            self.select_game(0)
         else:
             self.pgn_file = open(file_name)
             for i, game in enumerate(self.games):
@@ -2300,6 +2329,14 @@ class ChessCli(cmd2.Cmd):
                 if game.game_node is None:
                     self.games[i] = GameHandle(headers, offset)
             self.select_game(current_game)
+
+    load_argparser = cmd2.Cmd2ArgumentParser()
+    load_argparser.add_argument("file", help="PGN file to read.")
+
+    @cmd2.with_argparser(load_argparser)  # type: ignore
+    def do_load(self, args) -> None:
+        "Load games from a PGN file. Note that the current game will be lost."
+        self.load_games(args.file)
 
     promote_argparser = cmd2.Cmd2ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()
