@@ -1169,7 +1169,11 @@ class ChessCli(cmd2.Cmd):
                     break
                 if move_number is not None and move_number < MoveNumber.last(node):
                     break
-                if node.is_main_variation() or recurse_sidelines:
+                if (
+                    node.is_main_variation()
+                    or recurse_sidelines
+                    or node is current_node
+                ):
                     if search_sidelines:
                         search_queue.extend(node.variations)
                     else:
