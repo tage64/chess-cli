@@ -333,29 +333,26 @@ class ChessCli(cmd2.Cmd):
 
     def load_games(self, file_name: str) -> None:
         try:
-            pgn_file = open(file_name)
-            games: list[GameHandle] = []
-            while True:
-                offset: int = pgn_file.tell()
-                headers = chess.pgn.read_headers(pgn_file)
-                if headers is None:
-                    break
-                games.append(GameHandle(headers, offset))
-            if not games:
-                self.poutput(f"Error: Couldn't find any game in {file_name}")
-                raise CommandFailure()
-        except Exception as ex:
-            pgn_file.close()
-            raise ex
+            with open(file_name) as pgn_file:
+                games: list[GameHandle] = []
+                while True:
+                    offset: int = pgn_file.tell()
+                    headers = chess.pgn.read_headers(pgn_file)
+                    if headers is None:
+                        break
+                    games.append(GameHandle(headers, offset))
+                if not games:
+                    self.poutput(f"Error: Couldn't find any game in {file_name}")
+                    raise CommandFailure()
+                # Reset analysis.
+                self.stop_engines()
+                self.init_analysis()
+                self.games = games
+                self.pgn_file = pgn_file
+                self.select_game(0)
+                self.poutput(f"Successfully loaded {len(self.games)} game(s).")
         except OSError as ex:
             self.poutput(f"Error: Loading of {file_name} failed: {ex}")
-        else:
-            # Reset analysis.
-            self.stop_engines()
-            self.init_analysis()
-            self.games = games
-            self.pgn_file = pgn_file
-            self.select_game(0)
 
     def stop_engines(self) -> None:
         "Stop all running analysis."
@@ -869,13 +866,20 @@ class ChessCli(cmd2.Cmd):
             case "append":
                 set_comment(comment + " " + args.comment)
             case "edit":
-                with tempfile.NamedTemporaryFile(mode="w+") as file:
-                    file.write(comment)
-                    file.flush()
-                    self.do_shell(f"{self.editor} '{file.name}'")
-                    file.seek(0)
-                    new_comment: str = file.read().strip()
-                    set_comment(new_comment)
+                fd, file_name = tempfile.mkstemp(suffix=".txt", text=True)
+                try:
+                    with os.fdopen(fd, mode="w") as file:
+                        file.write(comment)
+                        file.flush()
+                    self.poutput(f"Opening {file_name} in your editor.")
+                    self.onecmd(f"edit '{file_name}'")
+                    with open(file_name, mode="r") as file:
+                        file.seek(0)
+                        new_comment: str = file.read().strip()
+                        set_comment(new_comment)
+                        self.poutput("Successfully updated comment.")
+                finally:
+                    os.remove(file_name)
             case _:
                 assert False, "Unknown subcommand."
 
