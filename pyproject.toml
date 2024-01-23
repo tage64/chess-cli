@@ -35,3 +35,8 @@ line-length = 100
 fast = true
 preview = true
 src = "chess_cli/"
+
+[tool.mypy]
+files = "chess_cli/*.py"
+check_untyped_defs = true
+warn_unreachable = true
