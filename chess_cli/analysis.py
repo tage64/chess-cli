@@ -20,18 +20,18 @@ class _AnalysisInfo:
 
 
 class Analysis(Engine):
-    _analysis: list[_AnalysisInfo]  # List of all (running or finished) analysis.
+    _analyses: list[_AnalysisInfo]  # List of all (running or finished) analyses.
     _analysis_by_node: defaultdict[chess.pgn.GameNode, dict[str, _AnalysisInfo]]  # TODO comment
-    _running_analysis: dict[str, _AnalysisInfo]
+    _running_analyses: dict[str, _AnalysisInfo]
     _auto_analysis_engines: Set[str]  # All currently auto-analysing engines.
     _auto_analysis_number_of_moves: int  # Number of moves to analyse for auto analysis.
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
 
-        self._analysis = []
+        self._analyses = []
         self._analysis_by_node = defaultdict(dict)
-        self._running_analysis = dict()
+        self._running_analyses = dict()
         self._auto_analysis_engines = set()
         self._auto_analysis_number_of_moves = 5
 
@@ -44,13 +44,18 @@ class Analysis(Engine):
 
         self.register_postcmd_hook(__update_auto_analysis)
 
+    @property
+    def running_analyses(self) -> dict[str, _AnalysisInfo]:
+        "Get all currently running analyses."
+        return self._running_analyses
+                         
     def start_analysis(
         self,
         engine: str,
         number_of_moves: int,
         limit: Optional[chess.engine.Limit] = None,
     ) -> None:
-        if engine in self._running_analysis:
+        if engine in self._running_analyses:
             return
         analysis: _AnalysisInfo = _AnalysisInfo(
             result=self.loaded_engines[engine].analysis(
@@ -63,19 +68,25 @@ class Analysis(Engine):
             board=self.game_node.board(),
             san=(self.game_node.san() if isinstance(self.game_node, chess.pgn.ChildNode) else None),
         )
-        self._analysis.append(analysis)
-        self._running_analysis[engine] = analysis
+        self._analyses.append(analysis)
+        self._running_analyses[engine] = analysis
         self._analysis_by_node[self.game_node][engine] = analysis
 
     def stop_analysis(self, engine: str) -> None:
-        self._running_analysis[engine].result.stop()
-        del self._running_analysis[engine]
+        self._running_analyses[engine].result.stop()
+        del self._running_analyses[engine]
+
+    #@override  TODO: Python 3.12
+    def close_engine(self, engine: str) -> None:
+        if engine in self.running_analyses:
+            self.stop_analysis(engine)
+        super().close_engine(engine)
 
     def update_auto_analysis(self) -> None:
         for engine in self._auto_analysis_engines:
             if (
-                engine in self._running_analysis
-                and self._running_analysis[engine].board != self.game_node.board()
+                engine in self._running_analyses
+                and self._running_analyses[engine].board != self.game_node.board()
             ):
                 self.stop_analysis(engine)
             self.start_analysis(engine, self._auto_analysis_number_of_moves)

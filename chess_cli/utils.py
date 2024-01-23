@@ -4,6 +4,7 @@ import re
 from typing import *
 
 import chess.pgn
+from chess.engine import Score
 
 
 def sizeof_fmt(num, suffix="B"):
@@ -158,3 +159,17 @@ def move_str(
     ):
         res += ">"
     return res
+def score_str(score: Score) -> str:
+    if score == chess.engine.MateGiven:
+        return "mate"
+    if score.is_mate():
+        mate: int = score.mate()  # type: ignore
+        if 0 < mate:
+            return f"Mate in {mate}"
+        return f"Mated in {-mate}"
+    cp: int = score.score()  # type: ignore
+    if cp > 0:
+        return f"+{cp/100} pawns"
+    return f"{cp/100} pawns"
+
+
