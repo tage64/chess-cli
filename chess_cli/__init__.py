@@ -1,5 +1,6 @@
 from . import base
 from . import engine
+from . import analysis
 from . import nags
 
 import argparse

@@ -44,6 +44,13 @@ class CommandFailure(cmd2.exceptions.SkipPostcommandHooks):
     pass
 
 
+class ConfigError(Exception):
+    "An exception raised if there is something wrong with the config file."
+
+    def __init__(self, config_file: str, msg: str) -> None:
+        super().__init__(f"Bad config file at {config_file}: {msg}")
+
+
 class Base(cmd2.Cmd):
     _config_file: str  # The path to the currently open config file.
     config: dict  # The current configuration as a dictionary.
@@ -68,17 +75,21 @@ class Base(cmd2.Cmd):
         else:
             self.add_new_game()
 
+        self.register_postcmd_hook(self.set_prompt)
+
+    def config_error(self, msg: str) -> ConfigError:
+        "Make a `ConfigError` with the provided message."
+        return ConfigError(self._config_file, msg)
+
     def load_config(self, config_file: str) -> None:
         self._config_file = config_file
         try:
             with open(self._config_file) as f:
                 self.config = toml.load(f)
                 if not isinstance(self.config, dict):
-                    raise Exception("Failed to parse configuration")
+                    raise self.config_error("The parsed TOML-file must be a dict")
         except Exception as ex:
-            self.config = {}
-            self.poutput(f"Error while processing config file at '{self._config_file}': {repr(ex)}")
-            self.poutput("This session will be started with an empty configuration.")
+            raise self.config_error(repr(ex))
 
     def load_games(self, file_name: str) -> None:
         "Load games from a PGN file. Upon success, all previous games will be discarded."
