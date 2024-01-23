@@ -1,4 +1,5 @@
 from . import base
+from . import engine
 from . import nags
 
 import argparse
@@ -243,9 +244,7 @@ class CommandFailure(cmd2.exceptions.SkipPostcommandHooks):
 class ChessCli(cmd2.Cmd):
     """A repl to edit and analyse chess games."""
 
-    def __init__(
-        self, file_name: Optional[str] = None, config_file: Optional[str] = None
-    ):
+    def __init__(self, file_name: Optional[str] = None, config_file: Optional[str] = None):
         self.init_cmd2()
         self.init_engines()
         self.load_config(config_file)
@@ -297,28 +296,26 @@ class ChessCli(cmd2.Cmd):
                     if not isinstance(engine_confs, dict):
                         raise Exception("'engine-configurations' must be a list.")
                     self.engine_confs = {
-                        name: EngineConf(**values)
-                        for (name, values) in engine_confs.items()
+                        name: EngineConf(**values) for (name, values) in engine_confs.items()
                     }
                 except Exception as ex:
                     self.poutput(
                         f"Error while processing config file at '{self.config_file}': {repr(ex)}"
                     )
                     self.poutput(
-                        "You might want to go to the file and inspect it yourself. Or just delete it to get rid of the problem."
+                        "You might want to go to the file and inspect it yourself. Or just delete"
+                        " it to get rid of the problem."
                     )
-                    self.poutput(
-                        "This session will be started with an empty configuration."
-                    )
+                    self.poutput("This session will be started with an empty configuration.")
         else:
             if config_file is not None:
                 self.poutput(f"Warning: Couldn't find config file at '{config_file}'.")
 
     def init_analysis(self) -> None:
         self.analysis: list[Analysis] = []
-        self.analysis_by_node: defaultdict[
-            chess.pgn.GameNode, dict[str, Analysis]
-        ] = defaultdict(dict)
+        self.analysis_by_node: defaultdict[chess.pgn.GameNode, dict[str, Analysis]] = defaultdict(
+            dict
+        )
         self.auto_analysis_engines: Set[str] = set()
 
     def init_games(self, file_name: Optional[str]) -> None:
@@ -419,7 +416,10 @@ class ChessCli(cmd2.Cmd):
         "-m",
         "--main-line",
         action="store_true",
-        help="If a variation already exists from the current move, add this new variation as the main line rather than a side line.",
+        help=(
+            "If a variation already exists from the current move, add this new variation as the"
+            " main line rather than a side line."
+        ),
     )
     play_argparser.add_argument(
         "-s",
@@ -468,7 +468,10 @@ class ChessCli(cmd2.Cmd):
         "-c",
         "--comments",
         action="store_true",
-        help='Show all comments. Otherwise just a dash ("-") will be shown at each move with a comment.',
+        help=(
+            'Show all comments. Otherwise just a dash ("-") will be shown at each move with a'
+            " comment."
+        ),
     )
     _moves_from_group = moves_argparser.add_mutually_exclusive_group()
     _moves_from_group.add_argument(
@@ -489,9 +492,7 @@ class ChessCli(cmd2.Cmd):
         action="store_true",
         help="Print only moves upto and including the current move.",
     )
-    _moves_to_group.add_argument(
-        "-t", "--to", help="Print moves to the given move number."
-    )
+    _moves_to_group.add_argument("-t", "--to", help="Print moves to the given move number.")
     moves_argparser.add_argument(
         "-s",
         "--sidelines",
@@ -632,9 +633,7 @@ class ChessCli(cmd2.Cmd):
                 yield current_line
                 carriage_return()
 
-            include_move_number = (
-                True if moves_at_current_line == 0 else node.turn() == chess.BLACK
-            )
+            include_move_number = True if moves_at_current_line == 0 else node.turn() == chess.BLACK
 
             # Add a space if current_line is not empty.
             if current_line:
@@ -654,9 +653,7 @@ class ChessCli(cmd2.Cmd):
                 # No carriage_return() is needed here.
 
             # If this move has any sidelines.
-            if len(node.parent.variations) > 1 and (
-                include_sidelines_at_first_move or not i == 0
-            ):
+            if len(node.parent.variations) > 1 and (include_sidelines_at_first_move or not i == 0):
                 if recurse_sidelines:
                     # Flush the current line if needed.
                     if current_line:
@@ -735,9 +732,7 @@ class ChessCli(cmd2.Cmd):
             text += f"{row + 1} "
             for col in range(0, 8):
                 try:
-                    square_content: str = str(
-                        self.game_node.board().piece_map()[8 * row + col]
-                    )
+                    square_content: str = str(self.game_node.board().piece_map()[8 * row + col])
                 except KeyError:
                     square_content = "-"
                 text += f"{square_content} "
@@ -749,12 +744,10 @@ class ChessCli(cmd2.Cmd):
         arrows: list = self.game_node.arrows()
         if not arrows:
             return None
-        return str(
-            [
-                f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
-                for arrow in self.game_node.arrows()
-            ]
-        )
+        return str([
+            f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
+            for arrow in self.game_node.arrows()
+        ])
 
     def show_clock(self) -> Optional[str]:
         clock = self.game_node.clock()
@@ -772,9 +765,7 @@ class ChessCli(cmd2.Cmd):
         starting_comment: str = comment_text(self.game_node.starting_comment)
         if isinstance(self.game_node, chess.pgn.ChildNode) and starting_comment:
             self.poutput(starting_comment)
-            self.poutput(
-                f"    {MoveNumber.last(self.game_node)} {self.game_node.san()}"
-            )
+            self.poutput(f"    {MoveNumber.last(self.game_node)} {self.game_node.san()}")
         comment: str = comment_text(self.game_node.comment)
         if comment:
             self.poutput(comment)
@@ -809,21 +800,25 @@ class ChessCli(cmd2.Cmd):
         "-s",
         "--starting-comment",
         action="store_true",
-        help="If this move is starting a new variation, act on the starting comment of that variation.",
+        help=(
+            "If this move is starting a new variation, act on the starting comment of that"
+            " variation."
+        ),
     )
     comment_argparser.add_argument(
         "-r",
         "--raw",
         action="store_true",
-        help="Act on the raw pgn comment which may override embedded commands like arrows and clocks.",
+        help=(
+            "Act on the raw pgn comment which may override embedded commands like arrows and"
+            " clocks."
+        ),
     )
     comment_subcmds = comment_argparser.add_subparsers(dest="subcmd")
     comment_subcmds.add_parser("show", help="Show the comment at the current move.")
     comment_subcmds.add_parser("rm", help="Remove the comment at the current move.")
     comment_subcmds.add_parser("edit", help="Open the comment in your editor.")
-    comment_set_argparser = comment_subcmds.add_parser(
-        "set", help="Set the comment for this move."
-    )
+    comment_set_argparser = comment_subcmds.add_parser("set", help="Set the comment for this move.")
     comment_set_argparser.add_argument("comment", help="The new text.")
     comment_append_argparser = comment_subcmds.add_parser(
         "append", help="Append text to the already existing comment."
@@ -841,16 +836,12 @@ class ChessCli(cmd2.Cmd):
             return
 
         comment: str = (
-            self.game_node.comment
-            if not args.starting_comment
-            else self.game_node.starting_comment
+            self.game_node.comment if not args.starting_comment else self.game_node.starting_comment
         )
         comment = comment if args.raw else comment_text(comment)
 
         def set_comment(new_comment: str) -> None:
-            new_comment = (
-                new_comment if args.raw else update_comment_text(comment, new_comment)
-            )
+            new_comment = new_comment if args.raw else update_comment_text(comment, new_comment)
             new_comment = new_comment.strip()
             if args.starting_comment:
                 self.game_node.starting_comment = new_comment
@@ -914,9 +905,7 @@ class ChessCli(cmd2.Cmd):
                     self.poutput(f"Error: invalid NAG {args.nag}: {e}")
                     return
                 self.game_node.nags.add(nag)
-                self.poutput(
-                    f"Set NAG ({nags.ascii_glyph(nag)}): {nags.description(nag)}."
-                )
+                self.poutput(f"Set NAG ({nags.ascii_glyph(nag)}): {nags.description(nag)}.")
             case "rm":
                 try:
                     nag = nags.parse_nag(args.nag)
@@ -926,9 +915,7 @@ class ChessCli(cmd2.Cmd):
                 try:
                     self.game_node.nags.remove(nag)
                 except KeyError:
-                    self.poutput(
-                        f"Error: NAG '{nags.ascii_glyph(nag)}' was not set on this move."
-                    )
+                    self.poutput(f"Error: NAG '{nags.ascii_glyph(nag)}' was not set on this move.")
             case "clear":
                 self.game_node.nags = set()
             case _:
@@ -938,7 +925,10 @@ class ChessCli(cmd2.Cmd):
     evaluation_subcmds = evaluation_argparser.add_subparsers(dest="subcmd")
     evaluation_show_argparser = evaluation_subcmds.add_parser(
         "show",
-        help="Show the evaluation at this move. (Note that this is the evaluation stored in the pgn comment and might neither come from an engine nore be correct.",
+        help=(
+            "Show the evaluation at this move. (Note that this is the evaluation stored in the pgn"
+            " comment and might neither come from an engine nore be correct."
+        ),
     )
     evaluation_rm_argparser = evaluation_subcmds.add_parser(
         "rm", help="Remove the evaluation at this move."
@@ -946,9 +936,7 @@ class ChessCli(cmd2.Cmd):
     evaluation_set_argparser = evaluation_subcmds.add_parser(
         "set", help="Set an evaluation for this move."
     )
-    evaluation_set_group = evaluation_set_argparser.add_mutually_exclusive_group(
-        required=True
-    )
+    evaluation_set_group = evaluation_set_argparser.add_mutually_exclusive_group(required=True)
     evaluation_set_group.add_argument(
         "--cp",
         type=int,
@@ -1008,9 +996,7 @@ class ChessCli(cmd2.Cmd):
     arrow_rm_argparser.add_argument(
         "to", type=chess.parse_square, help="The square which the arrow is pointing to."
     )
-    arrow_add_argparser = arrow_subcmds.add_parser(
-        "add", help="Draw an arrow on the board."
-    )
+    arrow_add_argparser = arrow_subcmds.add_parser("add", help="Draw an arrow on the board.")
     arrow_add_argparser.add_argument(
         "_from",
         type=chess.parse_square,
@@ -1049,17 +1035,14 @@ class ChessCli(cmd2.Cmd):
                 else:
                     color = args.color
                 self.game_node.set_arrows(
-                    self.game_node.arrows()
-                    + [chess.svg.Arrow(args._from, args.to, color=color)]
+                    self.game_node.arrows() + [chess.svg.Arrow(args._from, args.to, color=color)]
                 )
             case "rm":
-                self.game_node.set_arrows(
-                    (
-                        arr
-                        for arr in self.game_node.arrows()
-                        if not (args._from == arr.tail or args.to == arr.head)
-                    )
-                )
+                self.game_node.set_arrows((
+                    arr
+                    for arr in self.game_node.arrows()
+                    if not (args._from == arr.tail or args.to == arr.head)
+                ))
             case _:
                 assert False, "Unknown subcommand."
 
@@ -1085,9 +1068,7 @@ class ChessCli(cmd2.Cmd):
             case "rm":
                 self.game_node.set_clock(None)
             case "set":
-                time_parsed = re.fullmatch(
-                    "(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?", args.time
-                )
+                time_parsed = re.fullmatch("(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?", args.time)
                 if time_parsed is None:
                     self.poutput(f"Error: Couldn't parse time '{args.time}'.")
                     return
@@ -1110,21 +1091,15 @@ class ChessCli(cmd2.Cmd):
         recurse_sidelines: bool,
         search_forwards: bool = True,
         search_backwards: bool = True,
-        break_search_forwards_at: Optional[
-            Callable[[chess.pgn.ChildNode], bool]
-        ] = None,
-        break_search_backwards_at: Optional[
-            Callable[[chess.pgn.ChildNode], bool]
-        ] = None,
+        break_search_forwards_at: Optional[Callable[[chess.pgn.ChildNode], bool]] = None,
+        break_search_backwards_at: Optional[Callable[[chess.pgn.ChildNode], bool]] = None,
     ) -> Optional[chess.pgn.ChildNode]:
         """Search for a move by a string of its move number and SAN.
         Like 'e4' '8.Nxe5' or 8...'.
         """
         move_number_match = MOVE_NUMBER_REGEX.match(move_str)
         if move_number_match is not None:
-            move_number: Optional[MoveNumber] = MoveNumber.from_regex_match(
-                move_number_match
-            )
+            move_number: Optional[MoveNumber] = MoveNumber.from_regex_match(move_number_match)
             if len(move_str) > move_number_match.end():
                 move: Optional[str] = move_str[move_number_match.end() :]
             else:
@@ -1168,17 +1143,11 @@ class ChessCli(cmd2.Cmd):
                 node: chess.pgn.ChildNode = search_queue.popleft()
                 if check(node):
                     return node
-                if break_search_forwards_at is not None and break_search_forwards_at(
-                    node
-                ):
+                if break_search_forwards_at is not None and break_search_forwards_at(node):
                     break
                 if move_number is not None and move_number < MoveNumber.last(node):
                     break
-                if (
-                    node.is_main_variation()
-                    or recurse_sidelines
-                    or node is current_node
-                ):
+                if node.is_main_variation() or recurse_sidelines or node is current_node:
                     if search_sidelines:
                         search_queue.extend(node.variations)
                     else:
@@ -1194,9 +1163,7 @@ class ChessCli(cmd2.Cmd):
                 node = node.parent
                 if check(node):
                     return node
-                if break_search_backwards_at is not None and break_search_backwards_at(
-                    node
-                ):
+                if break_search_backwards_at is not None and break_search_backwards_at(node):
                     break
                 if move_number is not None and move_number > MoveNumber.last(node):
                     break
@@ -1205,8 +1172,10 @@ class ChessCli(cmd2.Cmd):
     goto_argparser = cmd2.Cmd2ArgumentParser()
     goto_argparser.add_argument(
         "move",
-        help="A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'. Or the"
-        "string 'start'/'s' or 'end'/'e' for jumping to the start or end of the game.",
+        help=(
+            "A move, move number or both. E.G. 'e4', '8...' or '9.dxe5+'. Or the"
+            "string 'start'/'s' or 'end'/'e' for jumping to the start or end of the game."
+        ),
     )
     goto_sidelines_group = goto_argparser.add_mutually_exclusive_group()
     goto_sidelines_group.add_argument(
@@ -1274,15 +1243,11 @@ class ChessCli(cmd2.Cmd):
                         self.game_node = parent.variations[i - 1]
                     else:
                         self.game_node = parent
-                    parent.variations = (
-                        parent.variations[:i] + parent.variations[i + 1 :]
-                    )
+                    parent.variations = parent.variations[:i] + parent.variations[i + 1 :]
 
     engine_argparser = cmd2.Cmd2ArgumentParser()
     engine_subcmds = engine_argparser.add_subparsers(dest="subcmd")
-    engine_ls_argparser = engine_subcmds.add_parser(
-        "ls", help="List loaded chess engines."
-    )
+    engine_ls_argparser = engine_subcmds.add_parser("ls", help="List loaded chess engines.")
     engine_ls_argparser.add_argument(
         "-v",
         "--verbose",
@@ -1292,9 +1257,7 @@ class ChessCli(cmd2.Cmd):
     engine_ls_argparser.add_argument(
         "-l", "--loaded", action="store_true", help="List only loaded engines."
     )
-    engine_load_argparser = engine_subcmds.add_parser(
-        "load", help="Load a chess engine."
-    )
+    engine_load_argparser = engine_subcmds.add_parser("load", help="Load a chess engine.")
     engine_load_argparser.add_argument(
         "name",
         help="Name of the engine. List availlable engines with the command `engine ls`",
@@ -1302,11 +1265,12 @@ class ChessCli(cmd2.Cmd):
     engine_load_argparser.add_argument(
         "--as",
         dest="load_as",
-        help="Load the engine with a different name. Useful if you want to have multiple instances of an engine running at the same time.",
+        help=(
+            "Load the engine with a different name. Useful if you want to have multiple instances"
+            " of an engine running at the same time."
+        ),
     )
-    engine_import_argparser = engine_subcmds.add_parser(
-        "import", help="Import a chess engine."
-    )
+    engine_import_argparser = engine_subcmds.add_parser("import", help="Import a chess engine.")
     engine_import_argparser.add_argument("path", help="Path to engine executable.")
     engine_import_argparser.add_argument(
         "name", help="A short name for the engine, (PRO TIP: avoid spaces in the name)."
@@ -1328,12 +1292,13 @@ class ChessCli(cmd2.Cmd):
     engine_install_argparser.add_argument(
         "engine", choices=["stockfish", "lc0"], help="Which engine to install."
     )
-    engine_quit_argparser = engine_subcmds.add_parser(
-        "quit", help="Quit all selected engines."
-    )
+    engine_quit_argparser = engine_subcmds.add_parser("quit", help="Quit all selected engines.")
     engine_select_argparser = engine_subcmds.add_parser(
         "select",
-        help="Select a loaded engine. The selected engine will be used for commands like `analysis start` or `engine config`.",
+        help=(
+            "Select a loaded engine. The selected engine will be used for commands like `analysis"
+            " start` or `engine config`."
+        ),
     )
     engine_select_argparser.add_argument("engine", help="Engine to select.")
     engine_config_argparser = engine_subcmds.add_parser(
@@ -1359,13 +1324,11 @@ class ChessCli(cmd2.Cmd):
     engine_config_ls_argparser.add_argument(
         "-t",
         "--type",
-        choices=["checkbox", "combobox" "integer", "text", "button"],
+        choices=["checkbox", "comboboxinteger", "text", "button"],
         nargs="+",
         help="Filter options by the given type.",
     )
-    engine_config_ls_configured_group = (
-        engine_config_ls_argparser.add_mutually_exclusive_group()
-    )
+    engine_config_ls_configured_group = engine_config_ls_argparser.add_mutually_exclusive_group()
     engine_config_ls_configured_group.add_argument(
         "-c",
         "--configured",
@@ -1382,7 +1345,10 @@ class ChessCli(cmd2.Cmd):
         "--include-auto",
         "--include-automatically-managed",
         action="store_true",
-        help="By default, some options like MultiPV or Ponder are managed automatically. There is no reason to change them so they are hidden by default. This option makes them vissable.",
+        help=(
+            "By default, some options like MultiPV or Ponder are managed automatically. There is no"
+            " reason to change them so they are hidden by default. This option makes them vissable."
+        ),
     )
     engine_config_set_argparser = engine_config_subcmds.add_parser(
         "set", help="Set a value of an option for the selected engine."
@@ -1390,21 +1356,25 @@ class ChessCli(cmd2.Cmd):
     engine_config_set_argparser.add_argument("name", help="Name of the option to set.")
     engine_config_set_argparser.add_argument(
         "value",
-        help="The new value. Use true/check or false/uncheck to set a checkbox. Buttons can only be set to 'trigger-on-startup', but note that you must use the `engine config trigger` command to trigger it right now.",
+        help=(
+            "The new value. Use true/check or false/uncheck to set a checkbox. Buttons can only be"
+            " set to 'trigger-on-startup', but note that you must use the `engine config trigger`"
+            " command to trigger it right now."
+        ),
     )
     engine_config_set_argparser.add_argument(
         "-t",
         "--temporary",
         action="store_true",
-        help="Set the value in the running engine but don't store it in the engine's configuration.",
+        help=(
+            "Set the value in the running engine but don't store it in the engine's configuration."
+        ),
     )
     engine_config_unset_argparser = engine_config_subcmds.add_parser(
         "unset",
         help="Change an option back to its default value and remove it from the configuration.",
     )
-    engine_config_unset_argparser.add_argument(
-        "name", help="Name of the option to unset."
-    )
+    engine_config_unset_argparser.add_argument("name", help="Name of the option to unset.")
     engine_config_unset_argparser.add_argument(
         "-t",
         "--temporary",
@@ -1414,9 +1384,7 @@ class ChessCli(cmd2.Cmd):
     engine_config_trigger_argparser = engine_config_subcmds.add_parser(
         "trigger", help="Trigger an option of type button."
     )
-    engine_config_trigger_argparser.add_argument(
-        "name", help="Name of the option to trigger."
-    )
+    engine_config_trigger_argparser.add_argument("name", help="Name of the option to trigger.")
     engine_log_argparser = engine_subcmds.add_parser(
         "log", help="Show the logged things (like stderr) from the selected engine."
     )
@@ -1453,11 +1421,14 @@ class ChessCli(cmd2.Cmd):
         if args.engine not in self.loaded_engines:
             if args.engine in self.engine_confs:
                 self.poutput(
-                    f"Error: {args.engine} is not loaded. You can try to load it by running `engine load {args.engine}`."
+                    f"Error: {args.engine} is not loaded. You can try to load it by running `engine"
+                    f" load {args.engine}`."
                 )
             else:
                 self.poutput(
-                    f"Error: There is no engine named {args.engine}. You can list all availlable engines with `engine ls -a`, import an engine with the `engine import` command, or install an engine with `engine install ...`."
+                    f"Error: There is no engine named {args.engine}. You can list all availlable"
+                    " engines with `engine ls -a`, import an engine with the `engine import`"
+                    " command, or install an engine with `engine install ...`."
                 )
             return
         self.selected_engine = args.engine
@@ -1498,32 +1469,27 @@ class ChessCli(cmd2.Cmd):
         engine_conf: EngineConf = self.engine_confs[name]
         try:
             if engine_conf.protocol == "uci":
-                engine = chess.engine.SimpleEngine.popen_uci(
-                    engine_conf.path, timeout=120
-                )
+                engine = chess.engine.SimpleEngine.popen_uci(engine_conf.path, timeout=120)
             elif engine_conf.protocol == "xboard":
-                engine = chess.engine.SimpleEngine.popen_xboard(
-                    engine_conf.path, timeout=120
-                )
+                engine = chess.engine.SimpleEngine.popen_xboard(engine_conf.path, timeout=120)
         except chess.engine.EngineError as e:
             self.poutput(
-                f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it should. Either it is broken, or this program containes a bug. It might also be that you've specified wrong path to the engine executable."
+                f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it"
+                " should. Either it is broken, or this program containes a bug. It might also be"
+                " that you've specified wrong path to the engine executable."
             )
             raise e
         except chess.engine.EngineTerminatedError as e:
             self.poutput(
-                f"Engine Terminated Error: The engine {engine_conf.path} terminated unexpectedly. Either the engine is broken or you've specified wrong path to the executable."
+                f"Engine Terminated Error: The engine {engine_conf.path} terminated unexpectedly."
+                " Either the engine is broken or you've specified wrong path to the executable."
             )
             raise e
         except FileNotFoundError as e:
-            self.poutput(
-                f"Error: Couldn't find the engine executable {engine_conf.path}: {e}"
-            )
+            self.poutput(f"Error: Couldn't find the engine executable {engine_conf.path}: {e}")
             raise e
         except OSError as e:
-            self.poutput(
-                f"Error: While loading engine executable {engine_conf.path}: {e}"
-            )
+            self.poutput(f"Error: While loading engine executable {engine_conf.path}: {e}")
             raise e
         self.loaded_engines[name] = engine
         self.selected_engine = name
@@ -1534,7 +1500,8 @@ class ChessCli(cmd2.Cmd):
                 self.set_engine_option(name, opt_name, value)
             except ValueError as e:
                 self.poutput(
-                    f"Warning: Couldn't set {opt_name} to {value} as specified in the configuration."
+                    f"Warning: Couldn't set {opt_name} to {value} as specified in the"
+                    " configuration."
                 )
                 self.poutput(f"    {e}")
                 invalid_options.append(opt_name)
@@ -1547,21 +1514,22 @@ class ChessCli(cmd2.Cmd):
         try:
             if args.name not in self.engine_confs:
                 self.poutput(
-                    f"Error: There is no engine named {args.name}. Consider importing one with `engine import`."
+                    f"Error: There is no engine named {args.name}. Consider importing one with"
+                    " `engine import`."
                 )
                 return
             if args.load_as is not None:
                 if args.load_as in self.engine_confs:
-                    self.poutput(
-                        f"Error: There is already an engine named {args.load_as}."
-                    )
+                    self.poutput(f"Error: There is already an engine named {args.load_as}.")
                     return
                 engine_conf = self.engine_confs[args.name]
                 self.engine_confs[args.load_as] = engine_conf
                 self.load_engine(args.load_as)
             elif args.name in self.loaded_engines:
                 self.poutput(
-                    f"Error: An engine named {args.name} is already loaded. If you want to run multiple instances of a given engine, consider to load it as another name like `engine load <name> --as <name2>`"
+                    f"Error: An engine named {args.name} is already loaded. If you want to run"
+                    " multiple instances of a given engine, consider to load it as another name"
+                    " like `engine load <name> --as <name2>`"
                 )
                 return
             else:
@@ -1569,10 +1537,13 @@ class ChessCli(cmd2.Cmd):
             self.poutput(f"Successfully loaded and selected {args.name}.")
         except OSError as e:
             self.poutput(
-                "Perhaps the executable has been moved or deleted, or you might be in a different folder now than when you configured the engine."
+                "Perhaps the executable has been moved or deleted, or you might be in a different"
+                " folder now than when you configured the engine."
             )
             self.poutput(
-                "You should probably locate the engine's executable (something like stockfish.exe) and update the engine configuration with the `engine config` command if necessary."
+                "You should probably locate the engine's executable (something like stockfish.exe)"
+                " and update the engine configuration with the `engine config` command if"
+                " necessary."
             )
         except (chess.engine.EngineError, chess.engine.EngineTerminatedError):
             self.poutput(f"Loading of {args.name} failed.")
@@ -1580,7 +1551,9 @@ class ChessCli(cmd2.Cmd):
     def engine_import(self, args) -> None:
         if args.name in self.engine_confs:
             self.poutput(
-                f"Error: The name {args.name} is already in use, please pick another name or consider removing or updating the existing configuration with the `engine config` command."
+                f"Error: The name {args.name} is already in use, please pick another name or"
+                " consider removing or updating the existing configuration with the `engine"
+                " config` command."
             )
             return
         engine_conf: EngineConf = EngineConf(path=args.path, protocol=args.protocol)
@@ -1600,9 +1573,7 @@ class ChessCli(cmd2.Cmd):
             )
             return
         if args.engine in self.loaded_engines:
-            self.poutput(
-                f"Error: {args.engine} is loaded, please quit it before removing it."
-            )
+            self.poutput(f"Error: {args.engine} is loaded, please quit it before removing it.")
             return
         removed: EngineConf = self.engine_confs.pop(args.engine)
         if removed.install_dir is not None:
@@ -1615,7 +1586,8 @@ class ChessCli(cmd2.Cmd):
                 self.install_stockfish()
             case "lc0":
                 self.poutput(
-                    "The installation is not supported yet. Please talk to the authors of this application to get it implemented :)"
+                    "The installation is not supported yet. Please talk to the authors of this"
+                    " application to get it implemented :)"
                 )
             case _:
                 assert False, "Invalid argument"
@@ -1625,7 +1597,9 @@ class ChessCli(cmd2.Cmd):
         os.makedirs(dir, exist_ok=True)
         match platform.system():
             case "Linux":
-                url: str = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
+                url: str = (
+                    "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
+                )
                 archive_format: str = "tar"
                 executable: str = "stockfish/stockfish-ubuntu-x86-64-avx2"
             case "Windows":
@@ -1648,19 +1622,19 @@ class ChessCli(cmd2.Cmd):
         ncores: int = psutil.cpu_count()
         ncores_use: int = ncores - 1 if ncores > 1 else 1
         self.poutput(
-            f"You seem to have {ncores} logical cores on your system. So the engine will use {ncores_use} of them."
+            f"You seem to have {ncores} logical cores on your system. So the engine will use"
+            f" {ncores_use} of them."
         )
         self.onecmd(f"engine config set threads {ncores_use}")
         ram: int = psutil.virtual_memory().total
         ram_use_MiB: int = int(0.75 * ram / 2**20)
         ram_use: int = ram_use_MiB * 2**20
         self.poutput(
-            f"You seem to have a RAM of {sizeof_fmt(ram)} bytes, so stockfish will be configured to use {sizeof_fmt(ram_use)} bytes (75 %) thereof for the hash."
+            f"You seem to have a RAM of {sizeof_fmt(ram)} bytes, so stockfish will be configured to"
+            f" use {sizeof_fmt(ram_use)} bytes (75 %) thereof for the hash."
         )
         self.onecmd(f"engine config set hash {ram_use_MiB}")
-        self.poutput(
-            "You can change these settings and more with the engine config command."
-        )
+        self.poutput("You can change these settings and more with the engine config command.")
 
     def engine_quit(self, _args) -> None:
         if self.selected_engine is None:
@@ -1677,9 +1651,9 @@ class ChessCli(cmd2.Cmd):
 
     def show_engine_option(self, engine: str, name: str) -> None:
         opt: chess.engine.Option = self.loaded_engines[engine].options[name]
-        configured_val: Optional[Union[str, int, bool]] = self.engine_confs[
-            engine
-        ].options.get(name)
+        configured_val: Optional[Union[str, int, bool]] = self.engine_confs[engine].options.get(
+            name
+        )
         val: Optional[Union[str, int, bool]] = configured_val or opt.default
 
         show_str: str = name
@@ -1755,12 +1729,11 @@ class ChessCli(cmd2.Cmd):
         if name in options:
             return name
         try:
-            return next(
-                (name for name in options.keys() if name.lower() == name.lower())
-            )
+            return next((name for name in options.keys() if name.lower() == name.lower()))
         except StopIteration:
             self.poutput(
-                f"Error: No option named {name} in the engine {engine}. List all availlable options with `engine config ls`."
+                f"Error: No option named {name} in the engine {engine}. List all availlable options"
+                " with `engine config ls`."
             )
             raise CommandFailure()
 
@@ -1790,9 +1763,7 @@ class ChessCli(cmd2.Cmd):
                 try:
                     pattern: re.Pattern = re.compile(args.regex, flags=re.IGNORECASE)
                 except re.error as e:
-                    self.poutput(
-                        f'Error: Invalid regular expression "{args.regex}": {e}'
-                    )
+                    self.poutput(f'Error: Invalid regular expression "{args.regex}": {e}')
                     return
                 if not pattern.fullmatch(name):
                     continue
@@ -1810,34 +1781,38 @@ class ChessCli(cmd2.Cmd):
                 continue
             self.show_engine_option(engine, name)
 
-    def set_engine_option(
-        self, engine: str, name: str, value: Union[str, int, bool, None]
-    ) -> None:
+    def set_engine_option(self, engine: str, name: str, value: Union[str, int, bool, None]) -> None:
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].options
         option: chess.engine.Option = options[name]
         if option.type in ["string", "file", "path"]:
             if not isinstance(value, str):
                 raise ValueError(
-                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                    f"{name} is a {option.type} according to the engine but the given type is"
+                    f" {type(value)} which doesn't match very well."
                 )
         elif option.type == "combo":
             if not isinstance(value, str):
                 raise ValueError(
-                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                    f"{name} is a {option.type} according to the engine but the given type is"
+                    f" {type(value)} which doesn't match very well."
                 )
 
             if not option.var:
                 raise ValueError(
-                    f"There are no valid alternatives for {option.name}, so you cannot set it to any value. It's strange I know, but I'm probably not the engine's author so I can't do much about it."
+                    f"There are no valid alternatives for {option.name}, so you cannot set it to"
+                    " any value. It's strange I know, but I'm probably not the engine's author so"
+                    " I can't do much about it."
                 )
             if value not in option.var:
                 raise ValueError(
-                    f"{value} is not a valid alternative for the combobox {option.name}. The list of valid options is: {repr(option.var)}."
+                    f"{value} is not a valid alternative for the combobox {option.name}. The list"
+                    f" of valid options is: {repr(option.var)}."
                 )
         elif option.type == "spin":
             if not isinstance(value, int):
                 raise ValueError(
-                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                    f"{name} is a {option.type} according to the engine but the given type is"
+                    f" {type(value)} which doesn't match very well."
                 )
             if option.min is not None and value < option.min:
                 raise ValueError(
@@ -1850,12 +1825,14 @@ class ChessCli(cmd2.Cmd):
         elif option.type == "check":
             if not isinstance(value, bool):
                 raise ValueError(
-                    f"{name} is a {option.type} according to the engine but the given type is {type(value)} which doesn't match very well."
+                    f"{name} is a {option.type} according to the engine but the given type is"
+                    f" {type(value)} which doesn't match very well."
                 )
         elif option.type in ["button", "reset", "save"]:
             if value is not None:
                 raise ValueError(
-                    f"{name} is a button according to the engine but the given value is a {type(value)} which doesn't really make any sence."
+                    f"{name} is a button according to the engine but the given value is a"
+                    f" {type(value)} which doesn't really make any sence."
                 )
         else:
             assert False, f"Unsupported option type: {option.type}"
@@ -1874,7 +1851,8 @@ class ChessCli(cmd2.Cmd):
                 value = int(args.value)
             except ValueError:
                 self.poutput(
-                    f"Invalid integer: {args.value}. Note: This option expects an integer and nothing else."
+                    f"Invalid integer: {args.value}. Note: This option expects an integer and"
+                    " nothing else."
                 )
                 return
         elif option.type == "check":
@@ -1884,13 +1862,20 @@ class ChessCli(cmd2.Cmd):
                 value = False
             else:
                 self.poutput(
-                    f"{option.name} is a checkbox and can only be set to true/check or false/uncheck, but you set it to {args.value}. Please go ahead and correct your mistake."
+                    f"{option.name} is a checkbox and can only be set to true/check or"
+                    f" false/uncheck, but you set it to {args.value}. Please go ahead and correct"
+                    " your mistake."
                 )
                 return
         elif option.type in ["button", "reset", "save"]:
             if not args.value.lower() == "trigger-on-startup":
                 self.poutput(
-                    f"{option.name} is a button and buttons can only be configured to 'trigger-on-startup', (which means what it sounds like). If you want to trigger {option.name}, please go ahead and run `engine config trigger {option.name}` instead. Or you might just have made a typo when you entered this command, if so, go ahead and run `engine config set {option.name} trigger-on-startup`."
+                    f"{option.name} is a button and buttons can only be configured to"
+                    " 'trigger-on-startup', (which means what it sounds like). If you want to"
+                    f" trigger {option.name}, please go ahead and run `engine config trigger"
+                    f" {option.name}` instead. Or you might just have made a typo when you entered"
+                    " this command, if so, go ahead and run `engine config set"
+                    f" {option.name} trigger-on-startup`."
                 )
                 return
             if not args.temporary:
@@ -1911,7 +1896,8 @@ class ChessCli(cmd2.Cmd):
         if default is None:
             if args.temporary:
                 self.poutput(
-                    f"Error: {opt_name} has no default value and wasn't changed. Try to set it to a custom value with `engine config set --temporary {args.name} <value>`."
+                    f"Error: {opt_name} has no default value and wasn't changed. Try to set it to a"
+                    f" custom value with `engine config set --temporary {args.name} <value>`."
                 )
                 return
             self.poutput(
@@ -1919,9 +1905,7 @@ class ChessCli(cmd2.Cmd):
             )
         else:
             self.loaded_engines[engine].configure({opt_name: default})
-            self.poutput(
-                f"Successfully changed {opt_name} back to its default value: {default}."
-            )
+            self.poutput(f"Successfully changed {opt_name} back to its default value: {default}.")
 
         if not args.temporary:
             conf: EngineConf = self.engine_confs[engine]
@@ -1940,9 +1924,7 @@ class ChessCli(cmd2.Cmd):
     def save_engine_config(self) -> None:
         os.makedirs(os.path.split(self.config_file)[0], exist_ok=True)
         with open(self.config_file, "w") as f:
-            engine_confs = {
-                name: conf._asdict() for (name, conf) in self.engine_confs.items()
-            }
+            engine_confs = {name: conf._asdict() for (name, conf) in self.engine_confs.items()}
             items = {"engine-configurations": engine_confs}
             toml.dump(items, f)
 
@@ -1955,7 +1937,10 @@ class ChessCli(cmd2.Cmd):
         "-f",
         "--fixed",
         action="store_true",
-        help="Fix the analysis to the current move. If not given, the analysis will be stopped and restarted as the current position changes.",
+        help=(
+            "Fix the analysis to the current move. If not given, the analysis will be stopped and"
+            " restarted as the current position changes."
+        ),
     )
     analysis_start_argparser.add_argument(
         "-n", "--number-of-moves", type=int, default=5, help="Show the n best moves."
@@ -1974,9 +1959,7 @@ class ChessCli(cmd2.Cmd):
         type=int,
         help="Search for a mate in the given number of moves and stop then.",
     )
-    analysis_stop_argparser = analysis_subcmds.add_parser(
-        "stop", help="Stop analysing."
-    )
+    analysis_stop_argparser = analysis_subcmds.add_parser("stop", help="Stop analysing.")
     analysis_stop_argparser.add_argument(
         "-a", "--all", action="store_true", help="Stop all engines."
     )
@@ -1997,7 +1980,10 @@ class ChessCli(cmd2.Cmd):
     analysis_rm_argparser = analysis_subcmds.add_parser(
         "rm",
         aliases="remove",
-        help="Remove analysis made by the selected engine at this move. Useful if you want to rerun the analysis.",
+        help=(
+            "Remove analysis made by the selected engine at this move. Useful if you want to rerun"
+            " the analysis."
+        ),
     )
     analysis_rm_argparser.add_argument(
         "-a",
@@ -2008,7 +1994,10 @@ class ChessCli(cmd2.Cmd):
     analysis_rm_argparser.add_argument(
         "engine",
         nargs="?",
-        help="Remove analysis made by this engine at this move. Defaults to the currently selected engine.",
+        help=(
+            "Remove analysis made by this engine at this move. Defaults to the currently selected"
+            " engine."
+        ),
     )
 
     @cmd2.with_argparser(analysis_argparser)  # type: ignore
@@ -2045,11 +2034,7 @@ class ChessCli(cmd2.Cmd):
             ),
             engine=engine,
             board=self.game_node.board(),
-            san=(
-                self.game_node.san()
-                if isinstance(self.game_node, chess.pgn.ChildNode)
-                else None
-            ),
+            san=(self.game_node.san() if isinstance(self.game_node, chess.pgn.ChildNode) else None),
         )
         self.analysis.append(analysis)
         self.running_analysis[engine] = analysis
@@ -2067,9 +2052,7 @@ class ChessCli(cmd2.Cmd):
     def analysis_start(self, args) -> None:
         engine: str = self.get_selected_engine()
         if engine in self.analysis_by_node[self.game_node]:
-            self.poutput(
-                f"Error: There's allready an analysis made by {engine} at this move."
-            )
+            self.poutput(f"Error: There's allready an analysis made by {engine} at this move.")
             answer: str = self.read_input(
                 "Do you want to remove it and restart the analysis? [Y/n] "
             )
@@ -2083,7 +2066,8 @@ class ChessCli(cmd2.Cmd):
                     return
         if engine in self.running_analysis:
             self.poutput(
-                f"Error: {engine} is already running an analysis, stop it with `analysis stop` before you can restart it."
+                f"Error: {engine} is already running an analysis, stop it with `analysis stop`"
+                " before you can restart it."
             )
             return
         if args.fixed:
@@ -2198,9 +2182,7 @@ class ChessCli(cmd2.Cmd):
             else:
                 engine = self.get_selected_engine()
             if engine not in self.analysis_by_node[self.game_node]:
-                self.poutput(
-                    f"Error: There is no analysis made by {engine} at this move."
-                )
+                self.poutput(f"Error: There is no analysis made by {engine} at this move.")
                 return
             engines = [engine]
         for engine in engines:
@@ -2221,23 +2203,20 @@ class ChessCli(cmd2.Cmd):
     )
     games_rm_subcmds = games_rm_argparser.add_subparsers(dest="subcmd")
     games_rm_subcmds.add_parser("this", help="Remove the currently selected game.")
-    games_rm_subcmds.add_parser(
-        "others", help="Remove all but the currently selected game."
-    )
-    games_rm_subcmds.add_parser(
-        "all", help="Remove all games. Including the current game."
-    )
+    games_rm_subcmds.add_parser("others", help="Remove all but the currently selected game.")
+    games_rm_subcmds.add_parser("all", help="Remove all games. Including the current game.")
     games_select_argparser = games_subcmds.add_parser(
         "select", aliases=["s", "sel"], help="Select another game in the file."
     )
     games_select_argparser.add_argument(
         "index",
         type=int,
-        help="Index of the game to select. Use the `game ls` command to get the index of a particular game.",
+        help=(
+            "Index of the game to select. Use the `game ls` command to get the index of a"
+            " particular game."
+        ),
     )
-    games_add_argparser = games_subcmds.add_parser(
-        "add", help="Add a new game to the file."
-    )
+    games_add_argparser = games_subcmds.add_parser("add", help="Add a new game to the file.")
     games_add_argparser.add_argument(
         "index",
         type=int,
@@ -2297,16 +2276,15 @@ class ChessCli(cmd2.Cmd):
         tempfile_name = file.name
         try:
             if args.this:
-                if len(self.games) > 1 and any(
-                    (
-                        x.game_node is not None
-                        for i, x in enumerate(self.games)
-                        if i != self.current_game
-                    )
-                ):
+                if len(self.games) > 1 and any((
+                    x.game_node is not None
+                    for i, x in enumerate(self.games)
+                    if i != self.current_game
+                )):
                     while True:
                         answer: str = self.read_input(
-                            "Warning: Any changes made to other games will be lost, do you want to continue? [Y/n] "
+                            "Warning: Any changes made to other games will be lost, do you want to"
+                            " continue? [Y/n] "
                         )
                         match answer.lower():
                             case "n":
@@ -2441,9 +2419,7 @@ class ChessCli(cmd2.Cmd):
 
 
 def run():
-    argparser = argparse.ArgumentParser(
-        description="A repl to edit and analyse chess games."
-    )
+    argparser = argparse.ArgumentParser(description="A repl to edit and analyse chess games.")
     argparser.add_argument("pgn_file", nargs="?", help="Open the given pgn file.")
     args = argparser.parse_args()
     sys.exit(ChessCli(file_name=args.pgn_file).cmdloop())

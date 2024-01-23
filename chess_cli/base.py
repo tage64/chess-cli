@@ -16,9 +16,7 @@ class InitArgs:
     "Arguments to the __init__() method of most ChessCli-classes."
     pgn_file: Optional[str] = None
     config_file: str = field(
-        default_factory=lambda: os.path.join(
-            appdirs.user_config_dir("chess-cli"), "config.toml"
-        )
+        default_factory=lambda: os.path.join(appdirs.user_config_dir("chess-cli"), "config.toml")
     )
 
 
@@ -53,7 +51,7 @@ class Base(cmd2.Cmd):
     _pgn_file: Optional[TextIO]  # The currently open PGN file.
     _game_idx: int  # The index of the currently selected game.
 
-    def __init__(self, args: InitArgs):
+    def __init__(self, args: InitArgs) -> None:
         ## Initialize cmd2:
         shortcuts: dict[str, str] = dict(cmd2.DEFAULT_SHORTCUTS)
         super().__init__(shortcuts=shortcuts, include_py=True, allow_cli_args=False)
@@ -79,9 +77,7 @@ class Base(cmd2.Cmd):
                     raise Exception("Failed to parse configuration")
         except Exception as ex:
             self.config = {}
-            self.poutput(
-                f"Error while processing config file at '{self._config_file}': {repr(ex)}"
-            )
+            self.poutput(f"Error while processing config file at '{self._config_file}': {repr(ex)}")
             self.poutput("This session will be started with an empty configuration.")
 
     def load_games(self, file_name: str) -> None:

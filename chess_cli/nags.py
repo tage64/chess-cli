@@ -162,7 +162,5 @@ def parse_nag(text: str) -> int:
     if text in nag_asciis:
         return nag_asciis[text]
     if not text.startswith("$"):
-        raise ValueError(
-            f"Invalid NAG. Must either be an ascii glyph or start with a '$'"
-        )
+        raise ValueError(f"Invalid NAG. Must either be an ascii glyph or start with a '$'")
     return int(text[1:])
