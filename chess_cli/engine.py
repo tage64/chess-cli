@@ -103,6 +103,13 @@ class Engine(Base):
         "The currently selected engine. `None` iff `self.loaded_engines()` is empty."
         return self._selected_engine
 
+    def get_selected_engine(self) -> str:
+        "Get the selected engine or raise CommandFailure."
+        if self.selected_engine is None:
+            self.poutput("Error: No engine is selected.")
+            raise CommandFailure()
+        return self.selected_engine
+
     def select_engine(self, engine: str) -> None:
         "Select an engine."
         assert engine in self.loaded_engines
