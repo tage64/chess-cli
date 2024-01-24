@@ -158,3 +158,9 @@ class Base(cmd2.Cmd):
         # Overrides method from Cmd2.
         self.prompt = f"{move_str(self.game_node)}: "
         return postcommand_data
+
+    def save_config(self) -> None:
+        "Save the current configuration."
+        os.makedirs(os.path.split(self._config_file)[0], exist_ok=True)
+        with open(self._config_file, "w") as f:
+            toml.dump(self.config, f)

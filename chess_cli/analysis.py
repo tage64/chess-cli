@@ -58,7 +58,7 @@ class Analysis(Engine):
         if engine in self._running_analyses:
             return
         analysis: _AnalysisInfo = _AnalysisInfo(
-            result=self.loaded_engines[engine].analysis(
+            result=self.loaded_engines[engine].engine.analysis(
                 self.game_node.board(),
                 limit=limit,
                 multipv=number_of_moves,
