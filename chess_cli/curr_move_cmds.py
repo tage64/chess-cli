@@ -12,6 +12,7 @@ import cmd2
 
 class CurrMoveCmds(Base):
     "Commands related to the current move."
+
     def show_evaluation(self) -> Optional[str]:
         eval = self.game_node.eval()
         if eval is None:

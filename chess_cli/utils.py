@@ -159,6 +159,8 @@ def move_str(
     ):
         res += ">"
     return res
+
+
 def score_str(score: Score) -> str:
     if score == chess.engine.MateGiven:
         return "mate"
@@ -171,5 +173,3 @@ def score_str(score: Score) -> str:
     if cp > 0:
         return f"+{cp/100} pawns"
     return f"{cp/100} pawns"
-
-
