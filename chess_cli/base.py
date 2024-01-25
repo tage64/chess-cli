@@ -103,7 +103,7 @@ class Base(cmd2.Cmd):
     @property
     def game_idx(self) -> int:
         "The index of the currently selected game.  `0 <= self.game_idx < len(self.games)`"
-        return self.game_idx
+        return self._game_idx
 
     @property
     def pgn_file_name(self) -> Optional[str]:

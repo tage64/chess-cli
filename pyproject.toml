@@ -6,7 +6,7 @@ authors = ["Tage Johansson <tajo9185@uu.student.se>"]
 license = "GPL-3.0-or-later"
 
 [tool.poetry.scripts]
-chess-cli = 'chess_cli:run'
+chess-cli = 'chess_cli.main:main'
 
 [tool.poetry.dependencies]
 python = "^3.11"
