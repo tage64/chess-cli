@@ -1,5 +1,6 @@
 from .utils import *
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 import os
 import shutil
@@ -55,7 +56,7 @@ class ConfigError(Exception):
 
 class Base(cmd2.Cmd):
     _config_file: str  # The path to the currently open config file.
-    config: dict  # The current configuration as a dictionary.
+    config: defaultdict[str, dict] = defaultdict(dict)  # The current configuration as a dictionary.
     _games: list[_GameHandle]  # A list of all currentlyopen games.
     _pgn_file: Optional[IO[str]]  # The currently open PGN file.
     _game_idx: int  # The index of the currently selected game.
@@ -66,7 +67,8 @@ class Base(cmd2.Cmd):
         super().__init__(shortcuts=shortcuts, include_py=True, allow_cli_args=False)
         self.self_in_py = True
 
-        self.load_config(args.config_file)
+        self._config_file = args.config_file
+        self.load_config()
 
         ## Read the PGN file or initialize a new game:
         self._games = []
@@ -123,13 +125,15 @@ class Base(cmd2.Cmd):
         with open(self._config_file, "w") as f:
             toml.dump(self.config, f)
 
-    def load_config(self, config_file: str) -> None:
-        self._config_file = config_file
+    def load_config(self) -> None:
         try:
             with open(self._config_file) as f:
                 self.config = toml.load(f)
                 if not isinstance(self.config, dict):
                     raise self.config_error("The parsed TOML-file must be a dict")
+        except FileNotFoundError:
+            self.poutput("WARNING: No configuration file found at {self._config_file}. Will creat a new one.")
+            self.save_config()
         except Exception as ex:
             raise self.config_error(repr(ex))
 

@@ -1,6 +1,7 @@
 from .base import *
 
-from collections import deque, defaultdict
+from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass, field, fields, InitVar
 import enum
 import logging
@@ -44,7 +45,7 @@ class LoadedEngine:
 
 class Engine(Base):
     "An extention to chess-cli to support chess engines."
-    _engine_confs: dict[str, EngineConf]  # Configuration for all the engines.
+    _engine_confs: dict[str, EngineConf] = {}  # Configuration for all the engines.
     # All the currently loaded engines.  Note that this is indexed by the name given to the
     # loaded instance which may not be the same as in `_engine_confs`.
     _loaded_engines: dict[str, LoadedEngine]
@@ -55,19 +56,6 @@ class Engine(Base):
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
-
-        ## Retrieve the engine configurations from `self.config`:
-        try:
-            engine_confs = self.config["engine-configurations"]
-        except KeyError:
-            raise self.config_error("Section 'engine-configurations' is missing")
-        try:
-            assert isinstance(engine_confs, dict), "Section 'engine-configurations' must be a dict"
-            self._engine_confs = {
-                name: EngineConf(**values) for (name, values) in engine_confs.items()
-            }
-        except Exception as ex:
-            raise self.config_error(repr(ex))
 
         # No engines are loaded or selected at startup.
         self._loaded_engines = {}
@@ -147,6 +135,19 @@ class Engine(Base):
                 self._engines_log_queue.get_nowait()
         except queue.Empty:
             pass
+
+    # @override TODO Python 3.12
+    def load_config(self) -> None:
+        super().load_config()
+        ## Retrieve the engine configurations from `self.config`:
+        try:
+            engine_confs = self.config["engine-configurations"]
+            assert isinstance(engine_confs, dict), "Section 'engine-configurations' must be a dict"
+            self._engine_confs = {
+                name: EngineConf(**values) for (name, values) in engine_confs.items()
+            }
+        except Exception as ex:
+            raise self.config_error(repr(ex))
 
     # @override TODO Python 3.12
     def save_config(self) -> None:

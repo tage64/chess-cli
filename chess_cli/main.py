@@ -3,13 +3,14 @@ from .base import *
 from .curr_move_cmds import *
 from .engine_cmds import *
 from .game_cmds import *
+from .lichess_api import *
 
 import argparse
 import sys
 from typing import *
 
 
-class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds):
+class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessApi):
     "Main class for the chess-cli app."
 
     def __init__(self, args: InitArgs) -> None:
