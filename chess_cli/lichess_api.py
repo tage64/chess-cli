@@ -12,7 +12,6 @@ import berserk
 import requests
 
 # Uncomment to enable logging of requests:
-# import requests
 # import logging
 # import http.client
 #
@@ -33,12 +32,14 @@ SCOPE: str = "email:read"
 class LichessApi(Base):
     "An extention to chess-cli to connect to the Lichess API."
     _access_token: Optional[str] = None  # Access token to Lichess
-    client: Optional[berserk.Client] = None  # Lichess client
+    client: berserk.Client  # Lichess client for unauthorized requests.
+    auth_client: Optional[berserk.Client] = None  # Lichess client for authorized requests.
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
+        self.client = berserk.Client(session=requests.Session())
         if self._access_token is not None:
-            self.init_client()
+            self.init_auth_client()
 
     # @override TODO Python 3.12
     def load_config(self) -> None:
@@ -57,12 +58,12 @@ class LichessApi(Base):
 
     authorize_argparser = cmd2.Cmd2ArgumentParser()
 
-    def init_client(self) -> None:
+    def init_auth_client(self) -> None:
         "Initialize the Lichess client. Assuming that the access token is set."
         assert self._access_token is not None
         session = requests.Session()
         session.headers.update({"Authorization": f"Bearer {self._access_token}"})
-        self.client = berserk.Client(session=session)
+        self.auth_client = berserk.Client(session=session)
 
     @cmd2.with_argparser(authorize_argparser)  # type: ignore
     def do_authorize(self, args) -> None:
@@ -107,4 +108,4 @@ class LichessApi(Base):
             )
             self._access_token = token["access_token"]
             self.save_config()
-            self.init_client()
+            self.init_auth_client()

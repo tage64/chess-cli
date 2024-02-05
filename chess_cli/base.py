@@ -80,6 +80,7 @@ class Base(cmd2.Cmd):
             self.add_new_game()
 
         self.register_postcmd_hook(self.set_prompt)
+        self.set_prompt_()  # For the first time.
 
     def config_error(self, msg: str) -> ConfigError:
         "Make a `ConfigError` with the provided message."
@@ -112,11 +113,15 @@ class Base(cmd2.Cmd):
         "The name of the currently open PGN file if any."
         return self._pgn_file.name if self._pgn_file is not None else None
 
+    def set_prompt_(self) -> None:
+        "Set `self.prompt` to an appropriate value."
+        self.prompt = f"{move_str(self.game_node)}: "
+
     def set_prompt(
         self, postcommand_data: cmd2.plugin.PostcommandData
     ) -> cmd2.plugin.PostcommandData:
         # Overrides method from Cmd2.
-        self.prompt = f"{move_str(self.game_node)}: "
+        self.set_prompt_()
         return postcommand_data
 
     def save_config(self) -> None:
@@ -128,11 +133,14 @@ class Base(cmd2.Cmd):
     def load_config(self) -> None:
         try:
             with open(self._config_file) as f:
-                self.config = toml.load(f)
-                if not isinstance(self.config, dict):
+                config = toml.load(f)
+                if not isinstance(config, dict):
                     raise self.config_error("The parsed TOML-file must be a dict")
+                self.config = defaultdict(dict, config)
         except FileNotFoundError:
-            self.poutput("WARNING: No configuration file found at {self._config_file}. Will creat a new one.")
+            self.poutput(
+                "WARNING: No configuration file found at {self._config_file}. Will creat a new one."
+            )
             self.save_config()
         except Exception as ex:
             raise self.config_error(repr(ex))
