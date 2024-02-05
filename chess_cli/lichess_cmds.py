@@ -52,4 +52,11 @@ class LichessCmds(LichessApi):
             variant=args.variant,
             position=self.game_node.board().fen(),
         )
-        self.poutput(f"URL:\n
+        challenge: dict = challenge_data["challenge"]
+        self.poutput(
+            f"Created {challenge['variant']['name']} game --"
+            f" {'rated' if challenge['rated'] else 'not rated'} {challenge['speed']} {challenge['timeControl']['show']}"
+        )
+        self.poutput(f"URL:\n  {challenge['url']}")
+        self.poutput(f"White URL:\n  {challenge_data['urlWhite']}")
+        self.poutput(f"Black URL:\n  {challenge_data['urlBlack']}")
