@@ -29,6 +29,7 @@ types-psutil = "^5.9.5.20240106"
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"
 types-requests = "^2.31.0.20240125"
+docformatter = "^1.7.5"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -39,6 +40,13 @@ line-length = 100
 fast = true
 preview = true
 src = "chess_cli/"
+
+[tool.docformatter]
+in-place = true
+recursive = true
+black = true
+wrap-summeries = 100
+wrap-descriptions = 100
 
 [tool.mypy]
 files = "chess_cli/*.py"

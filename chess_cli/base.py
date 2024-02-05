@@ -170,9 +170,11 @@ class Base(cmd2.Cmd):
         self._game_idx = idx
 
     def rm_game(self, game_idx: int) -> None:
-        """Remove a game from the game list.  If it is the current game, the current game will
-        be shifted to the next game unless the current game is the last game in which case it'll
-        be shifted to the previous.  If the game list becomes empty a new empty game will be added.
+        """Remove a game from the game list.
+
+        If it is the current game, the current game will be shifted to the next game unless the
+        current game is the last game in which case it'll be shifted to the previous.  If the game
+        list becomes empty a new empty game will be added.
         """
         self._games.pop(game_idx)
         if game_idx < self.game_idx or self.game_idx == len(self.games):
@@ -207,8 +209,10 @@ class Base(cmd2.Cmd):
             self.poutput(f"Error: Loading of {file_name} failed: {ex}")
 
     def _reload_games(self, file_name: str) -> None:
-        """Open and load all games from `file_name`, assuming it contains exactly the same
-        games, in same order, as `self.games`.  The current file will then be set to this file.
+        """Open and load all games from `file_name`, assuming it contains exactly the
+        same games, in same order, as `self.games`.
+
+        The current file will then be set to this file.
         """
         current_game: int = self.game_idx
         self._pgn_file = open(file_name)
@@ -231,16 +235,16 @@ class Base(cmd2.Cmd):
 
     def save_games_to_file(self, file_name: str) -> None:
         """Print all games to a file.
+
         `file_name` should not be `self.pgn_file_name` unless you know what you are doing.
         """
         with open(file_name, "w+") as f:
             self.write_games(f)
 
     def save_games(self, file_name: Optional[str]) -> None:
-        """Save all games and update the current PGN file to `file_name`."
-        If `file_name` is `None`, the current PGN file will be used,
-        if that is also `None`, an assertian will be fired.
-        """
+        """Save all games and update the current PGN file to `file_name`." If
+        `file_name` is `None`, the current PGN file will be used, if that is also
+        `None`, an assertian will be fired."""
         file_name = file_name or self.pgn_file_name
         assert file_name is not None
         if self.pgn_file_name is None or not os.path.samefile(file_name, self.pgn_file_name):

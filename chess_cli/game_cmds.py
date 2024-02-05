@@ -211,8 +211,15 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(goto_argparser)  # type: ignore
     def do_goto(self, args) -> None:
-        """Goto a move specified by a move number or a move in standard algibraic notation.
-        If a move number is specified, it will follow the main line to that move if it does exist. If a move like "e4" or "Nxd5+" is specified as well, it will go to the specific move number and search between variations at that level for the specified move. If only a move but not a move number and no other constraints are given, it'll first search sidelines at the current move, then follow the mainline and check if any move or sideline matches, but not recurse into sidelines. Lastly, it'll search backwards in the game.
+        """Goto a move specified by a move number or a move in standard algibraic
+        notation.
+
+        If a move number is specified, it will follow the main line to that move if it does exist.
+        If a move like "e4" or "Nxd5+" is specified as well, it will go to the specific move number
+        and search between variations at that level for the specified move. If only a move but not a
+        move number and no other constraints are given, it'll first search sidelines at the current
+        move, then follow the mainline and check if any move or sideline matches, but not recurse
+        into sidelines. Lastly, it'll search backwards in the game.
         """
         match args.move:
             case "s" | "start":

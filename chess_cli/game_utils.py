@@ -23,6 +23,7 @@ class GameUtils(Base):
         break_search_backwards_at: Optional[Callable[[chess.pgn.ChildNode], bool]] = None,
     ) -> Optional[chess.pgn.ChildNode]:
         """Search for a move by a string of its move number and SAN.
+
         Like 'e4' '8.Nxe5' or 8...'.
         """
         move_number_match = MOVE_NUMBER_REGEX.match(move_str)
@@ -119,11 +120,11 @@ class GameUtils(Base):
         recurse_sidelines: bool,
         show_comments: bool,
     ) -> Iterable[str]:
-        """Given a start and end node in this game, which must be connected,
-        yield lines printing all moves between them (including endpoints).
-        There are also options to toggle visibility of comments, show a short
-        list of the sidelines at each move with sidelines, or even recurse and
-        show the endire sidelines.
+        """Given a start and end node in this game, which must be connected, yield lines
+        printing all moves between them (including endpoints).
+
+        There are also options to toggle visibility of comments, show a short list of the sidelines
+        at each move with sidelines, or even recurse and show the endire sidelines.
         """
 
         # Create a list of all moves that should be displayed following the
@@ -157,9 +158,8 @@ class GameUtils(Base):
         show_comments: bool,
         include_sidelines_at_first_move: bool = True,
     ) -> Iterable[str]:
-        """Same as display_game_segment(), but this function takes an iterable
-        of moves instead of a starting and ending game node.
-        """
+        """Same as display_game_segment(), but this function takes an iterable of moves
+        instead of a starting and ending game node."""
 
         moves_per_line: int = 6
         current_line: str = ""

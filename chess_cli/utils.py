@@ -39,6 +39,7 @@ MOVE_NUMBER_REGEX: re.Pattern[str] = re.compile("(\d+)((\.{3})|\.?)")
 
 class MoveNumber(NamedTuple):
     """A move number is a fullmove number and the color that made the move.
+
     E.G. "1." would be move number 1 and color white while "10..." would be move number 10 and color black.
     """
 
@@ -67,8 +68,9 @@ class MoveNumber(NamedTuple):
     @staticmethod
     def parse(move_text: str):
         """Parse a chess move number like "3." or "5...".
-        Plain numbers without any dots at the end will be parsed as if it was white who moved.
-        Will raise ValueError if the parsing failes.
+
+        Plain numbers without any dots at the end will be parsed as if it was white who moved. Will
+        raise ValueError if the parsing failes.
         """
         match = MOVE_NUMBER_REGEX.fullmatch(move_text)
         if match is None:
