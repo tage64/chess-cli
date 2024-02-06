@@ -1,10 +1,11 @@
 from typing import *
 
 import chess
+import chess.engine
 import chess.pgn
 import cmd2
 
-from .analysis import *
+from .analysis import Analysis, AnalysisInfo
 from .utils import *
 
 

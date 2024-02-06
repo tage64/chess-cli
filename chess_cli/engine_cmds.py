@@ -1,13 +1,20 @@
+import os
 import platform
+import re
+import shutil
 import urllib.request
 from typing import *
 
+import appdirs
 import chess
+import chess.engine
 import chess.pgn
 import cmd2
 import psutil
 
-from .engine import *
+from .base import CommandFailure
+from .engine import Engine, EngineConf, EngineProtocol
+from .utils import sizeof_fmt
 
 
 class EngineCmds(Engine):
