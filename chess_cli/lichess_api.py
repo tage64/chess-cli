@@ -5,9 +5,9 @@ from typing import Optional, override
 from urllib.parse import urljoin, urlsplit
 
 import berserk
+import cmd2
 import requests
 from authlib.integrations.requests_client import OAuth2Session  # type: ignore
-import cmd2
 
 from .base import Base, InitArgs
 

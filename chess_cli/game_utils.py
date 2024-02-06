@@ -1,12 +1,12 @@
 from collections import deque
-from typing import Iterable, Optional, Callable
+from typing import Callable, Iterable, Optional
 
 import chess
 import chess.pgn
 import more_itertools
 
 from .base import Base
-from .utils import move_str, MoveNumber, MOVE_NUMBER_REGEX
+from .utils import MOVE_NUMBER_REGEX, MoveNumber, move_str
 
 
 class GameUtils(Base):

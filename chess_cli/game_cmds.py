@@ -1,5 +1,5 @@
-from typing import Iterable
 import os
+from typing import Iterable
 
 import chess
 import chess.pgn

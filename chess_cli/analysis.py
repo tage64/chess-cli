@@ -1,7 +1,7 @@
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Mapping, override, Optional
+from typing import Mapping, Optional, override
 
 import chess
 import chess.engine

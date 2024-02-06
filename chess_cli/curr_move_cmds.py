@@ -2,7 +2,7 @@ import datetime
 import os
 import re
 import tempfile
-from typing import Optional, Iterable
+from typing import Iterable, Optional
 
 import chess
 import chess.engine

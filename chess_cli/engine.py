@@ -5,7 +5,7 @@ import queue
 import shutil
 from collections import deque
 from dataclasses import dataclass, field, fields
-from typing import Mapping, override, Union, Optional, Sequence
+from typing import Mapping, Optional, Sequence, Union, override
 
 import chess.engine
 

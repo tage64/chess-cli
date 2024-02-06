@@ -3,7 +3,7 @@ import platform
 import re
 import shutil
 import urllib.request
-from typing import Any, Iterable, Union, Optional, Mapping
+from typing import Any, Iterable, Mapping, Optional, Union
 
 import appdirs
 import chess

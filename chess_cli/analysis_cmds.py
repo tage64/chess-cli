@@ -6,7 +6,7 @@ import chess.pgn
 import cmd2
 
 from .analysis import Analysis, AnalysisInfo
-from .utils import score_str, MoveNumber
+from .utils import MoveNumber, score_str
 
 
 class AnalysisCmds(Analysis):

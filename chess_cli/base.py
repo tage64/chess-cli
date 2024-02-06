@@ -3,7 +3,7 @@ import shutil
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Optional, IO
+from typing import IO, Optional
 
 import appdirs  # type: ignore
 import chess
