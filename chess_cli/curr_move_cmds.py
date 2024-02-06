@@ -2,7 +2,7 @@ import datetime
 import os
 import re
 import tempfile
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import chess
 import chess.engine
@@ -16,9 +16,9 @@ from .utils import MoveNumber, comment_text, score_str, update_comment_text
 
 
 class CurrMoveCmds(Base):
-    "Commands related to the current move."
+    """Commands related to the current move."""
 
-    def show_evaluation(self) -> Optional[str]:
+    def show_evaluation(self) -> str | None:
         eval = self.game_node.eval()
         if eval is None:
             return None
@@ -48,16 +48,18 @@ class CurrMoveCmds(Base):
         text += "  a b c d e f g h  \n"
         return text
 
-    def show_arrows(self) -> Optional[str]:
+    def show_arrows(self) -> str | None:
         arrows: list = self.game_node.arrows()
         if not arrows:
             return None
-        return str([
-            f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
-            for arrow in self.game_node.arrows()
-        ])
+        return str(
+            [
+                f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
+                for arrow in self.game_node.arrows()
+            ]
+        )
 
-    def show_clock(self) -> Optional[str]:
+    def show_clock(self) -> str | None:
         clock = self.game_node.clock()
         if clock is None:
             return None
@@ -67,7 +69,7 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(show_argparser)  # type: ignore
     def do_show(self, args) -> None:
-        "Show position, comments, NAGs and more about the current move."
+        """Show position, comments, NAGs and more about the current move."""
         self.poutput(f"FEN: {self.show_fen()}")
         self.poutput(f"\n{self.show_board()}")
         starting_comment: str = comment_text(self.game_node.starting_comment)
@@ -77,15 +79,15 @@ class CurrMoveCmds(Base):
         comment: str = comment_text(self.game_node.comment)
         if comment:
             self.poutput(comment)
-        for nag in self.show_nags():
+        for nag in self.show_nags():  # noqa: B007
             self.poutput("NAG: {nag}")
-        evaluation: Optional[str] = self.show_evaluation()
+        evaluation: str | None = self.show_evaluation()
         if evaluation is not None:
             self.poutput("Evaluation: {evaluation}")
-        arrows: Optional[str] = self.show_arrows()
+        arrows: str | None = self.show_arrows()
         if arrows is not None:
             self.poutput(f"Arrows: {arrows}")
-        clock: Optional[str] = self.show_clock()
+        clock: str | None = self.show_clock()
         if clock is not None:
             self.poutput(f"Clock: {clock}")
 
@@ -93,14 +95,14 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(fen_argparser)  # type: ignore
     def do_fen(self, args) -> None:
-        "Show the position as FEN (Forsynth-Edwards Notation)."
+        """Show the position as FEN (Forsynth-Edwards Notation)."""
         self.poutput(self.show_fen())
 
     board_argparser = cmd2.Cmd2ArgumentParser()
 
     @cmd2.with_argparser(board_argparser)  # type: ignore
     def do_board(self, args) -> None:
-        "Show the current position as an ASCII chess board."
+        """Show the current position as an ASCII chess board."""
         self.poutput(self.show_board())
 
     comment_argparser = cmd2.Cmd2ArgumentParser()
@@ -135,8 +137,7 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(comment_argparser)  # type: ignore
     def do_comment(self, args) -> None:
-        "Show, edit or remove the comment at the current move."
-
+        """Show, edit or remove the comment at the current move."""
         if args.starting_comment and not self.game_node.starts_variation():
             self.poutput(
                 "Error: Starting comments can only exist on moves that starts a variation."
@@ -173,7 +174,7 @@ class CurrMoveCmds(Base):
                         file.flush()
                     self.poutput(f"Opening {file_name} in your editor.")
                     self.onecmd(f"edit '{file_name}'")
-                    with open(file_name, mode="r") as file:
+                    with open(file_name) as file:
                         file.seek(0)
                         new_comment: str = file.read().strip()
                         set_comment(new_comment)
@@ -181,7 +182,7 @@ class CurrMoveCmds(Base):
                 finally:
                     os.remove(file_name)
             case _:
-                assert False, "Unknown subcommand."
+                raise AssertionError("Unknown subcommand.")
 
     nag_argparser = cmd2.Cmd2ArgumentParser()
     nag_subcmds = nag_argparser.add_subparsers(dest="subcmd")
@@ -201,7 +202,10 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(nag_argparser)  # type: ignore
     def do_nag(self, args) -> None:
-        "Show, edit or remove NAGs (numeric annotation glyphs, E.G. '!?') at the current move."
+        """Show, edit or remove NAGs (numeric annotation glyphs, E.G.
+
+        '!?') at the current move.
+        """
         match args.subcmd:
             case "show":
                 for nag_str in self.show_nags():
@@ -227,7 +231,7 @@ class CurrMoveCmds(Base):
             case "clear":
                 self.game_node.nags = set()
             case _:
-                assert False, "Unknown subcommand."
+                raise AssertionError("Unknown subcommand.")
 
     evaluation_argparser = cmd2.Cmd2ArgumentParser()
     evaluation_subcmds = evaluation_argparser.add_subparsers(dest="subcmd")
@@ -268,7 +272,7 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(evaluation_argparser)  # type: ignore
     def do_evaluation(self, args) -> None:
-        "Show, edit or remove evaluations at the current move."
+        """Show, edit or remove evaluations at the current move."""
         match args.subcmd:
             case "show":
                 text = self.show_evaluation()
@@ -287,7 +291,7 @@ class CurrMoveCmds(Base):
                     chess.engine.PovScore(score, self.game_node.turn()), args.depth
                 )
             case _:
-                assert False, "Unknown subcommand."
+                raise AssertionError("Unknown subcommand.")
 
     arrow_argparser = cmd2.Cmd2ArgumentParser()
     arrow_subcmds = arrow_argparser.add_subparsers(dest="subcmds")
@@ -323,8 +327,7 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(arrow_argparser)  # type: ignore
     def do_arrow(self, args) -> None:
-        "Show, edit or remove arrows at the current move."
-
+        """Show, edit or remove arrows at the current move."""
         color_abbreviations: dict[str, str] = {
             "g": "green",
             "y": "yellow",
@@ -338,21 +341,18 @@ class CurrMoveCmds(Base):
                 if text is not None:
                     self.poutput(text)
             case "add":
-                if args.color in color_abbreviations:
-                    color = color_abbreviations[args.color]
-                else:
-                    color = args.color
+                color = color_abbreviations.get(args.color, args.color)
                 self.game_node.set_arrows(
-                    self.game_node.arrows() + [chess.svg.Arrow(args._from, args.to, color=color)]
+                    [*self.game_node.arrows(), chess.svg.Arrow(args._from, args.to, color=color)]
                 )
             case "rm":
-                self.game_node.set_arrows((
+                self.game_node.set_arrows(
                     arr
                     for arr in self.game_node.arrows()
                     if not (args._from == arr.tail or args.to == arr.head)
-                ))
+                )
             case _:
-                assert False, "Unknown subcommand."
+                raise AssertionError("Unknown subcommand.")
 
     clock_argparser = cmd2.Cmd2ArgumentParser()
     clock_subcmds = clock_argparser.add_subparsers(dest="subcmd")
@@ -367,7 +367,7 @@ class CurrMoveCmds(Base):
 
     @cmd2.with_argparser(clock_argparser)  # type: ignore
     def do_clock(self, args) -> None:
-        "Show, edit or remove clock information at the current move."
+        """Show, edit or remove clock information at the current move."""
         match args.subcmd:
             case "show":
                 text = self.show_clock()
@@ -390,4 +390,4 @@ class CurrMoveCmds(Base):
                     time += float("0." + time_groups[6])
                 self.game_node.set_clock(time)
             case _:
-                assert False, "Unhandled subcommand."
+                raise AssertionError("Unhandled subcommand.")

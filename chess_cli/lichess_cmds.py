@@ -6,7 +6,8 @@ from .lichess_api import LichessApi
 
 
 class LichessVariant(enum.StrEnum):
-    "A chess variant on Lichess."
+    """A chess variant on Lichess."""
+
     STANDARD = "standard"
     CHESS960 = "chess960"
     CRAZYHOUSE = "crazyhouse"
@@ -19,7 +20,8 @@ class LichessVariant(enum.StrEnum):
 
 
 class LichessCmds(LichessApi):
-    "Basic commands related to the Lichess API."
+    """Basic commands related to the Lichess API."""
+
     challenge_argparser = cmd2.Cmd2ArgumentParser()
     challenge_argparser.add_argument(
         "-t", "--time", type=int, help="Time limit for the game in seconds."
@@ -56,7 +58,7 @@ class LichessCmds(LichessApi):
         self.poutput(
             f"Created {challenge['variant']['name']} game -- "
             f"{'rated' if challenge['rated'] else 'not rated'} {challenge['speed']} "
-            f"{challenge['timeControl']['show'] if 'show' in challenge['timeControl'] else ''}"
+            f"{challenge['timeControl'].get('show', '')}"
         )
         self.poutput(f"URL:\n  {challenge['url']}")
         self.poutput(f"White URL:\n  {challenge_data['urlWhite']}")

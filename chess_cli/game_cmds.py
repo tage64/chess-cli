@@ -1,5 +1,5 @@
 import os
-from typing import Iterable
+from collections.abc import Iterable
 
 import chess
 import chess.pgn
@@ -10,7 +10,8 @@ from .utils import MoveNumber
 
 
 class GameCmds(GameUtils):
-    "Basic commands to view and alter the game."
+    """Basic commands to view and alter the game."""
+
     play_argparser = cmd2.Cmd2ArgumentParser()
     play_argparser.add_argument(
         "moves", nargs="+", help="A list of moves in standard algibraic notation."
@@ -65,7 +66,9 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(game_argparser)  # type: ignore
     def do_game(self, args) -> None:
-        "Print the rest of the game with sidelines and comments in a nice and readable format."
+        """Print the rest of the game with sidelines and comments in a nice and
+        readable format.
+        """
         if args.all:
             self.onecmd("moves -s -r -c")
         else:
@@ -212,15 +215,18 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(goto_argparser)  # type: ignore
     def do_goto(self, args) -> None:
-        """Goto a move specified by a move number or a move in standard algibraic
-        notation.
+        """Goto a move specified by a move number or a move in standard
+        algibraic notation.
 
-        If a move number is specified, it will follow the main line to that move if it does exist.
-        If a move like "e4" or "Nxd5+" is specified as well, it will go to the specific move number
-        and search between variations at that level for the specified move. If only a move but not a
-        move number and no other constraints are given, it'll first search sidelines at the current
-        move, then follow the mainline and check if any move or sideline matches, but not recurse
-        into sidelines. Lastly, it'll search backwards in the game.
+        If a move number is specified, it will follow the main line to
+        that move if it does exist. If a move like "e4" or "Nxd5+" is
+        specified as well, it will go to the specific move number and
+        search between variations at that level for the specified move.
+        If only a move but not a move number and no other constraints
+        are given, it'll first search sidelines at the current move,
+        then follow the mainline and check if any move or sideline
+        matches, but not recurse into sidelines. Lastly, it'll search
+        backwards in the game.
         """
         match args.move:
             case "s" | "start":
@@ -244,7 +250,7 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(delete_argparser)  # type: ignore
     def do_delete(self, _args) -> None:
-        "Delete the current move."
+        """Delete the current move."""
         if isinstance(self.game_node, chess.pgn.ChildNode):
             parent = self.game_node.parent
             for i, node in enumerate(parent.variations):
@@ -287,7 +293,7 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(games_argparser)  # type: ignore
     def do_games(self, args) -> None:
-        "List, select, delete or create new games."
+        """List, select, delete or create new games."""
         match args.subcmd:
             case "ls":
                 for i, game in enumerate(self.games):
@@ -305,7 +311,7 @@ class GameCmds(GameUtils):
             case "add":
                 self.add_new_game(args.index)
             case _:
-                assert False, "Unknown subcommand."
+                raise AssertionError("Unknown subcommand.")
 
     save_argparser = cmd2.Cmd2ArgumentParser()
     save_argparser.add_argument(
@@ -320,7 +326,7 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(save_argparser)  # type: ignore
     def do_save(self, args) -> None:
-        "Save the games to a PGN file."
+        """Save the games to a PGN file."""
         if args.file is None:
             if self.pgn_file_name is None:
                 self.poutput("Error: No file selected.")
@@ -337,7 +343,10 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(load_argparser)  # type: ignore
     def do_load(self, args) -> None:
-        "Load games from a PGN file. Note that the current game will be lost."
+        """Load games from a PGN file.
+
+        Note that the current game will be lost.
+        """
         self.load_games(args.file)
 
     promote_argparser = cmd2.Cmd2ArgumentParser()
@@ -354,7 +363,9 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(promote_argparser)  # type: ignore
     def do_promote(self, args) -> None:
-        "If current move is a side line, promote it so that it'll be closer to main variation."
+        """If current move is a side line, promote it so that it'll be closer
+        to main variation.
+        """
         if not isinstance(self.game_node, chess.pgn.ChildNode):
             return
         if args.main:
@@ -379,7 +390,9 @@ class GameCmds(GameUtils):
 
     @cmd2.with_argparser(demote_argparser)  # type: ignore
     def do_demote(self, args) -> None:
-        "If current move is the main variation or if it isn't the last variation, demote it so it'll be far from the main variation."
+        """If current move is the main variation or if it isn't the last
+        variation, demote it so it'll be far from the main variation.
+        """
         if not isinstance(self.game_node, chess.pgn.ChildNode):
             return
         if args.last:
@@ -391,10 +404,10 @@ class GameCmds(GameUtils):
                 self.game_node.parent.demote(self.game_node)
 
     def do_variations(self, _) -> None:
-        "Print all variations following this move."
+        """Print all variations following this move."""
         self.show_variations(self.game_node)
 
     def do_sidelines(self, _) -> None:
-        "Show all sidelines to this move."
+        """Show all sidelines to this move."""
         if self.game_node.parent is not None:
             self.show_variations(self.game_node.parent)

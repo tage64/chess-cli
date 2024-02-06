@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
 
 import chess
 import chess.pgn
@@ -10,7 +10,7 @@ from .utils import MOVE_NUMBER_REGEX, MoveNumber, move_str
 
 
 class GameUtils(Base):
-    "More utility methods related to the game."
+    """More utility methods related to the game."""
 
     def find_move(
         self,
@@ -19,18 +19,18 @@ class GameUtils(Base):
         recurse_sidelines: bool,
         search_forwards: bool = True,
         search_backwards: bool = True,
-        break_search_forwards_at: Optional[Callable[[chess.pgn.ChildNode], bool]] = None,
-        break_search_backwards_at: Optional[Callable[[chess.pgn.ChildNode], bool]] = None,
-    ) -> Optional[chess.pgn.ChildNode]:
+        break_search_forwards_at: Callable[[chess.pgn.ChildNode], bool] | None = None,
+        break_search_backwards_at: Callable[[chess.pgn.ChildNode], bool] | None = None,
+    ) -> chess.pgn.ChildNode | None:
         """Search for a move by a string of its move number and SAN.
 
         Like 'e4' '8.Nxe5' or 8...'.
         """
         move_number_match = MOVE_NUMBER_REGEX.match(move_str)
         if move_number_match is not None:
-            move_number: Optional[MoveNumber] = MoveNumber.from_regex_match(move_number_match)
+            move_number: MoveNumber | None = MoveNumber.from_regex_match(move_number_match)
             if len(move_str) > move_number_match.end():
-                move: Optional[str] = move_str[move_number_match.end() :]
+                move: str | None = move_str[move_number_match.end() :]
             else:
                 move = None
         else:
@@ -42,11 +42,11 @@ class GameUtils(Base):
                 return False
             if move is not None:
                 try:
-                    if not node.move == node.parent.board().push_san(move):
+                    if node.move != node.parent.board().push_san(move):
                         return False
                 except ValueError:
                     return False
-            if move_number is not None and not move_number == MoveNumber.last(node):
+            if move_number is not None and move_number != MoveNumber.last(node):
                 return False
             return True
 
@@ -63,7 +63,7 @@ class GameUtils(Base):
         search_queue.append(current_node)
         if search_sidelines:
             sidelines = current_node.parent.variations
-            search_queue.extend((x for x in sidelines if x is not current_node))
+            search_queue.extend(x for x in sidelines if x is not current_node)
 
         if search_forwards and (
             move_number is None or move_number >= MoveNumber.last(current_node)
@@ -120,13 +120,13 @@ class GameUtils(Base):
         recurse_sidelines: bool,
         show_comments: bool,
     ) -> Iterable[str]:
-        """Given a start and end node in this game, which must be connected, yield lines
-        printing all moves between them (including endpoints).
+        """Given a start and end node in this game, which must be connected,
+        yield lines printing all moves between them (including endpoints).
 
-        There are also options to toggle visibility of comments, show a short list of the sidelines
-        at each move with sidelines, or even recurse and show the endire sidelines.
+        There are also options to toggle visibility of comments, show a
+        short list of the sidelines at each move with sidelines, or even
+        recurse and show the endire sidelines.
         """
-
         # Create a list of all moves that should be displayed following the
         # main line (I.E not recursing into sidelines).
         # The list is created in reversed order. This is important because we
@@ -158,9 +158,9 @@ class GameUtils(Base):
         show_comments: bool,
         include_sidelines_at_first_move: bool = True,
     ) -> Iterable[str]:
-        """Same as display_game_segment(), but this function takes an iterable of moves
-        instead of a starting and ending game node."""
-
+        """Same as display_game_segment(), but this function takes an iterable
+        of moves instead of a starting and ending game node.
+        """  # noqa: D401
         moves_per_line: int = 6
         current_line: str = ""
         moves_at_current_line: int = 0
@@ -197,7 +197,7 @@ class GameUtils(Base):
                 # No carriage_return() is needed here.
 
             # If this move has any sidelines.
-            if len(node.parent.variations) > 1 and (include_sidelines_at_first_move or not i == 0):
+            if len(node.parent.variations) > 1 and (include_sidelines_at_first_move or i != 0):
                 if recurse_sidelines:
                     # Flush the current line if needed.
                     if current_line:

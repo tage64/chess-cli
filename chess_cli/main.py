@@ -11,14 +11,14 @@ from .lichess_cmds import LichessCmds
 
 
 class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, GameHotKeys, LichessCmds):
-    "Main class for the chess-cli app."
+    """Main class for the chess-cli app."""
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
 
 
 def main() -> None:
-    "The main function of the entire program."
+    """Run the program."""
     argparser = argparse.ArgumentParser(description="A repl to edit and analyse chess games.")
     argparser.add_argument("pgn_file", nargs="?", help="Open the given pgn file.")
     argparser.add_argument("--config-file", type=str, help="Path to the config file.")

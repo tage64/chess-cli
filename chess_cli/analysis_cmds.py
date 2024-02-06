@@ -1,4 +1,4 @@
-from typing import Iterable
+from collections.abc import Iterable
 
 import chess
 import chess.engine
@@ -10,7 +10,8 @@ from .utils import MoveNumber, score_str
 
 
 class AnalysisCmds(Analysis):
-    "Basic commands related to analysis."
+    """Basic commands related to analysis."""
+
     analysis_argparser = cmd2.Cmd2ArgumentParser()
     analysis_subcmds = analysis_argparser.add_subparsers(dest="subcmd")
     analysis_start_argparser = analysis_subcmds.add_parser(
@@ -98,7 +99,7 @@ class AnalysisCmds(Analysis):
             case "rm" | "remove":
                 self.analysis_rm(args)
             case _:
-                assert False, "Invalid subcommand."
+                raise AssertionError("Invalid subcommand.")
 
     def analysis_start(self, args) -> None:
         engine: str = self.get_selected_engine()
@@ -151,7 +152,7 @@ class AnalysisCmds(Analysis):
 
         def score_and_wdl_str(info: chess.engine.InfoDict) -> str:
             res: str = ""
-            if "pv" in info and info["pv"]:
+            if info.get("pv"):
                 res += f"{analysis.board.san(info['pv'][0])}: "
             if "score" in info:
                 score: chess.engine.Score = info["score"].relative

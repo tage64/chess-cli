@@ -1,7 +1,7 @@
 import webbrowser
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Optional, override
+from typing import override
 from urllib.parse import urljoin, urlsplit
 
 import berserk
@@ -30,10 +30,11 @@ SCOPE: str = "email:read"
 
 
 class LichessApi(Base):
-    "An extention to chess-cli to connect to the Lichess API."
-    _access_token: Optional[str] = None  # Access token to Lichess
+    """An extention to chess-cli to connect to the Lichess API."""
+
+    _access_token: str | None = None  # Access token to Lichess
     client: berserk.Client  # Lichess client for unauthorized requests.
-    auth_client: Optional[berserk.Client] = None  # Lichess client for authorized requests.
+    auth_client: berserk.Client | None = None  # Lichess client for authorized requests.
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
@@ -49,7 +50,7 @@ class LichessApi(Base):
                 self._access_token = self.config["lichess-api"]["access-token"]
                 assert isinstance(self._access_token, str), "Lichess access token must be a str."
         except Exception as ex:
-            raise self.config_error(repr(ex))
+            raise self.config_error(repr(ex)) from ex
 
     @override
     def save_config(self) -> None:
@@ -59,7 +60,10 @@ class LichessApi(Base):
     authorize_argparser = cmd2.Cmd2ArgumentParser()
 
     def init_auth_client(self) -> None:
-        "Initialize the Lichess client. Assuming that the access token is set."
+        """Initialize the Lichess client.
+
+        Assuming that the access token is set.
+        """
         assert self._access_token is not None
         session = requests.Session()
         session.headers.update({"Authorization": f"Bearer {self._access_token}"})
@@ -67,12 +71,12 @@ class LichessApi(Base):
 
     @cmd2.with_argparser(authorize_argparser)  # type: ignore
     def do_authorize(self, args) -> None:
-        "Authrize Chess-CLI with a Lichess account."
-        requestline: Optional[str] = None
+        """Authrize Chess-CLI with a Lichess account."""
+        requestline: str | None = None
 
         class HTTPRequestHandler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
-                if not urlsplit(self.path).path == "/authorize":
+                if urlsplit(self.path).path != "/authorize":
                     self.send_error(404)
                 else:
                     nonlocal requestline
@@ -81,7 +85,7 @@ class LichessApi(Base):
                     self.wfile.write(
                         b"SUCCESS! Please close this window and return to Chess-CLI.\n"
                     )
-                    setattr(self.server, "_BaseServer__shutdown_request", True)
+                    self.server._BaseServer__shutdown_request = True  # type: ignore
 
         with HTTPServer(("localhost", 0), HTTPRequestHandler) as httpd:
             client = OAuth2Session(

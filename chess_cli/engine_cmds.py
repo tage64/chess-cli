@@ -3,7 +3,8 @@ import platform
 import re
 import shutil
 import urllib.request
-from typing import Any, Iterable, Mapping, Optional, Union
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 import appdirs
 import chess
@@ -18,7 +19,8 @@ from .utils import sizeof_fmt
 
 
 class EngineCmds(Engine):
-    "Basic commands related to chess engines."
+    """Basic commands related to chess engines."""
+
     engine_argparser = cmd2.Cmd2ArgumentParser()
     engine_subcmds = engine_argparser.add_subparsers(dest="subcmd")
     engine_ls_argparser = engine_subcmds.add_parser("ls", help="List loaded chess engines.")
@@ -169,7 +171,10 @@ class EngineCmds(Engine):
 
     @cmd2.with_argparser(engine_argparser)  # type: ignore
     def do_engine(self, args: Any) -> None:
-        "Everything related to chess engines. See subcommands for detailes"
+        """Everything related to chess engines.
+
+        See subcommands for detailes.
+        """
         match args.subcmd:
             case "ls":
                 self.engine_ls(args)
@@ -190,7 +195,7 @@ class EngineCmds(Engine):
             case "quit":
                 self.engine_quit(args)
             case _:
-                assert False, "Unsupported subcommand."
+                raise AssertionError("Unsupported subcommand.")
 
     def engine_select(self, args) -> None:
         if args.engine not in self.loaded_engines:
@@ -290,16 +295,14 @@ class EngineCmds(Engine):
                     " application to get it implemented :)"
                 )
             case _:
-                assert False, "Invalid argument"
+                raise AssertionError("Invalid argument")
 
     def install_stockfish(self) -> None:
         dir: str = os.path.join(appdirs.user_data_dir("chess-cli"), "stockfish")
         os.makedirs(dir, exist_ok=True)
         match platform.system():
             case "Linux":
-                url: str = (
-                    "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
-                )
+                url: str = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
                 archive_format: str = "tar"
                 executable: str = "stockfish/stockfish-ubuntu-x86-64-avx2"
             case "Windows":
@@ -345,10 +348,8 @@ class EngineCmds(Engine):
 
     def show_engine_option(self, engine: str, name: str) -> None:
         opt: chess.engine.Option = self.loaded_engines[engine].engine.options[name]
-        configured_val: Optional[Union[str, int, bool]] = self.engine_confs[engine].options.get(
-            name
-        )
-        val: Optional[Union[str, int, bool]] = configured_val or opt.default
+        configured_val: str | int | bool | None = self.engine_confs[engine].options.get(name)
+        val: str | int | bool | None = configured_val or opt.default
 
         show_str: str = name
         if val is not None:
@@ -363,15 +364,15 @@ class EngineCmds(Engine):
             show_str += ": (button)"
         else:
             if configured_val is not None and opt.default is not None:
-                show_str += f": Default: {repr(opt.default)}, "
+                show_str += f": Default: {opt.default!r}, "
             else:
                 show_str += " (default): "
             if opt.var:
-                show_str += f"Alternatives: {repr(opt.var)}, "
+                show_str += f"Alternatives: {opt.var!r}, "
             if opt.min is not None:
-                show_str += f"Min: {repr(opt.min)}, "
+                show_str += f"Min: {opt.min!r}, "
             if opt.max is not None:
-                show_str += f"Max: {repr(opt.max)}, "
+                show_str += f"Max: {opt.max!r}, "
             show_str += "Type: "
             if opt.type == "check":
                 show_str += "checkbox"
@@ -390,7 +391,7 @@ class EngineCmds(Engine):
             elif opt.type == "save":
                 show_str += "button (save)"
             else:
-                assert False, f"Unsupported option type: {opt.type}."
+                raise AssertionError(f"Unsupported option type: {opt.type}.")
 
         if configured_val is not None:
             show_str += ", (Configured)"
@@ -415,24 +416,27 @@ class EngineCmds(Engine):
             case "trigger":
                 self.engine_config_trigger(args)
             case _:
-                assert False, "Invalid subcommand."
+                raise AssertionError("Invalid subcommand.")
 
     def get_engine_opt_name(self, engine: str, name: str) -> str:
-        "Case insensitively search for a name of an option on an engine. Raises CommandFailure if not found."
+        """Case insensitively search for a name of an option on an engine.
+
+        Raises CommandFailure if not found.
+        """
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
         if name in options:
             return name
         try:
-            return next((name for name in options.keys() if name.lower() == name.lower()))
+            return next(name for name in options if name.lower() == name.lower())
         except StopIteration:
             self.poutput(
                 f"Error: No option named {name} in the engine {engine}. List all availlable options"
                 " with `engine config ls`."
             )
-            raise CommandFailure()
+            raise CommandFailure() from None
 
     def get_selected_engine(self) -> str:
-        "Get the selected engine or raise CommandFailure."
+        """Get the selected engine or raise CommandFailure."""
         if self.selected_engine is None:
             self.poutput("Error: No engine is selected.")
             raise CommandFailure()
@@ -482,7 +486,7 @@ class EngineCmds(Engine):
         opt_name: str = self.get_engine_opt_name(engine, args.name)
         option: chess.engine.Option = options[opt_name]
         if option.type in ["string", "combo", "file", "path"]:
-            value: Union[str, int, bool, None] = args.value
+            value: str | int | bool | None = args.value
         elif option.type == "spin":
             try:
                 value = int(args.value)
@@ -505,7 +509,7 @@ class EngineCmds(Engine):
                 )
                 return
         elif option.type in ["button", "reset", "save"]:
-            if not args.value.lower() == "trigger-on-startup":
+            if args.value.lower() != "trigger-on-startup":
                 self.poutput(
                     f"{option.name} is a button and buttons can only be configured to"
                     " 'trigger-on-startup', (which means what it sounds like). If you want to"
@@ -519,7 +523,7 @@ class EngineCmds(Engine):
                 conf.options[option.name] = None
             return
         else:
-            assert False, f"Unsupported option type: {option.type}"
+            raise AssertionError(f"Unsupported option type: {option.type}")
         if not args.temporary:
             conf.options[option.name] = value
             self.save_config()
@@ -566,4 +570,4 @@ class EngineCmds(Engine):
                 for line in self.get_engines_log():
                     self.poutput(line)
             case _:
-                assert False, "Unrecognized command."
+                raise AssertionError("Unrecognized command.")

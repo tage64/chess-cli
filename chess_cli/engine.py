@@ -4,8 +4,9 @@ import logging.handlers
 import queue
 import shutil
 from collections import deque
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
-from typing import Mapping, Optional, Sequence, Union, override
+from typing import override
 
 import chess.engine
 
@@ -15,21 +16,23 @@ LOAD_TIMEOUT: int = 120  # Timeout for loading an engine in seconds.
 
 
 class EngineProtocol(enum.StrEnum):
-    "Type of protocol for a chess engine."
+    """Type of protocol for a chess engine."""
+
     UCI = enum.auto()
     XBOARD = enum.auto()
 
 
 @dataclass
 class EngineConf:
-    "Configuration for an engine."
+    """Configuration for an engine."""
+
     path: str  # Path of engine executable.
     protocol: EngineProtocol
-    options: dict[str, Union[str, int, bool, None]] = field(default_factory=dict)
-    fullname: Optional[str] = None  # Full name of the engine from id.name.
+    options: dict[str, str | int | bool | None] = field(default_factory=dict)
+    fullname: str | None = None  # Full name of the engine from id.name.
     # The directory where the engine is installed.
     # This will be removed if the engine is removed.
-    install_dir: Optional[str] = None
+    install_dir: str | None = None
     # Loaded instance of this engine. This is not really part of the configuration but stored here
     # anyway and discarded when saving the configuration.
     loaded_as: set[str] = field(default_factory=set, init=False)
@@ -42,18 +45,21 @@ class LoadedEngine:
 
 
 class Engine(Base):
-    "An extention to chess-cli to support chess engines."
-    _engine_confs: dict[str, EngineConf] = {}  # Configuration for all the engines.
+    """An extention to chess-cli to support chess engines."""
+
+    _engine_confs: dict[str, EngineConf]  # Configuration for all the engines.
     # All the currently loaded engines.  Note that this is indexed by the name given to the
     # loaded instance which may not be the same as in `_engine_confs`.
     _loaded_engines: dict[str, LoadedEngine]
     # The currently selected engine. Should be a member of loaded_engines.
-    _selected_engine: Optional[str]
+    _selected_engine: str | None
     _engines_saved_log: deque[str]  # Log messages from all engines.
     _engines_log_queue: queue.SimpleQueue[str]  # A queue where engine log messages are first put.
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
+
+        self._engine_confs = {}
 
         # No engines are loaded or selected at startup.
         self._loaded_engines = {}
@@ -76,33 +82,38 @@ class Engine(Base):
 
     @property
     def engine_confs(self) -> Mapping[str, EngineConf]:
-        "Get all configured engines."
+        """Get all configured engines."""
         return self._engine_confs.items().mapping
 
     @property
     def loaded_engines(self) -> Mapping[str, LoadedEngine]:
-        "Get all the currently loaded engines in a {name: engine} dictionary."
+        """Get all the currently loaded engines in a {name: engine}
+        dictionary.
+        """
         return self._loaded_engines.items().mapping
 
     @property
-    def selected_engine(self) -> Optional[str]:
-        "The currently selected engine. `None` iff `self.loaded_engines()` is empty."
+    def selected_engine(self) -> str | None:
+        """The currently selected engine.
+
+        `None` iff `self.loaded_engines()` is empty.
+        """
         return self._selected_engine
 
     def get_selected_engine(self) -> str:
-        "Get the selected engine or raise CommandFailure."
+        """Get the selected engine or raise CommandFailure."""
         if self.selected_engine is None:
             self.poutput("Error: No engine is selected.")
             raise CommandFailure()
         return self.selected_engine
 
     def select_engine(self, engine: str) -> None:
-        "Select an engine."
+        """Select an engine."""
         assert engine in self.loaded_engines
         self._selected_engine = engine
 
     def close_engine(self, name: str) -> None:
-        "Stop and quit an engine."
+        """Stop and quit an engine."""
         engine: LoadedEngine = self._loaded_engines.pop(name)
         self.engine_confs[engine.config_name].loaded_as.remove(name)
         engine.engine.quit()
@@ -114,7 +125,7 @@ class Engine(Base):
         self._selected_engine = None
 
     def get_engines_log(self) -> Sequence[str]:
-        "Get log messages from all engines."
+        """Get log messages from all engines."""
         # Read all log messages from the log_queue:
         # Note that this is not wait free.
         try:
@@ -125,7 +136,7 @@ class Engine(Base):
         return self._engines_saved_log
 
     def clear_engines_log(self) -> None:
-        "Clear the log."
+        """Clear the log."""
         self._engines_saved_log.clear()
         # Note that this is not wait free.
         try:
@@ -145,7 +156,7 @@ class Engine(Base):
                 name: EngineConf(**values) for (name, values) in engine_confs.items()
             }
         except Exception as ex:
-            raise self.config_error(repr(ex))
+            raise self.config_error(repr(ex)) from ex
 
     @override
     def save_config(self) -> None:
@@ -156,20 +167,26 @@ class Engine(Base):
         super().save_config()
 
     def add_engine(self, path: str, protocol: EngineProtocol, name: str) -> None:
-        "Add an engine to `self.engine_confs` but do not load it.  `name` should not be in `self.engine_confs`."
+        """Add an engine to `self.engine_confs` but do not load it.
+
+        `name` should not be in `self.engine_confs`.
+        """
         engine_conf: EngineConf = EngineConf(path=path, protocol=protocol)
         self._engine_confs[name] = engine_conf
         self.save_config()
 
     def rm_engine(self, name: str) -> None:
-        "Remove an engine from `self.engine_confs`.  The engine must not be loaded."
+        """Remove an engine from `self.engine_confs`.
+
+        The engine must not be loaded.
+        """
         removed: EngineConf = self._engine_confs.pop(name)
         if removed.install_dir is not None:
             shutil.rmtree(removed.install_dir)
         self.save_config()
 
     def show_engine(self, name: str, verbose: bool = False) -> None:
-        "Show an engine, loaded or not."
+        """Show an engine, loaded or not."""
         # TODO: Fix separate methods for showing loaded and unloaded engines.
         if name in self.loaded_engines:
             conf: EngineConf = self.engine_confs[self.loaded_engines[name].config_name]
@@ -194,11 +211,11 @@ class Engine(Base):
             if name in self.loaded_engines:
                 engine: chess.engine.SimpleEngine = self.loaded_engines[name].engine
                 for key, val in engine.id.items():
-                    if not key == "name":
+                    if key != "name":
                         self.poutput(f"   {key}: {val}")
 
-    def set_engine_option(self, engine: str, name: str, value: Union[str, int, bool, None]) -> None:
-        "Set an option on a loaded engine."
+    def set_engine_option(self, engine: str, name: str, value: str | int | bool | None) -> None:
+        """Set an option on a loaded engine."""
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
         option: chess.engine.Option = options[name]
         if option.type in ["string", "file", "path"]:
@@ -223,7 +240,7 @@ class Engine(Base):
             if value not in option.var:
                 raise ValueError(
                     f"{value} is not a valid alternative for the combobox {option.name}. The list"
-                    f" of valid options is: {repr(option.var)}."
+                    f" of valid options is: {option.var!r}."
                 )
         elif option.type == "spin":
             if not isinstance(value, int):
@@ -252,11 +269,14 @@ class Engine(Base):
                     f" {type(value)} which doesn't really make any sence."
                 )
         else:
-            assert False, f"Unsupported option type: {option.type}"
+            raise AssertionError(f"Unsupported option type: {option.type}")
         self.loaded_engines[engine].engine.configure({option.name: value})
 
     def load_engine(self, config_name: str, name: str) -> None:
-        "Load an engine.  `config_name` must be in `self.engine_confs`."
+        """Load an engine.
+
+        `config_name` must be in `self.engine_confs`.
+        """
         engine_conf: EngineConf = self.engine_confs[config_name]
         try:
             match engine_conf.protocol:

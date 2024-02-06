@@ -1,7 +1,8 @@
 from collections import defaultdict
+from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Mapping, Optional, override
+from typing import override
 
 import chess
 import chess.engine
@@ -14,12 +15,12 @@ from .engine import Engine
 
 @dataclass
 class AnalysisInfo:
-    "Information about analysis."
+    """Information about analysis."""
 
     result: chess.engine.SimpleAnalysisResult
     engine: str
     board: chess.Board
-    san: Optional[str]
+    san: str | None
 
 
 class Analysis(Engine):
@@ -50,12 +51,12 @@ class Analysis(Engine):
 
     @property
     def analyses(self) -> set[AnalysisInfo]:
-        "Get a set of all running and not running analyses."
+        """Get a set of all running and not running analyses."""
         return self._analyses
 
     @property
     def running_analyses(self) -> dict[str, AnalysisInfo]:
-        "Get all currently running analyses."
+        """Get all currently running analyses."""
         return self._running_analyses
 
     @property
@@ -66,7 +67,7 @@ class Analysis(Engine):
         self,
         engine: str,
         number_of_moves: int,
-        limit: Optional[chess.engine.Limit] = None,
+        limit: chess.engine.Limit | None = None,
     ) -> None:
         if engine in self._running_analyses:
             return
@@ -107,12 +108,12 @@ class Analysis(Engine):
             self.start_analysis(engine, self._auto_analysis_number_of_moves)
 
     def start_auto_analysis(self, engine: str, number_of_moves: int) -> None:
-        "Start auto analysis on the current position."
+        """Start auto analysis on the current position."""
         self._auto_analysis_engines.add(engine)
         self._auto_analysis_number_of_moves = number_of_moves
         self.update_auto_analysis()
 
     def rm_analysis(self, engine: str, node: chess.pgn.GameNode) -> None:
-        "Remove an analysis made by a certain engine at a certain node."
+        """Remove an analysis made by a certain engine at a certain node."""
         removed: AnalysisInfo = self._analysis_by_node[self.game_node].pop(engine)
         self._analyses.remove(removed)

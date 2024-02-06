@@ -147,7 +147,7 @@ nag_descriptions: dict[int, str] = {
 def description(nag: int) -> str:
     if nag in nag_descriptions:
         return nag_descriptions[nag]
-    if not nag == 0:
+    if nag != 0:
         return f"unknown NAG ${nag}"
     return "null annotation (doesn't mean anything)"
 

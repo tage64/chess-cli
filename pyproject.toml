@@ -67,12 +67,15 @@ line-length = 100
 [tool.ruff.lint]
 select = [
     "E",  # pycodestyle
-    "F",  # Pyflakes
+    "F",  # pyflakes
     "UP",  # pyupgrade
     "B",  # flake8-bugbear
     "SIM",  # flake8-simplify
+    "RUF",  # ruff
     "I",  # isort
+    "D",  # pydocstyle
 ]
+ignore = ["D1", "D2"]
 
 [tool.mypy]
 files = "chess_cli/*.py"
