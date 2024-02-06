@@ -1,12 +1,12 @@
-from .base import *
-from .utils import *
-
 from collections import deque
 from typing import *
 
 import chess
 import chess.pgn
 import more_itertools
+
+from .base import *
+from .utils import *
 
 
 class GameUtils(Base):

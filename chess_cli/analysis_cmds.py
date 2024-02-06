@@ -1,10 +1,11 @@
-from .analysis import *
-
 from typing import *
 
 import chess
 import chess.pgn
 import cmd2
+
+from .analysis import *
+from .utils import *
 
 
 class AnalysisCmds(Analysis):
@@ -188,7 +189,7 @@ class AnalysisCmds(Analysis):
                     show_str += f"{key}: {val}, "
             for i, info in enumerate(analysis.result.multipv, 1):
                 show_str += f"\n  {i}: {score_and_wdl_str(info)}"
-                if info.get("pv") and len(info["pv"]) >= 2:
+                if "pv" in info and len(info["pv"]) >= 2:
                     show_str += f"\n    {analysis.board.variation_san(info['pv'])}"
         self.poutput(show_str)
 

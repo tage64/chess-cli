@@ -1,15 +1,15 @@
-from .base import *
-
-from contextlib import suppress
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import time
+import webbrowser
+from contextlib import suppress
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import *
 from urllib.parse import urljoin, urlsplit
-import webbrowser
 
-from authlib.integrations.requests_client import OAuth2Auth, OAuth2Session  # type: ignore
 import berserk
 import requests
+from authlib.integrations.requests_client import OAuth2Auth, OAuth2Session  # type: ignore
+
+from .base import *
 
 # Uncomment to enable logging of requests:
 # import logging

@@ -1,10 +1,11 @@
-from . import nags
-
 import re
 from typing import *
 
+import chess.engine
 import chess.pgn
 from chess.engine import Score
+
+from . import nags
 
 
 def sizeof_fmt(num, suffix="B"):

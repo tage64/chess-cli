@@ -1,6 +1,3 @@
-from .base import *
-from .engine import Engine
-
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
@@ -8,6 +5,11 @@ from typing import *
 
 import chess
 import chess.engine
+import chess.pgn
+import cmd2
+
+from .base import Base, InitArgs
+from .engine import Engine
 
 
 @dataclass
@@ -90,10 +92,10 @@ class Analysis(Engine):
             self._auto_analysis_engines.remove(engine)
 
     @override
-    def close_engine(self, engine: str) -> None:
-        if engine in self.running_analyses:
-            self.stop_analysis(engine)
-        super().close_engine(engine)
+    def close_engine(self, name: str) -> None:
+        if name in self.running_analyses:
+            self.stop_analysis(name)
+        super().close_engine(name)
 
     def update_auto_analysis(self) -> None:
         for engine in self._auto_analysis_engines:

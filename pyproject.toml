@@ -31,6 +31,8 @@ types-psutil = "^5.9.5.20240106"
 black = "^23.12.1"
 types-requests = "^2.31.0.20240125"
 docformatter = "^1.7.5"
+pyright = "^1.1.350"
+isort = "^5.13.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -49,7 +51,17 @@ black = true
 wrap-summeries = 100
 wrap-descriptions = 100
 
+[tool.isort]
+src_paths = ["chess_cli/"]
+profile = "black"
+line_length = 100
+py_version = "auto"
+
 [tool.mypy]
 files = "chess_cli/*.py"
 check_untyped_defs = true
 warn_unreachable = true
+
+[tool.pyright]
+include = ["chess_cli/"]
+reportWildcardImportFromLibrary = false

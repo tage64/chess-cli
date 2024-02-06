@@ -1,13 +1,13 @@
-from .engine import *
-
 import platform
-import psutil
-from typing import *
 import urllib.request
+from typing import *
 
 import chess
 import chess.pgn
 import cmd2
+import psutil
+
+from .engine import *
 
 
 class EngineCmds(Engine):

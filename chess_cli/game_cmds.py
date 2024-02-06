@@ -1,11 +1,11 @@
-from .game_utils import *
-
 from collections import deque
 from typing import *
 
 import chess
 import chess.pgn
 import cmd2
+
+from .game_utils import *
 
 
 class GameCmds(GameUtils):

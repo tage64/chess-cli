@@ -1,10 +1,8 @@
-from .utils import *
-
-from collections import defaultdict
-from dataclasses import dataclass, field
 import os
 import shutil
 import tempfile
+from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import *
 
 import appdirs  # type: ignore
@@ -12,6 +10,8 @@ import chess
 import chess.pgn
 import cmd2
 import toml  # type: ignore
+
+from .utils import *
 
 
 @dataclass

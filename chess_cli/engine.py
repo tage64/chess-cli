@@ -1,17 +1,16 @@
-from .base import *
-
-from collections import deque
-from contextlib import suppress
-from dataclasses import dataclass, field, fields, InitVar
 import enum
 import logging
 import logging.handlers
 import queue
 import shutil
+from collections import deque
+from contextlib import suppress
+from dataclasses import InitVar, dataclass, field, fields
 from typing import *
 
 import chess.engine
 
+from .base import *
 
 LOAD_TIMEOUT: int = 120  # Timeout for loading an engine in seconds.
 
@@ -275,12 +274,6 @@ class Engine(Base):
                 f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it"
                 " should. Either it is broken, or this program containes a bug. It might also be"
                 " that you've specified wrong path to the engine executable."
-            )
-            raise e
-        except chess.engine.EngineTerminatedError as e:
-            self.poutput(
-                f"Engine Terminated Error: The engine {engine_conf.path} terminated unexpectedly."
-                " Either the engine is broken or you've specified wrong path to the executable."
             )
             raise e
         except FileNotFoundError as e:
