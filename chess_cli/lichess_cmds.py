@@ -1,9 +1,8 @@
 import enum
-from typing import *
 
 import cmd2
 
-from .lichess_api import *
+from .lichess_api import LichessApi
 
 
 class LichessVariant(enum.StrEnum):

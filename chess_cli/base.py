@@ -3,7 +3,7 @@ import shutil
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import *
+from typing import Optional, IO
 
 import appdirs  # type: ignore
 import chess
@@ -11,7 +11,7 @@ import chess.pgn
 import cmd2
 import toml  # type: ignore
 
-from .utils import *
+from .utils import move_str
 
 
 @dataclass

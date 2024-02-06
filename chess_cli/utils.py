@@ -1,5 +1,5 @@
 import re
-from typing import *
+from typing import Union, NamedTuple
 
 import chess.engine
 import chess.pgn

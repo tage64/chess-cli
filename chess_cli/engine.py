@@ -4,13 +4,12 @@ import logging.handlers
 import queue
 import shutil
 from collections import deque
-from contextlib import suppress
-from dataclasses import InitVar, dataclass, field, fields
-from typing import *
+from dataclasses import dataclass, field, fields
+from typing import Mapping, override, Union, Optional, Sequence
 
 import chess.engine
 
-from .base import *
+from .base import Base, CommandFailure, InitArgs
 
 LOAD_TIMEOUT: int = 120  # Timeout for loading an engine in seconds.
 

@@ -1,14 +1,13 @@
 import argparse
 import sys
-from typing import *
 
-from .analysis_cmds import *
-from .base import *
-from .curr_move_cmds import *
-from .engine_cmds import *
-from .game_cmds import *
-from .game_hot_keys import *
-from .lichess_cmds import *
+from .analysis_cmds import AnalysisCmds
+from .base import InitArgs
+from .curr_move_cmds import CurrMoveCmds
+from .engine_cmds import EngineCmds
+from .game_cmds import GameCmds
+from .game_hot_keys import GameHotKeys
+from .lichess_cmds import LichessCmds
 
 
 class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, GameHotKeys, LichessCmds):

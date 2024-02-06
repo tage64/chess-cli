@@ -3,7 +3,7 @@ import platform
 import re
 import shutil
 import urllib.request
-from typing import *
+from typing import Any, Iterable, Union, Optional, Mapping
 
 import appdirs
 import chess
@@ -239,7 +239,7 @@ class EngineCmds(Engine):
             self.select_engine(name)
             self.show_engine(name, verbose=True)
             self.poutput(f"Successfully loaded and selected {name}.")
-        except OSError as e:
+        except OSError:
             self.poutput(
                 "Perhaps the executable has been moved or deleted, or you might be in a different"
                 " folder now than when you configured the engine."
@@ -309,13 +309,13 @@ class EngineCmds(Engine):
             case x:
                 self.poutput(f"Error: Unsupported platform: {x}")
                 return
-        self.poutput(f"Downloading Stockfish...")
+        self.poutput("Downloading Stockfish...")
         engine_archive, _ = urllib.request.urlretrieve(url)
-        self.poutput(f"Download complete. Unpacking...")
+        self.poutput("Download complete. Unpacking...")
         shutil.unpack_archive(engine_archive, dir, archive_format)
         urllib.request.urlcleanup()
         if "stockfish" in self.engine_confs:
-            self.poutput(f"Removing old stockfish")
+            self.poutput("Removing old stockfish")
             self.onecmd("engine rm stockfish")
         executable_path: str = os.path.join(dir, executable)
         self.onecmd(f'engine import "{executable_path}" stockfish')
@@ -462,15 +462,15 @@ class EngineCmds(Engine):
                 if not pattern.fullmatch(name):
                     continue
             if args.type and (
-                (opt.type == "check" and not "checkbox" in args.type)
+                (opt.type == "check" and "checkbox" not in args.type)
                 or opt.type == "combo"
-                and not "combobox" in args.type
+                and "combobox" not in args.type
                 or opt.type == "spin"
-                and not "integer" in args.type
+                and "integer" not in args.type
                 or opt.type in ["button", "reset", "save"]
-                and not "button" in args.type
+                and "button" not in args.type
                 or opt.type in ["string", "file", "path"]
-                and not "string" in args.type
+                and "string" not in args.type
             ):
                 continue
             self.show_engine_option(engine, name)

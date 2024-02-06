@@ -1,11 +1,12 @@
-from collections import deque
-from typing import *
+from typing import Iterable
+import os
 
 import chess
 import chess.pgn
 import cmd2
 
-from .game_utils import *
+from .game_utils import GameUtils
+from .utils import MoveNumber
 
 
 class GameCmds(GameUtils):
@@ -40,7 +41,7 @@ class GameCmds(GameUtils):
         """Play a sequence of moves from the current position."""
         if args.sideline:
             if not isinstance(self.game_node, chess.pgn.ChildNode):
-                self.poutput(f"Cannot add a sideline to the root of the game.")
+                self.poutput("Cannot add a sideline to the root of the game.")
                 return
             self.game_node = self.game_node.parent
 
@@ -246,7 +247,6 @@ class GameCmds(GameUtils):
         "Delete the current move."
         if isinstance(self.game_node, chess.pgn.ChildNode):
             parent = self.game_node.parent
-            new_node = parent
             for i, node in enumerate(parent.variations):
                 if node is self.game_node:
                     if i + 1 < len(parent.variations):

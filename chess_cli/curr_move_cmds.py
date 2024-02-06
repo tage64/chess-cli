@@ -2,7 +2,7 @@ import datetime
 import os
 import re
 import tempfile
-from typing import *
+from typing import Optional, Iterable
 
 import chess
 import chess.engine
@@ -11,7 +11,7 @@ import chess.svg
 import cmd2
 
 from . import nags
-from .base import Base, InitArgs
+from .base import Base
 from .utils import MoveNumber, comment_text, score_str, update_comment_text
 
 
@@ -139,7 +139,7 @@ class CurrMoveCmds(Base):
 
         if args.starting_comment and not self.game_node.starts_variation():
             self.poutput(
-                f"Error: Starting comments can only exist on moves that starts a variation."
+                "Error: Starting comments can only exist on moves that starts a variation."
             )
             return
 

@@ -1,14 +1,14 @@
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import *
+from typing import Mapping, override, Optional
 
 import chess
 import chess.engine
 import chess.pgn
 import cmd2
 
-from .base import Base, InitArgs
+from .base import InitArgs
 from .engine import Engine
 
 
@@ -27,7 +27,7 @@ class Analysis(Engine):
     # For a game node, store all analysing engines:
     _analysis_by_node: defaultdict[chess.pgn.GameNode, dict[str, AnalysisInfo]]
     _running_analyses: dict[str, AnalysisInfo]
-    _auto_analysis_engines: Set[str]  # All currently auto-analysing engines.
+    _auto_analysis_engines: set[str]  # All currently auto-analysing engines.
     _auto_analysis_number_of_moves: int  # Number of moves to analyse for auto analysis.
 
     def __init__(self, args: InitArgs) -> None:

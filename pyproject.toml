@@ -1,3 +1,6 @@
+[project]
+requires-python = ">=3.12"
+
 [tool.poetry]
 name = "chess-cli"
 version = "0.1.0"
@@ -33,6 +36,7 @@ types-requests = "^2.31.0.20240125"
 docformatter = "^1.7.5"
 pyright = "^1.1.350"
 isort = "^5.13.2"
+ruff = "^0.2.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -56,6 +60,19 @@ src_paths = ["chess_cli/"]
 profile = "black"
 line_length = 100
 py_version = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle
+    "F",  # Pyflakes
+    "UP",  # pyupgrade
+    "B",  # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",  # isort
+]
 
 [tool.mypy]
 files = "chess_cli/*.py"

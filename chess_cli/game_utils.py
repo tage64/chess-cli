@@ -1,12 +1,12 @@
 from collections import deque
-from typing import *
+from typing import Iterable, Optional, Callable
 
 import chess
 import chess.pgn
 import more_itertools
 
-from .base import *
-from .utils import *
+from .base import Base
+from .utils import move_str, MoveNumber, MOVE_NUMBER_REGEX
 
 
 class GameUtils(Base):
@@ -63,7 +63,7 @@ class GameUtils(Base):
         search_queue.append(current_node)
         if search_sidelines:
             sidelines = current_node.parent.variations
-            search_queue.extend((x for x in sidelines if not x is current_node))
+            search_queue.extend((x for x in sidelines if x is not current_node))
 
         if search_forwards and (
             move_number is None or move_number >= MoveNumber.last(current_node)

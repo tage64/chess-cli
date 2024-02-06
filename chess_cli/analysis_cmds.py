@@ -1,4 +1,4 @@
-from typing import *
+from typing import Iterable
 
 import chess
 import chess.engine
@@ -6,7 +6,7 @@ import chess.pgn
 import cmd2
 
 from .analysis import Analysis, AnalysisInfo
-from .utils import *
+from .utils import score_str, MoveNumber
 
 
 class AnalysisCmds(Analysis):
