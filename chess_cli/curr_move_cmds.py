@@ -371,7 +371,7 @@ class CurrMoveCmds(Base):
             case "rm":
                 self.game_node.set_clock(None)
             case "set":
-                time_parsed = re.fullmatch("(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?", args.time)
+                time_parsed = re.fullmatch(r"(\d+)(:(\d+))?(:(\d+))?([.,](\d+))?", args.time)
                 if time_parsed is None:
                     self.poutput(f"Error: Couldn't parse time '{args.time}'.")
                     return

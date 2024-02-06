@@ -136,7 +136,7 @@ class Engine(Base):
         except queue.Empty:
             pass
 
-    # @override TODO Python 3.12
+    @override
     def load_config(self) -> None:
         super().load_config()
         ## Retrieve the engine configurations from `self.config`:
@@ -149,7 +149,7 @@ class Engine(Base):
         except Exception as ex:
             raise self.config_error(repr(ex))
 
-    # @override TODO Python 3.12
+    @override
     def save_config(self) -> None:
         self.config["engine-configurations"] = {
             name: {f.name: getattr(conf, f.name) for f in fields(conf) if f.name != "loaded_as"}

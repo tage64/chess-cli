@@ -43,7 +43,7 @@ class LichessCmds(LichessApi):
 
     @cmd2.with_argparser(challenge_argparser)  # type: ignore
     def do_challenge(self, args) -> None:
-        "Create a challenge from the current position on Lichess."
+        """Create a challenge from the current position on Lichess."""
         challenge_data: dict = self.client.challenges.create_open(
             clock_limit=args.time,
             clock_increment=args.increment,
@@ -53,9 +53,11 @@ class LichessCmds(LichessApi):
             position=self.game_node.board().fen(),
         )
         challenge: dict = challenge_data["challenge"]
+        self.poutput(challenge)
         self.poutput(
-            f"Created {challenge['variant']['name']} game --"
-            f" {'rated' if challenge['rated'] else 'not rated'} {challenge['speed']} {challenge['timeControl']['show']}"
+            f"Created {challenge['variant']['name']} game -- "
+            f"{'rated' if challenge['rated'] else 'not rated'} {challenge['speed']} "
+            f"{challenge['timeControl']['show'] if 'show' in challenge['timeControl'] else ''}"
         )
         self.poutput(f"URL:\n  {challenge['url']}")
         self.poutput(f"White URL:\n  {challenge_data['urlWhite']}")

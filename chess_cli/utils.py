@@ -16,7 +16,7 @@ def sizeof_fmt(num, suffix="B"):
     return f"{num:.1f}Yi{suffix}"
 
 
-COMMANDS_IN_COMMENTS_REGEX: re.Pattern[str] = re.compile("\[%.+?\]")
+COMMANDS_IN_COMMENTS_REGEX: re.Pattern[str] = re.compile(r"\[%.+?\]")
 
 
 def commands_in_comment(raw_comment: str) -> str:
@@ -34,7 +34,7 @@ def update_comment_text(original_comment: str, new_text: str) -> str:
     return f"{commands_in_comment(original_comment)}\n{new_text}"
 
 
-MOVE_NUMBER_REGEX: re.Pattern[str] = re.compile("(\d+)((\.{3})|\.?)")
+MOVE_NUMBER_REGEX: re.Pattern[str] = re.compile(r"(\d+)((\.{3})|\.?)")
 
 
 class MoveNumber(NamedTuple):

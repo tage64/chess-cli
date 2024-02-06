@@ -41,7 +41,7 @@ class LichessApi(Base):
         if self._access_token is not None:
             self.init_auth_client()
 
-    # @override TODO Python 3.12
+    @override
     def load_config(self) -> None:
         super().load_config()
         try:
@@ -51,7 +51,7 @@ class LichessApi(Base):
         except Exception as ex:
             raise self.config_error(repr(ex))
 
-    # @override TODO Python 3.12
+    @override
     def save_config(self) -> None:
         self.config["lichess-api"]["access-token"] = self._access_token
         super().save_config()

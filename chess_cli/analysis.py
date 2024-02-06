@@ -89,7 +89,7 @@ class Analysis(Engine):
         with suppress(KeyError):
             self._auto_analysis_engines.remove(engine)
 
-    # @override  TODO: Python 3.12
+    @override
     def close_engine(self, engine: str) -> None:
         if engine in self.running_analyses:
             self.stop_analysis(engine)
