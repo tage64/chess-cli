@@ -3,14 +3,14 @@ import shutil
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import IO
+from typing import IO, override
 
 import appdirs  # type: ignore
 import chess
 import chess.pgn
-import cmd2
 import toml  # type: ignore
 
+from .repl import CommandFailure, Repl
 from .utils import move_str
 
 
@@ -26,9 +26,8 @@ class InitArgs:
 
 @dataclass
 class _GameHandle:
-    """The headers of a game together with either the offset of the game in a
-    file or a node in the parsed game.
-    """
+    """The headers of a game together with either the offset of the game in a file or a
+    node in the parsed game."""
 
     headers: chess.pgn.Headers
     offset_or_game: int | chess.pgn.GameNode
@@ -46,14 +45,6 @@ class _GameHandle:
         return None
 
 
-class CommandFailure(cmd2.exceptions.SkipPostcommandHooks):
-    """An exception raised when a command fails and doesn't perform any updates
-    to the game.
-    """
-
-    pass
-
-
 class ConfigError(Exception):
     """An exception raised if there is something wrong with the config file."""
 
@@ -61,7 +52,7 @@ class ConfigError(Exception):
         super().__init__(f"Bad config file at {config_file}: {msg}")
 
 
-class Base(cmd2.Cmd):
+class Base(Repl):
     _config_file: str  # The path to the currently open config file.
     config: defaultdict[str, dict]  # The current configuration as a dictionary.
     _games: list[_GameHandle]  # A list of all currentlyopen games.
@@ -69,10 +60,7 @@ class Base(cmd2.Cmd):
     _game_idx: int  # The index of the currently selected game.
 
     def __init__(self, args: InitArgs) -> None:
-        ## Initialize cmd2:
-        shortcuts: dict[str, str] = dict(cmd2.DEFAULT_SHORTCUTS)
-        super().__init__(shortcuts=shortcuts, include_py=True, allow_cli_args=False)
-        self.self_in_py = True
+        super().__init__()
 
         self.config = defaultdict(dict)
         self._config_file = args.config_file
@@ -86,9 +74,6 @@ class Base(cmd2.Cmd):
             self.load_games(args.pgn_file)
         else:
             self.add_new_game()
-
-        self.register_postcmd_hook(self.set_prompt)
-        self.set_prompt_()  # For the first time.
 
     def config_error(self, msg: str) -> ConfigError:
         """Make a `ConfigError` with the provided message."""
@@ -127,16 +112,9 @@ class Base(cmd2.Cmd):
         """The name of the currently open PGN file if any."""
         return self._pgn_file.name if self._pgn_file is not None else None
 
-    def set_prompt_(self) -> None:
-        """Set `self.prompt` to an appropriate value."""
-        self.prompt = f"{move_str(self.game_node)}: "
-
-    def set_prompt(
-        self, postcommand_data: cmd2.plugin.PostcommandData
-    ) -> cmd2.plugin.PostcommandData:
-        # Overrides method from Cmd2.
-        self.set_prompt_()
-        return postcommand_data
+    @override
+    def prompt_str(self) -> str:
+        return f"{move_str(self.game_node)}: "
 
     def save_config(self) -> None:
         """Save the current configuration."""
@@ -189,10 +167,9 @@ class Base(cmd2.Cmd):
     def rm_game(self, game_idx: int) -> None:
         """Remove a game from the game list.
 
-        If it is the current game, the current game will be shifted to
-        the next game unless the current game is the last game in which
-        case it'll be shifted to the previous.  If the game list becomes
-        empty a new empty game will be added.
+        If it is the current game, the current game will be shifted to the next game
+        unless the current game is the last game in which case it'll be shifted to the
+        previous.  If the game list becomes empty a new empty game will be added.
         """
         self._games.pop(game_idx)
         if game_idx < self.game_idx or self.game_idx == len(self.games):
@@ -230,8 +207,8 @@ class Base(cmd2.Cmd):
             self.poutput(f"Error: Loading of {file_name} failed: {ex}")
 
     def _reload_games(self, file_name: str) -> None:
-        """Open and load all games from `file_name`, assuming it contains
-        exactly the same games, in same order, as `self.games`.
+        """Open and load all games from `file_name`, assuming it contains exactly the
+        same games, in same order, as `self.games`.
 
         The current file will then be set to this file.
         """
@@ -264,9 +241,8 @@ class Base(cmd2.Cmd):
 
     def save_games(self, file_name: str | None) -> None:
         """Save all games and update the current PGN file to `file_name`." If
-        `file_name` is `None`, the current PGN file will be used, if that is
-        also `None`, an assertian will be fired.
-        """
+        `file_name` is `None`, the current PGN file will be used, if that is also
+        `None`, an assertian will be fired."""
         file_name = file_name or self.pgn_file_name
         assert file_name is not None
         if self.pgn_file_name is None or not os.path.samefile(file_name, self.pgn_file_name):
