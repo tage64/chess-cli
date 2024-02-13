@@ -1,3 +1,4 @@
+from .repl import argparse_command
 from cmd2 import Cmd2ArgumentParser
 import sys
 
@@ -6,7 +7,6 @@ from .base import Base,InitArgs
 from .curr_move_cmds import CurrMoveCmds
 from .engine_cmds import EngineCmds
 from .game_cmds import GameCmds
-from .game_hot_keys import GameHotKeys
 from .lichess_cmds import LichessCmds
 
 
