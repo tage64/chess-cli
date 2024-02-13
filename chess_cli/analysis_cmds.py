@@ -152,7 +152,7 @@ class AnalysisCmds(Analysis):
 
         def score_and_wdl_str(info: chess.engine.InfoDict) -> str:
             res: str = ""
-            if info.get("pv"):
+            if "pv" in info:
                 res += f"{analysis.board.san(info['pv'][0])}: "
             if "score" in info:
                 score: chess.engine.Score = info["score"].relative
