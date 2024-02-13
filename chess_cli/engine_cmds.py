@@ -15,6 +15,7 @@ import psutil
 
 from .base import CommandFailure
 from .engine import Engine, EngineConf, EngineProtocol
+from .repl import argparse_command
 from .utils import sizeof_fmt
 
 
@@ -169,7 +170,7 @@ class EngineCmds(Engine):
     engine_log_subcmds.add_parser("clear", help="Clear the log.")
     engine_log_subcmds.add_parser("show", help="Show the log.")
 
-    @cmd2.with_argparser(engine_argparser)  # type: ignore
+    @argparse_command(engine_argparser)
     def do_engine(self, args: Any) -> None:
         """Everything related to chess engines.
 
@@ -319,16 +320,16 @@ class EngineCmds(Engine):
         urllib.request.urlcleanup()
         if "stockfish" in self.engine_confs:
             self.poutput("Removing old stockfish")
-            self.onecmd("engine rm stockfish")
+            self.exec_cmd("engine rm stockfish")
         executable_path: str = os.path.join(dir, executable)
-        self.onecmd(f'engine import "{executable_path}" stockfish')
+        self.exec_cmd(f'engine import "{executable_path}" stockfish')
         ncores: int = psutil.cpu_count()
         ncores_use: int = ncores - 1 if ncores > 1 else 1
         self.poutput(
             f"You seem to have {ncores} logical cores on your system. So the engine will use"
             f" {ncores_use} of them."
         )
-        self.onecmd(f"engine config set threads {ncores_use}")
+        self.exec_cmd(f"engine config set threads {ncores_use}")
         ram: int = psutil.virtual_memory().total
         ram_use_MiB: int = int(0.75 * ram / 2**20)
         ram_use: int = ram_use_MiB * 2**20
@@ -336,7 +337,7 @@ class EngineCmds(Engine):
             f"You seem to have a RAM of {sizeof_fmt(ram)} bytes, so stockfish will be configured to"
             f" use {sizeof_fmt(ram_use)} bytes (75 %) thereof for the hash."
         )
-        self.onecmd(f"engine config set hash {ram_use_MiB}")
+        self.exec_cmd(f"engine config set hash {ram_use_MiB}")
         self.poutput("You can change these settings and more with the engine config command.")
 
     def engine_quit(self, _args) -> None:

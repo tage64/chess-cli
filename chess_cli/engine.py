@@ -73,12 +73,12 @@ class Engine(Base):
         log_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
         chess.engine.LOGGER.addHandler(log_handler)
 
-        # Close engines when REPL is quit.
-        def close_engines() -> None:
-            while self.selected_engine is not None:
-                self.close_engine(self.selected_engine)
-
-        self.register_postloop_hook(close_engines)
+    # Close engines when REPL is quit.
+    @override
+    def cmd_loop(self, *args, **kwargs) -> None:
+        super().cmd_loop(*args, **kwargs)
+        while self.selected_engine is not None:
+            self.close_engine(self.selected_engine)
 
     @property
     def engine_confs(self) -> Mapping[str, EngineConf]:

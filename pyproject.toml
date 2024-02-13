@@ -76,7 +76,7 @@ select = [
     "I",  # isort
     "D",  # pydocstyle
 ]
-ignore = ["D1", "D2"]
+ignore = ["D1", "D2", "D401"]
 
 [tool.mypy]
 files = "chess_cli/*.py"

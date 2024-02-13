@@ -10,6 +10,7 @@ import requests
 from authlib.integrations.requests_client import OAuth2Session  # type: ignore
 
 from .base import Base, InitArgs
+from .repl import argparse_command
 
 # Uncomment to enable logging of requests:
 # import logging
@@ -69,7 +70,7 @@ class LichessApi(Base):
         session.headers.update({"Authorization": f"Bearer {self._access_token}"})
         self.auth_client = berserk.Client(session=session)
 
-    @cmd2.with_argparser(authorize_argparser)  # type: ignore
+    @argparse_command(authorize_argparser)
     def do_authorize(self, args) -> None:
         """Authrize Chess-CLI with a Lichess account."""
         requestline: str | None = None

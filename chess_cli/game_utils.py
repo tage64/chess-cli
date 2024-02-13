@@ -160,7 +160,7 @@ class GameUtils(Base):
     ) -> Iterable[str]:
         """Same as display_game_segment(), but this function takes an iterable
         of moves instead of a starting and ending game node.
-        """  # noqa: D401
+        """
         moves_per_line: int = 6
         current_line: str = ""
         moves_at_current_line: int = 0

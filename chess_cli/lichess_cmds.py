@@ -3,6 +3,7 @@ import enum
 import cmd2
 
 from .lichess_api import LichessApi
+from .repl import argparse_command
 
 
 class LichessVariant(enum.StrEnum):
@@ -42,7 +43,7 @@ class LichessCmds(LichessApi):
         help="Chess variant for the game.",
     )
 
-    @cmd2.with_argparser(challenge_argparser)  # type: ignore
+    @argparse_command(challenge_argparser)
     def do_challenge(self, args) -> None:
         """Create a challenge from the current position on Lichess."""
         challenge_data: dict = self.client.challenges.create_open(

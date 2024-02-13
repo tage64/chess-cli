@@ -4,8 +4,10 @@ import chess
 import chess.engine
 import chess.pgn
 import cmd2
+from prompt_toolkit.shortcuts import yes_no_dialog
 
 from .analysis import Analysis, AnalysisInfo
+from .repl import argparse_command
 from .utils import MoveNumber, score_str
 
 
@@ -84,7 +86,7 @@ class AnalysisCmds(Analysis):
         ),
     )
 
-    @cmd2.with_argparser(analysis_argparser)  # type: ignore
+    @argparse_command(analysis_argparser)
     def do_analysis(self, args) -> None:
         """Manage analysis."""
         match args.subcmd:
@@ -104,18 +106,14 @@ class AnalysisCmds(Analysis):
     def analysis_start(self, args) -> None:
         engine: str = self.get_selected_engine()
         if engine in self.analysis_by_node[self.game_node]:
-            self.poutput(f"Error: There's allready an analysis made by {engine} at this move.")
-            answer: str = self.read_input(
-                "Do you want to remove it and restart the analysis? [Y/n] "
-            )
-            match answer.strip():
-                case "y" | "Y":
-                    self.onecmd("analysis rm")
-                case "n" | "N":
-                    return
-                case _:
-                    self.poutput("Expected Y or n.")
-                    return
+            answer: bool = yes_no_dialog(
+                title=f"Error: There's allready an analysis made by {engine} at this move.",
+                text="Do you want to remove it and restart the analysis?",
+            ).run()
+            if answer:
+                self.exec_cmd("analysis rm")
+            else:
+                return
         if engine in self.running_analyses:
             self.poutput(
                 f"Error: {engine} is already running an analysis, stop it with `analysis stop`"

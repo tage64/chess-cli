@@ -6,6 +6,7 @@ import chess.pgn
 import cmd2
 
 from .game_utils import GameUtils
+from .repl import argparse_command
 from .utils import MoveNumber
 
 
@@ -37,7 +38,7 @@ class GameCmds(GameUtils):
         help="Add this new list of moves as a sideline to the current move.",
     )
 
-    @cmd2.with_argparser(play_argparser)  # type: ignore
+    @argparse_command(play_argparser)
     def do_play(self, args) -> None:
         """Play a sequence of moves from the current position."""
         if args.sideline:
@@ -64,15 +65,15 @@ class GameCmds(GameUtils):
         "-a", "--all", action="store_true", help="Print the entire game from the start."
     )
 
-    @cmd2.with_argparser(game_argparser)  # type: ignore
+    @argparse_command(game_argparser)
     def do_game(self, args) -> None:
         """Print the rest of the game with sidelines and comments in a nice and
         readable format.
         """
         if args.all:
-            self.onecmd("moves -s -r -c")
+            self.exec_cmd("moves -s -r -c")
         else:
-            self.onecmd("moves -s -r -c --fc")
+            self.exec_cmd("moves -s -r -c --fc")
 
     moves_argparser = cmd2.Cmd2ArgumentParser()
     moves_argparser.add_argument(
@@ -114,7 +115,7 @@ class GameCmds(GameUtils):
         "-r", "--recurse", action="store_true", help="Recurse into sidelines."
     )
 
-    @cmd2.with_argparser(moves_argparser)  # type: ignore
+    @argparse_command(moves_argparser)
     def do_moves(self, args) -> None:
         if args._from is not None:
             # If the user has specified a given move as start.
@@ -213,7 +214,7 @@ class GameCmds(GameUtils):
         help="Only search the game forwards.",
     )
 
-    @cmd2.with_argparser(goto_argparser)  # type: ignore
+    @argparse_command(goto_argparser)
     def do_goto(self, args) -> None:
         """Goto a move specified by a move number or a move in standard
         algibraic notation.
@@ -248,7 +249,7 @@ class GameCmds(GameUtils):
 
     delete_argparser = cmd2.Cmd2ArgumentParser()
 
-    @cmd2.with_argparser(delete_argparser)  # type: ignore
+    @argparse_command(delete_argparser)
     def do_delete(self, _args) -> None:
         """Delete the current move."""
         if isinstance(self.game_node, chess.pgn.ChildNode):
@@ -291,7 +292,7 @@ class GameCmds(GameUtils):
         help="The index where the game should be inserted. Defaults to the end of the game list.",
     )
 
-    @cmd2.with_argparser(games_argparser)  # type: ignore
+    @argparse_command(games_argparser)
     def do_games(self, args) -> None:
         """List, select, delete or create new games."""
         match args.subcmd:
@@ -324,7 +325,7 @@ class GameCmds(GameUtils):
         help="Save only the current game and discard any changes in the other games.",
     )
 
-    @cmd2.with_argparser(save_argparser)  # type: ignore
+    @argparse_command(save_argparser)
     def do_save(self, args) -> None:
         """Save the games to a PGN file."""
         if args.file is None:
@@ -341,7 +342,7 @@ class GameCmds(GameUtils):
     load_argparser = cmd2.Cmd2ArgumentParser()
     load_argparser.add_argument("file", help="PGN file to read.")
 
-    @cmd2.with_argparser(load_argparser)  # type: ignore
+    @argparse_command(load_argparser)
     def do_load(self, args) -> None:
         """Load games from a PGN file.
 
@@ -361,7 +362,7 @@ class GameCmds(GameUtils):
         "-n", "--steps", type=int, help="Promote this variation n number of steps."
     )
 
-    @cmd2.with_argparser(promote_argparser)  # type: ignore
+    @argparse_command(promote_argparser)
     def do_promote(self, args) -> None:
         """If current move is a side line, promote it so that it'll be closer
         to main variation.
@@ -388,7 +389,7 @@ class GameCmds(GameUtils):
         "-n", "--steps", type=int, help="Demote this variation n number of steps."
     )
 
-    @cmd2.with_argparser(demote_argparser)  # type: ignore
+    @argparse_command(demote_argparser)
     def do_demote(self, args) -> None:
         """If current move is the main variation or if it isn't the last
         variation, demote it so it'll be far from the main variation.

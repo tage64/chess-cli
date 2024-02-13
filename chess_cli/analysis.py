@@ -7,7 +7,6 @@ from typing import override
 import chess
 import chess.engine
 import chess.pgn
-import cmd2
 
 from .base import InitArgs
 from .engine import Engine
@@ -40,14 +39,12 @@ class Analysis(Engine):
         self._auto_analysis_engines = set()
         self._auto_analysis_number_of_moves = 5
 
-        # Update auto-analysis after every command.
-        def __update_auto_analysis(
-            x: cmd2.plugin.PostcommandData,
-        ) -> cmd2.plugin.PostcommandData:
+    @override
+    def exec_cmd(self, *args, **kwargs) -> None:
+        try:
+            super().exec_cmd(*args, **kwargs)
+        finally:
             self.update_auto_analysis()
-            return x
-
-        self.register_postcmd_hook(__update_auto_analysis)
 
     @property
     def analyses(self) -> set[AnalysisInfo]:

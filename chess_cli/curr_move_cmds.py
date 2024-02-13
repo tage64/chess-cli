@@ -12,6 +12,7 @@ import cmd2
 
 from . import nags
 from .base import Base
+from .repl import argparse_command
 from .utils import MoveNumber, comment_text, score_str, update_comment_text
 
 
@@ -67,7 +68,7 @@ class CurrMoveCmds(Base):
 
     show_argparser = cmd2.Cmd2ArgumentParser()
 
-    @cmd2.with_argparser(show_argparser)  # type: ignore
+    @argparse_command(show_argparser)
     def do_show(self, args) -> None:
         """Show position, comments, NAGs and more about the current move."""
         self.poutput(f"FEN: {self.show_fen()}")
@@ -93,14 +94,14 @@ class CurrMoveCmds(Base):
 
     fen_argparser = cmd2.Cmd2ArgumentParser()
 
-    @cmd2.with_argparser(fen_argparser)  # type: ignore
+    @argparse_command(fen_argparser)
     def do_fen(self, args) -> None:
         """Show the position as FEN (Forsynth-Edwards Notation)."""
         self.poutput(self.show_fen())
 
     board_argparser = cmd2.Cmd2ArgumentParser()
 
-    @cmd2.with_argparser(board_argparser)  # type: ignore
+    @argparse_command(board_argparser)
     def do_board(self, args) -> None:
         """Show the current position as an ASCII chess board."""
         self.poutput(self.show_board())
@@ -135,7 +136,7 @@ class CurrMoveCmds(Base):
     )
     comment_append_argparser.add_argument("comment", help="The text to append.")
 
-    @cmd2.with_argparser(comment_argparser)  # type: ignore
+    @argparse_command(comment_argparser)
     def do_comment(self, args) -> None:
         """Show, edit or remove the comment at the current move."""
         if args.starting_comment and not self.game_node.starts_variation():
@@ -173,7 +174,7 @@ class CurrMoveCmds(Base):
                         file.write(comment)
                         file.flush()
                     self.poutput(f"Opening {file_name} in your editor.")
-                    self.onecmd(f"edit '{file_name}'")
+                    self.exec_cmd(f"edit '{file_name}'")
                     with open(file_name) as file:
                         file.seek(0)
                         new_comment: str = file.read().strip()
@@ -200,7 +201,7 @@ class CurrMoveCmds(Base):
     )
     nag_subcmds.add_parser("clear", help="Clear all NAGs at this move.")
 
-    @cmd2.with_argparser(nag_argparser)  # type: ignore
+    @argparse_command(nag_argparser)
     def do_nag(self, args) -> None:
         """Show, edit or remove NAGs (numeric annotation glyphs, E.G.
 
@@ -270,7 +271,7 @@ class CurrMoveCmds(Base):
         "-d", "--depth", type=int, help="The depth at which the analysis was made."
     )
 
-    @cmd2.with_argparser(evaluation_argparser)  # type: ignore
+    @argparse_command(evaluation_argparser)
     def do_evaluation(self, args) -> None:
         """Show, edit or remove evaluations at the current move."""
         match args.subcmd:
@@ -325,7 +326,7 @@ class CurrMoveCmds(Base):
         help="Color of the arrow. Red/yellow/green/blue can be abbreviated as r/y/g/b.",
     )
 
-    @cmd2.with_argparser(arrow_argparser)  # type: ignore
+    @argparse_command(arrow_argparser)
     def do_arrow(self, args) -> None:
         """Show, edit or remove arrows at the current move."""
         color_abbreviations: dict[str, str] = {
@@ -365,7 +366,7 @@ class CurrMoveCmds(Base):
     )
     clock_set_argparser.add_argument("time", help="Remaining time.")
 
-    @cmd2.with_argparser(clock_argparser)  # type: ignore
+    @argparse_command(clock_argparser)
     def do_clock(self, args) -> None:
         """Show, edit or remove clock information at the current move."""
         match args.subcmd:

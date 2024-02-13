@@ -87,6 +87,11 @@ class ReplBase:
         print(*args, file=sys.stderr, **kwargs)
 
     def exec_cmd(self, prompt: str) -> None:
+        """Parse a prompt and execute the corresponding command.
+
+        This method may be overridden to simulate post and pre command hooks. It may
+        also be called to execute an arbitrary command by its prompt.
+        """
         args: list[str] = shlex.split(prompt)
         if len(args) == 0:
             return
@@ -152,9 +157,9 @@ def command[
 
 def argparse_command[
     T: ReplBase,
-](argparser: Cmd2ArgumentParser, aliases: list[str] | None = None) -> Callable[
-    [ArgparseCmdFunc[T]], Command[T]
-]:
+](
+    argparser: Cmd2ArgumentParser, aliases: list[str] | None = None
+) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
 
@@ -199,7 +204,7 @@ class Repl(ReplBase):
             print(self._cmds[args.command].long_help)
         else:
             # Deduplicate commands by their id, that is if they are the same object.
-            unique_commands: dict[int, Command] = {id(c):c for c in self._cmds.values()}
+            unique_commands: dict[int, Command] = {id(c): c for c in self._cmds.values()}
             for command in unique_commands.values():
                 line: str = f"{command.name}"
                 if command.aliases:
