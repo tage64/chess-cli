@@ -1,10 +1,14 @@
 from cmd2 import Cmd2ArgumentParser
 
-from .base import Base, InitArgs
+from .analysis_cmds import AnalysisCmds
+from .base import InitArgs
+from .curr_move_cmds import CurrMoveCmds
+from .engine_cmds import EngineCmds
+from .game_cmds import GameCmds
+from .lichess_cmds import LichessCmds
 
 
-# class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, GameHotKeys, LichessCmds):
-class Main(Base):
+class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessCmds):
     """Main class for the chess-cli app."""
 
     def __init__(self, args: InitArgs) -> None:

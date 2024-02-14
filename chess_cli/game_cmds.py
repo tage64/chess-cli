@@ -6,7 +6,7 @@ import chess.pgn
 import cmd2
 
 from .game_utils import GameUtils
-from .repl import argparse_command
+from .repl import argparse_command,command
 from .utils import MoveNumber
 
 
@@ -404,10 +404,12 @@ class GameCmds(GameUtils):
             for _ in range(n):
                 self.game_node.parent.demote(self.game_node)
 
+    @command()
     def do_variations(self, _) -> None:
         """Print all variations following this move."""
         self.show_variations(self.game_node)
 
+    @command()
     def do_sidelines(self, _) -> None:
         """Show all sidelines to this move."""
         if self.game_node.parent is not None:

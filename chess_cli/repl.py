@@ -1,20 +1,23 @@
 import argparse
+import code
 import functools
 import re
 import shlex
 import sys
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import ClassVar, Self
+from typing import Self
 
 import more_itertools
 from cmd2 import Cmd2ArgumentParser
 from prompt_toolkit import PromptSession
 
 type ParsedArgs = argparse.Namespace
-type CmdFunc[T] = Callable[[T, list[str]], None]
+type CmdFunc[T] = Callable[[T, str], None]
 type ArgparseCmdFunc[T] = Callable[[T, ParsedArgs], None]
 
+CMD_FUNC_PREFIX: str = "do_"
 DOC_STRING_REGEX: re.Pattern = re.compile(
     r"(?P<summary>([^\S\n]*\S.*\n?)+)(\s*\Z|\n\s*\n)", re.MULTILINE
 )
@@ -30,8 +33,8 @@ class Command[T]:
     summary: str | None  # A short summary for the command.
     long_help: str | None  # A longer description of the command.
 
-    def __call__(self, self_: T, args: list[str]) -> None:
-        self.func(self_, args)
+    def __call__(self, self_: T, prompt: str) -> None:
+        self.func(self_, prompt)
 
 
 class QuitRepl(Exception):
@@ -54,26 +57,29 @@ class ReplBase:
 
     # All commands stored in a dict with names/aliases as keys. Note that a command
     # may occur multiple times if it has multiple names/aliases.
-    _cmds: ClassVar[dict[str, Command[Self]]] = {}
+    _cmds: dict[str, Command[Self]]
     prompt_session: PromptSession
 
-    @classmethod
-    def add_cmd(cls, cmd: Command[Self]) -> None:
-        for name in more_itertools.prepend(cmd.name, cmd.aliases):
-            assert name not in cls._cmds, (
-                f"Error when adding cmd {cmd.name}: {name} is already bound to the"
-                f" {cls._cmds[name].name}-cmd."
-            )
-            cls._cmds[name] = cmd
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        super().__init_subclass__(**kwargs)
-        for x in cls.__dict__.values():
-            if isinstance(x, Command):
-                cls.add_cmd(x)
-
-    def __init__(self):
+    def __init__(self) -> None:
+        self._cmds = {}
+        for name in dir(self):
+            if name.startswith(CMD_FUNC_PREFIX):
+                cmd = getattr(self, name)
+                assert isinstance(cmd, Command), (
+                    f"Repl initialization: All attributes starting with {CMD_FUNC_PREFIX} must be"
+                    f" an instance of repl.Command. {cmd.__qualname__} is not. Please decorate it"
+                    " with repl.command() or repl.argparse_command()."
+                )
+                self.add_cmd(cmd)
         self.prompt_session = PromptSession(enable_system_prompt=True, enable_open_in_editor=True)
+
+    def add_cmd(self, cmd: Command[Self]) -> None:
+        for name in more_itertools.prepend(cmd.name, cmd.aliases):
+            assert name not in self._cmds, (
+                f"Error when adding cmd {cmd.name}: {name} is already bound to the"
+                f" {self._cmds[name].name}-cmd."
+            )
+            self._cmds[name] = cmd
 
     def poutput(self, *args, **kwargs) -> None:
         """Print to stdout.
@@ -92,15 +98,21 @@ class ReplBase:
         This method may be overridden to simulate post and pre command hooks. It may
         also be called to execute an arbitrary command by its prompt.
         """
-        args: list[str] = shlex.split(prompt)
-        if len(args) == 0:
-            return
-        cmd_name: str = args[0]
+        prompt = prompt.strip()
+        first_space: int = prompt.find(" ")
+        if first_space < 0:
+            cmd_name: str = prompt
+            if not cmd_name:
+                return
+            rest: str = ""
+        else:
+            cmd_name = prompt[:first_space]
+            rest = prompt[first_space:].strip()
         if cmd_name not in self._cmds:
             self.perror(f"Error: Command not found: {cmd_name}")
             return
         command: Command = self._cmds[cmd_name]
-        command(self, args[1:])
+        command(self, rest)
 
     def prompt_str(self) -> str:
         """Get the string for the prompt, you can override this."""
@@ -122,6 +134,8 @@ class ReplBase:
                 self.perror(f"Error: {e}")
             except KeyboardInterrupt:
                 continue
+            except Exception:
+                print(traceback.format_exc())
 
 
 def command[
@@ -137,13 +151,18 @@ def command[
     def decorator(func: CmdFunc[T]) -> Command[T]:
         nonlocal summary
         nonlocal long_help
-        if summary is None:
+        if summary is None and func.__doc__:
             summary_match = DOC_STRING_REGEX.match(func.__doc__)
             summary = summary_match.group("summary").strip() if summary_match is not None else None
         if long_help is None:
             long_help = func.__doc__.strip() if func.__doc__ else None
+        assert func.__name__.startswith(CMD_FUNC_PREFIX), (
+            f"The name of a command function must start with {CMD_FUNC_PREFIX}, which is not the"
+            f" case with {func.__name__}."
+        )
+        name: str = func.__name__[len(CMD_FUNC_PREFIX) :]
         cmd: Command[T] = Command(
-            name=func.__name__,
+            name=name,
             aliases=aliases or [],
             func=func,
             summary=summary,
@@ -157,9 +176,9 @@ def command[
 
 def argparse_command[
     T: ReplBase,
-](
-    argparser: Cmd2ArgumentParser, aliases: list[str] | None = None
-) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
+](argparser: Cmd2ArgumentParser, aliases: list[str] | None = None) -> Callable[
+    [ArgparseCmdFunc[T]], Command[T]
+]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
 
@@ -170,7 +189,8 @@ def argparse_command[
             argparser.description = func.__doc__
 
         @functools.wraps(func)
-        def cmd_func(repl: T, args: list[str]) -> None:
+        def cmd_func(repl: T, prompt: str) -> None:
+            args = shlex.split(prompt)
             try:
                 parsed_args: ParsedArgs = argparser.parse_args(args)
             except SystemExit:
@@ -178,7 +198,9 @@ def argparse_command[
             func(repl, parsed_args)
 
         return command(
-            aliases=aliases, summary=argparser.description, long_help=argparser.format_help()
+            aliases=aliases,
+            summary=argparser.description if not func.__doc__ else None,
+            long_help=argparser.format_help(),
         )(cmd_func)
 
     return decorator
@@ -187,8 +209,8 @@ def argparse_command[
 class Repl(ReplBase):
     """Base class for a REPL with helpful commands like help or quit."""
 
-    @command(aliases=["exit"])
-    def quit(self, _) -> None:
+    @command(aliases=["q", "exit"])
+    def do_quit(self, _) -> None:
         """Exit the REPL."""
         raise QuitRepl()
 
@@ -196,7 +218,7 @@ class Repl(ReplBase):
     help_argparser.add_argument("command", nargs="?", help="Get help for this specific command.")
 
     @argparse_command(help_argparser, aliases=["h"])
-    def help(self, args: ParsedArgs) -> None:
+    def do_help(self, args: ParsedArgs) -> None:
         """Get a list of all possible commands or get help for a specific command."""
         if args.command is not None:
             if args.command not in self._cmds:
@@ -212,3 +234,19 @@ class Repl(ReplBase):
                         line += f", {alias}"
                 line += f" -- {command.summary}"
                 self.poutput(line)
+
+    @command()
+    def do_py(self, expr: str) -> None:
+        """Evaluate a Python expression or start an interactive Python shell.
+
+        If this command is called without arguments, an interactive Python shell will be started.
+        In that shell, `self` will refer to the current `Repl` instance.
+
+        Otherwise, the rest of the command line will be parsed and executed as a Python expression
+        with the `eval()` function.
+        """
+        if expr:
+            print(eval(expr))
+        else:
+            local_vars = {"self": self}
+            code.interact(local=local_vars)
