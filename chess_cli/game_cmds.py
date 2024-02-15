@@ -6,7 +6,7 @@ import chess.pgn
 import cmd2
 
 from .game_utils import GameUtils
-from .repl import argparse_command,command
+from .repl import argparse_command, command
 from .utils import MoveNumber
 
 
@@ -67,9 +67,8 @@ class GameCmds(GameUtils):
 
     @argparse_command(game_argparser)
     def do_game(self, args) -> None:
-        """Print the rest of the game with sidelines and comments in a nice and
-        readable format.
-        """
+        """Print the rest of the game with sidelines and comments in a nice and readable
+        format."""
         if args.all:
             self.exec_cmd("moves -s -r -c")
         else:
@@ -216,18 +215,16 @@ class GameCmds(GameUtils):
 
     @argparse_command(goto_argparser)
     def do_goto(self, args) -> None:
-        """Goto a move specified by a move number or a move in standard
-        algibraic notation.
+        """Goto a move specified by a move number or a move in standard algibraic
+        notation.
 
-        If a move number is specified, it will follow the main line to
-        that move if it does exist. If a move like "e4" or "Nxd5+" is
-        specified as well, it will go to the specific move number and
-        search between variations at that level for the specified move.
-        If only a move but not a move number and no other constraints
-        are given, it'll first search sidelines at the current move,
-        then follow the mainline and check if any move or sideline
-        matches, but not recurse into sidelines. Lastly, it'll search
-        backwards in the game.
+        If a move number is specified, it will follow the main line to that move if it
+        does exist. If a move like "e4" or "Nxd5+" is specified as well, it will go to
+        the specific move number and search between variations at that level for the
+        specified move. If only a move but not a move number and no other constraints
+        are given, it'll first search sidelines at the current move, then follow the
+        mainline and check if any move or sideline matches, but not recurse into
+        sidelines. Lastly, it'll search backwards in the game.
         """
         match args.move:
             case "s" | "start":
@@ -247,22 +244,10 @@ class GameCmds(GameUtils):
                     return
                 self.game_node = node
 
-    delete_argparser = cmd2.Cmd2ArgumentParser()
-
-    @argparse_command(delete_argparser)
-    def do_delete(self, _args) -> None:
-        """Delete the current move."""
-        if isinstance(self.game_node, chess.pgn.ChildNode):
-            parent = self.game_node.parent
-            for i, node in enumerate(parent.variations):
-                if node is self.game_node:
-                    if i + 1 < len(parent.variations):
-                        self.game_node = parent.variations[i + 1]
-                    elif i > 0:
-                        self.game_node = parent.variations[i - 1]
-                    else:
-                        self.game_node = parent
-                    parent.variations = parent.variations[:i] + parent.variations[i + 1 :]
+    @command()
+    def do_delete(self, _) -> None:
+        """Delete the current move if this is not the root of the game."""
+        self.delete_current_move()
 
     games_argparser = cmd2.Cmd2ArgumentParser()
     games_subcmds = games_argparser.add_subparsers(dest="subcmd")
@@ -364,9 +349,8 @@ class GameCmds(GameUtils):
 
     @argparse_command(promote_argparser)
     def do_promote(self, args) -> None:
-        """If current move is a side line, promote it so that it'll be closer
-        to main variation.
-        """
+        """If current move is a side line, promote it so that it'll be closer to main
+        variation."""
         if not isinstance(self.game_node, chess.pgn.ChildNode):
             return
         if args.main:
@@ -391,9 +375,8 @@ class GameCmds(GameUtils):
 
     @argparse_command(demote_argparser)
     def do_demote(self, args) -> None:
-        """If current move is the main variation or if it isn't the last
-        variation, demote it so it'll be far from the main variation.
-        """
+        """If current move is the main variation or if it isn't the last variation,
+        demote it so it'll be far from the main variation."""
         if not isinstance(self.game_node, chess.pgn.ChildNode):
             return
         if args.last:

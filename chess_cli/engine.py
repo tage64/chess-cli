@@ -75,8 +75,8 @@ class Engine(Base):
 
     # Close engines when REPL is quit.
     @override
-    def cmd_loop(self, *args, **kwargs) -> None:
-        super().cmd_loop(*args, **kwargs)
+    async def cmd_loop(self, *args, **kwargs) -> None:
+        await super().cmd_loop(*args, **kwargs)
         while self.selected_engine is not None:
             self.close_engine(self.selected_engine)
 

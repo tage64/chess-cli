@@ -253,3 +253,16 @@ class GameUtils(Base):
         # A final flush!
         if current_line:
             yield current_line
+    def delete_current_move(self) -> None:
+        """Delete the current move if this is not the root of the game."""
+        if isinstance(self.game_node, chess.pgn.ChildNode):
+            parent = self.game_node.parent
+            for i, node in enumerate(parent.variations):
+                if node is self.game_node:
+                    if i + 1 < len(parent.variations):
+                        self.game_node = parent.variations[i + 1]
+                    elif i > 0:
+                        self.game_node = parent.variations[i - 1]
+                    else:
+                        self.game_node = parent
+                    parent.variations = parent.variations[:i] + parent.variations[i + 1 :]

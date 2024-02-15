@@ -1,23 +1,29 @@
 import argparse
+import asyncio
 import code
 import functools
 import re
 import shlex
 import sys
 import traceback
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Self
+from typing import Never, Self
 
 import more_itertools
 from cmd2 import Cmd2ArgumentParser
 from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
+from prompt_toolkit.keys import Keys
+from prompt_toolkit.patch_stdout import patch_stdout
 
 type ParsedArgs = argparse.Namespace
 type CmdFunc[T] = Callable[[T, str], None]
 type ArgparseCmdFunc[T] = Callable[[T, ParsedArgs], None]
+type KeyBindingFunc[T] = Callable[[T, KeyPressEvent], None]
 
 CMD_FUNC_PREFIX: str = "do_"
+KEY_BINDING_FUNC_PREFIX: str = "kb_"
 DOC_STRING_REGEX: re.Pattern = re.compile(
     r"(?P<summary>([^\S\n]*\S.*\n?)+)(\s*\Z|\n\s*\n)", re.MULTILINE
 )
@@ -37,6 +43,26 @@ class Command[T]:
         self.func(self_, prompt)
 
 
+@dataclass
+class KeyBinding[T: "ReplBase"]:
+    """A key binding and corresponding method in a REPL."""
+
+    keys: list[Keys]
+    ptk_kwargs: dict  # Keyword arguments to prompt_toolkit.key_binding.KeyBindings.add().
+    func: KeyBindingFunc[T]  # A function to execute for the key binding.
+    summary: str | None  # A short summary for the key binding.
+
+    def __call__(self, repl: T, event: KeyPressEvent) -> None:
+        self.func(repl, event)
+
+    def call_catch_exception(self, repl: T, event: KeyPressEvent) -> None:
+        try:
+            self.func(repl, event)
+        except Exception as exc:
+            repl._kb_exceptions.put_nowait(exc)
+            repl._kb_exception_event.set()
+
+
 class QuitRepl(Exception):
     """Exception to raise to quit the REPL."""
 
@@ -52,16 +78,33 @@ class CommandFailure(Exception):
     pass
 
 
+class CmdLoopContinue(Exception):
+    """Raise this exception to clear the current prompt and continue to the next
+    iteration in the cmd loop."""
+
+    pass
+
+
 class ReplBase:
     """Base class for a REPL with no helpful commands like help or quit."""
 
     # All commands stored in a dict with names/aliases as keys. Note that a command
     # may occur multiple times if it has multiple names/aliases.
     _cmds: dict[str, Command[Self]]
+    _key_bindings: list[KeyBinding]  # All registered key bindings.
+    _kb_manager: KeyBindings  # The prompt_toolkit's key bindings manager.
+    # If an exception is thrown in a key binding handler it will be put on this queue.
+    _kb_exceptions: asyncio.Queue[Exception]
+    # If an exception is thrown in a key binding handler, this event will be set.
+    _kb_exception_event: asyncio.Event
     prompt_session: PromptSession
 
     def __init__(self) -> None:
         self._cmds = {}
+        self._key_bindings = []
+        self._kb_manager = KeyBindings()
+        self._kb_exceptions = asyncio.Queue()
+        self._kb_exception_event = asyncio.Event()
         for name in dir(self):
             if name.startswith(CMD_FUNC_PREFIX):
                 cmd = getattr(self, name)
@@ -71,7 +114,22 @@ class ReplBase:
                     " with repl.command() or repl.argparse_command()."
                 )
                 self.add_cmd(cmd)
-        self.prompt_session = PromptSession(enable_system_prompt=True, enable_open_in_editor=True)
+            if name.startswith(KEY_BINDING_FUNC_PREFIX):
+                kb = getattr(self, name)
+                assert isinstance(kb, KeyBinding), (
+                    "Repl initialization: All attributes starting with"
+                    f" {KEY_BINDING_FUNC_PREFIX} must be an instance of repl.KeyBinding."
+                    f" {kb.__qualname__} is not. Please decorate it with repl.key_binding()."
+                )
+                self._key_bindings.append(kb)
+                self._kb_manager.add(*kb.keys, **kb.ptk_kwargs)(
+                    functools.partial(kb.call_catch_exception, self)
+                )
+        self.prompt_session = PromptSession(
+            key_bindings=self._kb_manager,
+            enable_system_prompt=True,
+            enable_open_in_editor=True,
+        )
 
     def add_cmd(self, cmd: Command[Self]) -> None:
         for name in more_itertools.prepend(cmd.name, cmd.aliases):
@@ -118,22 +176,44 @@ class ReplBase:
         """Get the string for the prompt, you can override this."""
         return "> "
 
-    def prompt(self) -> None:
+    async def prompt(self) -> None:
         """Issue a prompt and execute the entered command."""
-        prompt: str = self.prompt_session.prompt(self.prompt_str())
-        self.exec_cmd(prompt)
 
-    def cmd_loop(self) -> None:
+        async def kb_exc() -> Never:
+            """Wait for any key binding handler to throw an exception and reraise it."""
+            await self._kb_exception_event.wait()
+            raise self._kb_exceptions.get_nowait()
+
+        kb_exc_task: asyncio.Task = asyncio.create_task(kb_exc())
+        prompt_task: asyncio.Task[str] = asyncio.create_task(
+            self.prompt_session.prompt_async(self.prompt_str())
+        )
+        with patch_stdout():
+            done, pending = await asyncio.wait(
+                (kb_exc_task, prompt_task), return_when=asyncio.FIRST_COMPLETED
+            )
+            if kb_exc_task in done:
+                assert self._kb_exceptions.empty()
+                self._kb_exception_event.clear()
+                self.prompt_session.app.exit()
+                await prompt_task
+                kb_exc_task.result()
+            else:
+                kb_exc_task.cancel()
+                input: str = prompt_task.result()
+                self.exec_cmd(input)
+
+    async def cmd_loop(self) -> None:
         """Run the application in a loop."""
         while True:
             try:
-                self.prompt()
+                await self.prompt()
+            except (CmdLoopContinue, KeyboardInterrupt):
+                continue
             except (QuitRepl, EOFError):
                 break
             except CommandFailure as e:
                 self.perror(f"Error: {e}")
-            except KeyboardInterrupt:
-                continue
             except Exception:
                 print(traceback.format_exc())
 
@@ -158,7 +238,7 @@ def command[
             long_help = func.__doc__.strip() if func.__doc__ else None
         assert func.__name__.startswith(CMD_FUNC_PREFIX), (
             f"The name of a command function must start with {CMD_FUNC_PREFIX}, which is not the"
-            f" case with {func.__name__}."
+            f" case with {func.__qualname__}."
         )
         name: str = func.__name__[len(CMD_FUNC_PREFIX) :]
         cmd: Command[T] = Command(
@@ -206,6 +286,44 @@ def argparse_command[
     return decorator
 
 
+def key_binding[
+    T: ReplBase,
+](keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs) -> Callable[
+    [KeyBindingFunc[T]], KeyBinding[T]
+]:
+    """A decorator for methods of `Repl` to add them as key bindings.
+
+    :param keys: one or more key bindings to trigger the method
+    :param summary: a short summary for the method, defaults to the summary of the
+        method's docstring
+    :param ptk_kwargs: additional keyword arguments to be sent to
+        prompt_toolkit.key_binding.KeyBindings.add()
+    """
+
+    keys_: list[Keys | str] = keys if isinstance(keys, list) else [keys]
+    keys__: list[Keys] = list(map(Keys, keys_))
+
+    def decorator(func: KeyBindingFunc[T]) -> KeyBinding[T]:
+        nonlocal summary
+        if summary is None and func.__doc__:
+            summary_match = DOC_STRING_REGEX.match(func.__doc__)
+            summary = summary_match.group("summary").strip() if summary_match is not None else None
+        assert func.__name__.startswith(KEY_BINDING_FUNC_PREFIX), (
+            f"The name of a key binding function must start with {CMD_FUNC_PREFIX}, which is not"
+            f" the case with {func.__qualname__}."
+        )
+        kb: KeyBinding[T] = KeyBinding(
+            keys=keys__,
+            ptk_kwargs=ptk_kwargs,
+            func=func,
+            summary=summary,
+        )
+        functools.update_wrapper(kb, func)
+        return kb
+
+    return decorator
+
+
 class Repl(ReplBase):
     """Base class for a REPL with helpful commands like help or quit."""
 
@@ -232,7 +350,7 @@ class Repl(ReplBase):
                 if command.aliases:
                     for alias in command.aliases:
                         line += f", {alias}"
-                line += f" -- {command.summary}"
+                line += f"  --  {command.summary}"
                 self.poutput(line)
 
     @command()
@@ -250,3 +368,18 @@ class Repl(ReplBase):
         else:
             local_vars = {"self": self}
             code.interact(local=local_vars)
+
+    @command(aliases=["kb"])
+    def do_key_bindings(self, _) -> None:
+        """Print a list of all active key bindings."""
+        for kb in self._key_bindings:
+            text: str = ", ".join(kb.keys)
+            if kb.summary:
+                text += f"  --  {kb.summary}"
+            self.poutput(text)
+
+    @key_binding("c-q")
+    def kb_quit(self, _) -> None:
+        """Quit the REPL."""
+        # TODO: make this work
+        raise QuitRepl()

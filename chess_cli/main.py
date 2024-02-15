@@ -1,3 +1,5 @@
+import asyncio
+
 from cmd2 import Cmd2ArgumentParser
 
 from .analysis_cmds import AnalysisCmds
@@ -5,10 +7,11 @@ from .base import InitArgs
 from .curr_move_cmds import CurrMoveCmds
 from .engine_cmds import EngineCmds
 from .game_cmds import GameCmds
+from .game_shortcuts import GameShortcuts
 from .lichess_cmds import LichessCmds
 
 
-class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessCmds):
+class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessCmds, GameShortcuts):
     """Main class for the chess-cli app."""
 
     def __init__(self, args: InitArgs) -> None:
@@ -24,4 +27,4 @@ def main() -> None:
     init_args: InitArgs = InitArgs(
         **{key: val for key, val in vars(args).items() if val is not None}
     )
-    Main(init_args).cmd_loop()
+    asyncio.run(Main(init_args).cmd_loop())
