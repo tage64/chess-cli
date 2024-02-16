@@ -61,19 +61,13 @@ class Analysis(Engine):
         return self._analysis_by_node.items().mapping
 
     def start_analysis(
-        self,
-        engine: str,
-        number_of_moves: int,
-        limit: chess.engine.Limit | None = None,
+        self, engine: str, number_of_moves: int, limit: chess.engine.Limit | None = None
     ) -> None:
         if engine in self._running_analyses:
             return
         analysis: AnalysisInfo = AnalysisInfo(
             result=self.loaded_engines[engine].engine.analysis(
-                self.game_node.board(),
-                limit=limit,
-                multipv=number_of_moves,
-                game="this",
+                self.game_node.board(), limit=limit, multipv=number_of_moves, game="this"
             ),
             engine=engine,
             board=self.game_node.board(),

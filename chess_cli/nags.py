@@ -1,4 +1,3 @@
-
 ascii_nags: dict[int, str] = {1: "!", 2: "?", 3: "!!", 4: "??", 5: "!?", 6: "?!"}
 nag_asciis: dict[str, int] = {glyph: number for (number, glyph) in ascii_nags.items()}
 

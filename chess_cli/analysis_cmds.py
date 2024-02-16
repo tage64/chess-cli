@@ -41,9 +41,7 @@ class AnalysisCmds(Analysis):
         "--nodes", type=int, help="Search only the given number of nodes."
     )
     analysis_start_argparser.add_argument(
-        "--mate",
-        type=int,
-        help="Search for a mate in the given number of moves and stop then.",
+        "--mate", type=int, help="Search for a mate in the given number of moves and stop then."
     )
     analysis_stop_argparser = analysis_subcmds.add_parser("stop", help="Stop analysing.")
     analysis_stop_argparser.add_argument(

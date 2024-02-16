@@ -104,11 +104,7 @@ class GameUtils(Base):
             show_items = [move_str(next, include_sideline_arrows=False)]
             for variation in node.variations[1:]:
                 show_items.append(
-                    move_str(
-                        variation,
-                        include_move_number=False,
-                        include_sideline_arrows=False,
-                    )
+                    move_str(variation, include_move_number=False, include_sideline_arrows=False)
                 )
             self.poutput(", ".join(show_items))
 
@@ -183,9 +179,7 @@ class GameUtils(Base):
             if current_line:
                 current_line += " "
             current_line += move_str(
-                node,
-                include_move_number=include_move_number,
-                include_sideline_arrows=True,
+                node, include_move_number=include_move_number, include_sideline_arrows=True
             )
             if node.turn() == chess.BLACK:
                 moves_at_current_line += 1
@@ -253,6 +247,7 @@ class GameUtils(Base):
         # A final flush!
         if current_line:
             yield current_line
+
     def delete_current_move(self) -> None:
         """Delete the current move if this is not the root of the game."""
         if isinstance(self.game_node, chess.pgn.ChildNode):

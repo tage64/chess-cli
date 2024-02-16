@@ -65,6 +65,11 @@ py_version = "auto"
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.format]
+docstring-code-format = true
+preview = true
+skip-magic-trailing-comma = true
+
 [tool.ruff.lint]
 select = [
     "E",  # pycodestyle
@@ -77,6 +82,9 @@ select = [
     "D",  # pydocstyle
 ]
 ignore = ["D1", "D2", "D401"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
 
 [tool.mypy]
 files = "chess_cli/*.py"

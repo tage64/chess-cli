@@ -53,12 +53,10 @@ class CurrMoveCmds(Base):
         arrows: list = self.game_node.arrows()
         if not arrows:
             return None
-        return str(
-            [
-                f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
-                for arrow in self.game_node.arrows()
-            ]
-        )
+        return str([
+            f"{arrow.color} {chess.square_name(arrow.tail)}->{chess.square_name(arrow.head)}"
+            for arrow in self.game_node.arrows()
+        ])
 
     def show_clock(self) -> str | None:
         clock = self.game_node.clock()
@@ -192,8 +190,7 @@ class CurrMoveCmds(Base):
         "add", help="Add a nag (numeric annotation glyph) to this move."
     )
     nag_add_argparser.add_argument(
-        "nag",
-        help="NAG: either a number like '$17' or an ascii glyph like '!' or '?!'.",
+        "nag", help="NAG: either a number like '$17' or an ascii glyph like '!' or '?!'."
     )
     nag_rm_argparser = nag_subcmds.add_parser("rm", help="Remove an NAG at this move.")
     nag_rm_argparser.add_argument(
@@ -302,18 +299,14 @@ class CurrMoveCmds(Base):
         "rm", help="Remove all arrows between two squares."
     )
     arrow_rm_argparser.add_argument(
-        "_from",
-        type=chess.parse_square,
-        help="The square from which the arrow is drawn.",
+        "_from", type=chess.parse_square, help="The square from which the arrow is drawn."
     )
     arrow_rm_argparser.add_argument(
         "to", type=chess.parse_square, help="The square which the arrow is pointing to."
     )
     arrow_add_argparser = arrow_subcmds.add_parser("add", help="Draw an arrow on the board.")
     arrow_add_argparser.add_argument(
-        "_from",
-        type=chess.parse_square,
-        help="The square from which the arrow is drawn.",
+        "_from", type=chess.parse_square, help="The square from which the arrow is drawn."
     )
     arrow_add_argparser.add_argument(
         "to", type=chess.parse_square, help="The square which the arrow is pointing to."
@@ -329,12 +322,7 @@ class CurrMoveCmds(Base):
     @argparse_command(arrow_argparser)
     def do_arrow(self, args) -> None:
         """Show, edit or remove arrows at the current move."""
-        color_abbreviations: dict[str, str] = {
-            "g": "green",
-            "y": "yellow",
-            "r": "red",
-            "b": "blue",
-        }
+        color_abbreviations: dict[str, str] = {"g": "green", "y": "yellow", "r": "red", "b": "blue"}
 
         match args.subcmd:
             case "show":
@@ -343,9 +331,10 @@ class CurrMoveCmds(Base):
                     self.poutput(text)
             case "add":
                 color = color_abbreviations.get(args.color, args.color)
-                self.game_node.set_arrows(
-                    [*self.game_node.arrows(), chess.svg.Arrow(args._from, args.to, color=color)]
-                )
+                self.game_node.set_arrows([
+                    *self.game_node.arrows(),
+                    chess.svg.Arrow(args._from, args.to, color=color),
+                ])
             case "rm":
                 self.game_node.set_arrows(
                     arr

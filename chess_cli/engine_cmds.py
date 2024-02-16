@@ -26,18 +26,14 @@ class EngineCmds(Engine):
     engine_subcmds = engine_argparser.add_subparsers(dest="subcmd")
     engine_ls_argparser = engine_subcmds.add_parser("ls", help="List loaded chess engines.")
     engine_ls_argparser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Display more information about the engines.",
+        "-v", "--verbose", action="store_true", help="Display more information about the engines."
     )
     engine_ls_argparser.add_argument(
         "-l", "--loaded", action="store_true", help="List only loaded engines."
     )
     engine_load_argparser = engine_subcmds.add_parser("load", help="Load a chess engine.")
     engine_load_argparser.add_argument(
-        "name",
-        help="Name of the engine. List availlable engines with the command `engine ls`",
+        "name", help="Name of the engine. List availlable engines with the command `engine ls`"
     )
     engine_load_argparser.add_argument(
         "--as",
@@ -95,9 +91,7 @@ class EngineCmds(Engine):
         help="List availlable options and their current values for the selected engine.",
     )
     engine_config_ls_argparser.add_argument(
-        "-r",
-        "--regex",
-        help="Filter option names by a case insensitive regular expression.",
+        "-r", "--regex", help="Filter option names by a case insensitive regular expression."
     )
     engine_config_ls_argparser.add_argument(
         "-t",

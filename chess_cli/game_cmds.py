@@ -119,9 +119,7 @@ class GameCmds(GameUtils):
         if args._from is not None:
             # If the user has specified a given move as start.
             node = self.find_move(
-                args._from,
-                search_sidelines=args.sidelines,
-                recurse_sidelines=args.recurse,
+                args._from, search_sidelines=args.sidelines, recurse_sidelines=args.recurse
             )
             if node is None:
                 self.poutput(f"Error: Couldn't find the move {args._from}")
@@ -188,10 +186,7 @@ class GameCmds(GameUtils):
     )
     goto_sidelines_group = goto_argparser.add_mutually_exclusive_group()
     goto_sidelines_group.add_argument(
-        "-r",
-        "--recurse",
-        action="store_true",
-        help="Search sidelines recursively for the move.",
+        "-r", "--recurse", action="store_true", help="Search sidelines recursively for the move."
     )
     goto_sidelines_group.add_argument(
         "-m",
@@ -201,16 +196,10 @@ class GameCmds(GameUtils):
     )
     _goto_direction_group = goto_argparser.add_mutually_exclusive_group()
     _goto_direction_group.add_argument(
-        "-b",
-        "--backwards-only",
-        action="store_true",
-        help="Only search the game backwards.",
+        "-b", "--backwards-only", action="store_true", help="Only search the game backwards."
     )
     _goto_direction_group.add_argument(
-        "-f",
-        "--forwards-only",
-        action="store_true",
-        help="Only search the game forwards.",
+        "-f", "--forwards-only", action="store_true", help="Only search the game forwards."
     )
 
     @argparse_command(goto_argparser)
@@ -338,10 +327,7 @@ class GameCmds(GameUtils):
     promote_argparser = cmd2.Cmd2ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()
     promote_group.add_argument(
-        "-m",
-        "--main",
-        action="store_true",
-        help="Promote this move to be main variation.",
+        "-m", "--main", action="store_true", help="Promote this move to be main variation."
     )
     promote_group.add_argument(
         "-n", "--steps", type=int, help="Promote this variation n number of steps."
@@ -364,10 +350,7 @@ class GameCmds(GameUtils):
     demote_argparser = cmd2.Cmd2ArgumentParser()
     demote_group = demote_argparser.add_mutually_exclusive_group()
     demote_group.add_argument(
-        "-l",
-        "--last",
-        action="store_true",
-        help="Demote this move to be the last variation.",
+        "-l", "--last", action="store_true", help="Demote this move to be the last variation."
     )
     demote_group.add_argument(
         "-n", "--steps", type=int, help="Demote this variation n number of steps."

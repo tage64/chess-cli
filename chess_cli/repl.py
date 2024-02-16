@@ -6,7 +6,7 @@ import re
 import shlex
 import sys
 import traceback
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Never, Self
 
@@ -126,9 +126,7 @@ class ReplBase:
                     functools.partial(kb.call_catch_exception, self)
                 )
         self.prompt_session = PromptSession(
-            key_bindings=self._kb_manager,
-            enable_system_prompt=True,
-            enable_open_in_editor=True,
+            key_bindings=self._kb_manager, enable_system_prompt=True, enable_open_in_editor=True
         )
 
     def add_cmd(self, cmd: Command[Self]) -> None:
@@ -218,9 +216,7 @@ class ReplBase:
                 print(traceback.format_exc())
 
 
-def command[
-    T: ReplBase,
-](
+def command[T: ReplBase](
     name: str | None = None,
     aliases: list[str] | None = None,
     summary: str | None = None,
@@ -242,11 +238,7 @@ def command[
         )
         name: str = func.__name__[len(CMD_FUNC_PREFIX) :]
         cmd: Command[T] = Command(
-            name=name,
-            aliases=aliases or [],
-            func=func,
-            summary=summary,
-            long_help=long_help,
+            name=name, aliases=aliases or [], func=func, summary=summary, long_help=long_help
         )
         functools.update_wrapper(cmd, func)
         return cmd
@@ -254,11 +246,9 @@ def command[
     return decorator
 
 
-def argparse_command[
-    T: ReplBase,
-](argparser: Cmd2ArgumentParser, aliases: list[str] | None = None) -> Callable[
-    [ArgparseCmdFunc[T]], Command[T]
-]:
+def argparse_command[T: ReplBase](
+    argparser: Cmd2ArgumentParser, aliases: list[str] | None = None
+) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
 
@@ -286,11 +276,9 @@ def argparse_command[
     return decorator
 
 
-def key_binding[
-    T: ReplBase,
-](keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs) -> Callable[
-    [KeyBindingFunc[T]], KeyBinding[T]
-]:
+def key_binding[T: ReplBase](
+    keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs
+) -> Callable[[KeyBindingFunc[T]], KeyBinding[T]]:
     """A decorator for methods of `Repl` to add them as key bindings.
 
     :param keys: one or more key bindings to trigger the method
@@ -313,10 +301,7 @@ def key_binding[
             f" the case with {func.__qualname__}."
         )
         kb: KeyBinding[T] = KeyBinding(
-            keys=keys__,
-            ptk_kwargs=ptk_kwargs,
-            func=func,
-            summary=summary,
+            keys=keys__, ptk_kwargs=ptk_kwargs, func=func, summary=summary
         )
         functools.update_wrapper(kb, func)
         return kb
