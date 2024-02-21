@@ -4,10 +4,13 @@ import re
 import sys
 import tempfile
 import threading
+import time
 from asyncio import subprocess
 from contextlib import suppress
 from dataclasses import dataclass
+from typing import override
 
+import chess
 import pyaudio
 
 from .base import Base, CommandFailure, InitArgs
@@ -25,7 +28,10 @@ class Recording:
     ffmpeg_process: subprocess.Process
     ffmpeg_stderr_file: str  # Path to a temporary file holding the stderr from ffmpeg.
     audio_stream: pyaudio.Stream
+    # A list of (timestamp, board) pairs where the timestamp is the value returned by
     terminate: threading.Event
+    # `time.perf_counter()` when board was visited.
+    boards: list[tuple[float, chess.Board]]
 
     def __del__(self) -> None:
         with suppress(FileNotFoundError):
@@ -110,8 +116,20 @@ class Record(Base):
             stream_callback=stream_callback,
         )
         self._curr_recording = Recording(
-            ffmpeg_process, ffmpeg_stderr_file, audio_stream, terminate
+            ffmpeg_process,
+            ffmpeg_stderr_file,
+            audio_stream,
+            terminate,
+            boards=[(time.perf_counter(), self.game_node.board())],
         )
+
+    @override
+    async def prompt(self) -> None:
+        if self._curr_recording is not None:
+            boards = self._curr_recording.boards
+            if (board := self.game_node.board()) != boards[-1][1]:
+                boards.append((time.perf_counter(), board))
+        await super().prompt()
 
     async def stop_recording(self) -> None:
         if self._curr_recording is None:
