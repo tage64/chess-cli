@@ -66,13 +66,13 @@ class GameCmds(GameUtils):
     )
 
     @argparse_command(game_argparser)
-    def do_game(self, args) -> None:
+    async def do_game(self, args) -> None:
         """Print the rest of the game with sidelines and comments in a nice and readable
         format."""
         if args.all:
-            self.exec_cmd("moves -s -r -c")
+            await self.exec_cmd("moves -s -r -c")
         else:
-            self.exec_cmd("moves -s -r -c --fc")
+            await self.exec_cmd("moves -s -r -c --fc")
 
     moves_argparser = cmd2.Cmd2ArgumentParser()
     moves_argparser.add_argument(

@@ -165,7 +165,7 @@ class EngineCmds(Engine):
     engine_log_subcmds.add_parser("show", help="Show the log.")
 
     @argparse_command(engine_argparser)
-    def do_engine(self, args: Any) -> None:
+    async def do_engine(self, args: Any) -> None:
         """Everything related to chess engines.
 
         See subcommands for detailes.
@@ -180,7 +180,7 @@ class EngineCmds(Engine):
             case "rm" | "remove":
                 self.engine_rm(args)
             case "install":
-                self.engine_install(args)
+                await self.engine_install(args)
             case "select":
                 self.engine_select(args)
             case "log":
@@ -280,10 +280,10 @@ class EngineCmds(Engine):
         self.rm_engine(args.engine)
         self.poutput(f"Successfully removed {args.engine}")
 
-    def engine_install(self, args) -> None:
+    async def engine_install(self, args) -> None:
         match args.engine:
             case "stockfish":
-                self.install_stockfish()
+                await self.install_stockfish()
             case "lc0":
                 self.poutput(
                     "The installation is not supported yet. Please talk to the authors of this"
@@ -292,7 +292,7 @@ class EngineCmds(Engine):
             case _:
                 raise AssertionError("Invalid argument")
 
-    def install_stockfish(self) -> None:
+    async def install_stockfish(self) -> None:
         dir: str = os.path.join(appdirs.user_data_dir("chess-cli"), "stockfish")
         os.makedirs(dir, exist_ok=True)
         match platform.system():
@@ -314,16 +314,16 @@ class EngineCmds(Engine):
         urllib.request.urlcleanup()
         if "stockfish" in self.engine_confs:
             self.poutput("Removing old stockfish")
-            self.exec_cmd("engine rm stockfish")
+            await self.exec_cmd("engine rm stockfish")
         executable_path: str = os.path.join(dir, executable)
-        self.exec_cmd(f'engine import "{executable_path}" stockfish')
+        await self.exec_cmd(f'engine import "{executable_path}" stockfish')
         ncores: int = psutil.cpu_count()
         ncores_use: int = ncores - 1 if ncores > 1 else 1
         self.poutput(
             f"You seem to have {ncores} logical cores on your system. So the engine will use"
             f" {ncores_use} of them."
         )
-        self.exec_cmd(f"engine config set threads {ncores_use}")
+        await self.exec_cmd(f"engine config set threads {ncores_use}")
         ram: int = psutil.virtual_memory().total
         ram_use_MiB: int = int(0.75 * ram / 2**20)
         ram_use: int = ram_use_MiB * 2**20
@@ -331,7 +331,7 @@ class EngineCmds(Engine):
             f"You seem to have a RAM of {sizeof_fmt(ram)} bytes, so stockfish will be configured to"
             f" use {sizeof_fmt(ram_use)} bytes (75 %) thereof for the hash."
         )
-        self.exec_cmd(f"engine config set hash {ram_use_MiB}")
+        await self.exec_cmd(f"engine config set hash {ram_use_MiB}")
         self.poutput("You can change these settings and more with the engine config command.")
 
     def engine_quit(self, _args) -> None:

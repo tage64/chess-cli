@@ -40,9 +40,9 @@ class Analysis(Engine):
         self._auto_analysis_number_of_moves = 5
 
     @override
-    def exec_cmd(self, *args, **kwargs) -> None:
+    async def exec_cmd(self, *args, **kwargs) -> None:
         try:
-            super().exec_cmd(*args, **kwargs)
+            await super().exec_cmd(*args, **kwargs)
         finally:
             self.update_auto_analysis()
 

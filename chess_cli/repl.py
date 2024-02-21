@@ -6,7 +6,7 @@ import re
 import shlex
 import sys
 import traceback
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Never, Self
 
@@ -18,8 +18,10 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.patch_stdout import patch_stdout
 
 type ParsedArgs = argparse.Namespace
-type CmdFunc[T] = Callable[[T, str], None]
-type ArgparseCmdFunc[T] = Callable[[T, ParsedArgs], None]
+type CmdAsyncFunc[T] = Callable[[T, str], Awaitable[None]]
+type CmdFunc[T] = Callable[[T, str], None | Awaitable[None]]
+type ArgparseCmdAsyncFunc[T] = Callable[[T, ParsedArgs], Awaitable[None]]
+type ArgparseCmdFunc[T] = Callable[[T, ParsedArgs], None | Awaitable[None]]
 type KeyBindingFunc[T] = Callable[[T, KeyPressEvent], None]
 
 CMD_FUNC_PREFIX: str = "do_"
@@ -35,12 +37,12 @@ class Command[T]:
 
     name: str  # The name of the command.
     aliases: list[str]  # A list of aliases for the command.
-    func: CmdFunc[T]  # A function to execute for the command.
+    func: CmdAsyncFunc[T]  # A function to execute for the command.
     summary: str | None  # A short summary for the command.
     long_help: str | None  # A longer description of the command.
 
-    def __call__(self, self_: T, prompt: str) -> None:
-        self.func(self_, prompt)
+    async def __call__(self, self_: T, prompt: str) -> None:
+        return await self.func(self_, prompt)
 
 
 @dataclass
@@ -148,7 +150,7 @@ class ReplBase:
         """Print to stderr."""
         print(*args, file=sys.stderr, **kwargs)
 
-    def exec_cmd(self, prompt: str) -> None:
+    async def exec_cmd(self, prompt: str) -> None:
         """Parse a prompt and execute the corresponding command.
 
         This method may be overridden to simulate post and pre command hooks. It may
@@ -168,7 +170,7 @@ class ReplBase:
             self.perror(f"Error: Command not found: {cmd_name}")
             return
         command: Command = self._cmds[cmd_name]
-        command(self, rest)
+        await command(self, rest)
 
     def prompt_str(self) -> str:
         """Get the string for the prompt, you can override this."""
@@ -182,10 +184,15 @@ class ReplBase:
             await self._kb_exception_event.wait()
             raise self._kb_exceptions.get_nowait()
 
+        async def prompt_wrapper() -> str:
+            """Issue the prompt and handle KeyboardInterrupt exception."""
+            try:
+                return await self.prompt_session.prompt_async(self.prompt_str())
+            except KeyboardInterrupt:
+                raise CmdLoopContinue()
+
         kb_exc_task: asyncio.Task = asyncio.create_task(kb_exc())
-        prompt_task: asyncio.Task[str] = asyncio.create_task(
-            self.prompt_session.prompt_async(self.prompt_str())
-        )
+        prompt_task: asyncio.Task = asyncio.create_task(prompt_wrapper())
         with patch_stdout():
             done, pending = await asyncio.wait(
                 (kb_exc_task, prompt_task), return_when=asyncio.FIRST_COMPLETED
@@ -199,7 +206,7 @@ class ReplBase:
             else:
                 kb_exc_task.cancel()
                 input: str = prompt_task.result()
-                self.exec_cmd(input)
+                await self.exec_cmd(input)
 
     async def cmd_loop(self) -> None:
         """Run the application in a loop."""
@@ -237,9 +244,23 @@ def command[T: ReplBase](
             f" case with {func.__qualname__}."
         )
         name: str = func.__name__[len(CMD_FUNC_PREFIX) :]
-        cmd: Command[T] = Command(
-            name=name, aliases=aliases or [], func=func, summary=summary, long_help=long_help
-        )
+        if asyncio.iscoroutinefunction(func):
+            cmd: Command[T] = Command(
+                name=name, aliases=aliases or [], func=func, summary=summary, long_help=long_help
+            )
+        else:
+
+            @functools.wraps(func)
+            async def async_func(*args, **kwargs) -> None:
+                func(*args, **kwargs)
+
+            cmd = Command(
+                name=name,
+                aliases=aliases or [],
+                func=async_func,
+                summary=summary,
+                long_help=long_help,
+            )
         functools.update_wrapper(cmd, func)
         return cmd
 
@@ -259,13 +280,16 @@ def argparse_command[T: ReplBase](
             argparser.description = func.__doc__
 
         @functools.wraps(func)
-        def cmd_func(repl: T, prompt: str) -> None:
+        async def cmd_func(repl: T, prompt: str) -> None:
             args = shlex.split(prompt)
             try:
                 parsed_args: ParsedArgs = argparser.parse_args(args)
             except SystemExit:
                 return
-            func(repl, parsed_args)
+            if asyncio.iscoroutinefunction(func):
+                return await func(repl, parsed_args)
+            else:
+                func(repl, parsed_args)
 
         return command(
             aliases=aliases,

@@ -85,7 +85,7 @@ class AnalysisCmds(Analysis):
     )
 
     @argparse_command(analysis_argparser)
-    def do_analysis(self, args) -> None:
+    async def do_analysis(self, args) -> None:
         """Manage analysis."""
         match args.subcmd:
             case "ls":
@@ -93,7 +93,7 @@ class AnalysisCmds(Analysis):
             case "show":
                 self.analysis_show(args)
             case "start":
-                self.analysis_start(args)
+                await self.analysis_start(args)
             case "stop":
                 self.analysis_stop(args)
             case "rm" | "remove":
@@ -101,7 +101,7 @@ class AnalysisCmds(Analysis):
             case _:
                 raise AssertionError("Invalid subcommand.")
 
-    def analysis_start(self, args) -> None:
+    async def analysis_start(self, args) -> None:
         engine: str = self.get_selected_engine()
         if engine in self.analysis_by_node[self.game_node]:
             answer: bool = yes_no_dialog(
@@ -109,7 +109,7 @@ class AnalysisCmds(Analysis):
                 text="Do you want to remove it and restart the analysis?",
             ).run()
             if answer:
-                self.exec_cmd("analysis rm")
+                await self.exec_cmd("analysis rm")
             else:
                 return
         if engine in self.running_analyses:

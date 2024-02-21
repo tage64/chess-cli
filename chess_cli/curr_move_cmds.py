@@ -135,7 +135,7 @@ class CurrMoveCmds(Base):
     comment_append_argparser.add_argument("comment", help="The text to append.")
 
     @argparse_command(comment_argparser)
-    def do_comment(self, args) -> None:
+    async def do_comment(self, args) -> None:
         """Show, edit or remove the comment at the current move."""
         if args.starting_comment and not self.game_node.starts_variation():
             self.poutput(
@@ -172,7 +172,7 @@ class CurrMoveCmds(Base):
                         file.write(comment)
                         file.flush()
                     self.poutput(f"Opening {file_name} in your editor.")
-                    self.exec_cmd(f"edit '{file_name}'")
+                    await self.exec_cmd(f"edit '{file_name}'")
                     with open(file_name) as file:
                         file.seek(0)
                         new_comment: str = file.read().strip()

@@ -9,9 +9,10 @@ from .engine_cmds import EngineCmds
 from .game_cmds import GameCmds
 from .game_shortcuts import GameShortcuts
 from .lichess_cmds import LichessCmds
+from .record import Record
 
 
-class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessCmds, GameShortcuts):
+class Main(AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessCmds, GameShortcuts, Record):
     """Main class for the chess-cli app."""
 
     def __init__(self, args: InitArgs) -> None:
