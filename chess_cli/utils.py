@@ -145,7 +145,7 @@ def move_str(
             if len(nag_strs) == 1:
                 res += nag_strs[0]
             else:
-                res += f"[{', '.join(nag_strs)}]"
+                res += f"[{", ".join(nag_strs)}]"
     if (
         comment_text(game_node.comment)
         or game_node.arrows()
@@ -172,5 +172,5 @@ def score_str(score: Score) -> str:
         return f"Mated in {-mate}"
     cp: int = score.score()  # type: ignore
     if cp > 0:
-        return f"+{cp/100} pawns"
-    return f"{cp/100} pawns"
+        return f"+{cp / 100} pawns"
+    return f"{cp / 100} pawns"

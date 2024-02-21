@@ -188,8 +188,8 @@ class ReplBase:
             """Issue the prompt and handle KeyboardInterrupt exception."""
             try:
                 return await self.prompt_session.prompt_async(self.prompt_str())
-            except KeyboardInterrupt:
-                raise CmdLoopContinue()
+            except KeyboardInterrupt as ex:
+                raise CmdLoopContinue() from ex
 
         kb_exc_task: asyncio.Task = asyncio.create_task(kb_exc())
         prompt_task: asyncio.Task = asyncio.create_task(prompt_wrapper())

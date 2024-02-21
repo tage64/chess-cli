@@ -272,10 +272,10 @@ class GameCmds(GameUtils):
         match args.subcmd:
             case "ls":
                 for i, game in enumerate(self.games):
-                    show_str: str = f"{i+1}. "
+                    show_str: str = f"{i + 1}. "
                     if i == self.game_idx:
                         show_str += "[*] "
-                    show_str += f"{game.headers['White']} - {game.headers['Black']}"
+                    show_str += f"{game.headers["White"]} - {game.headers["Black"]}"
                     if isinstance(game.game_node, chess.pgn.ChildNode):
                         show_str += f" @ {MoveNumber.last(game.game_node)} {game.game_node.san()}"
                     self.poutput(show_str)

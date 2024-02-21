@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import pyaudio
 
-from . import repl
 from .base import Base, CommandFailure, InitArgs
 
 SAMPLE_FORMAT = pyaudio.paInt16
@@ -30,10 +29,9 @@ class Record(Base):
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
 
-    @repl.command()
-    async def do_start_recording(self, _) -> None:
+    async def start_recording(self) -> None:
         if self._curr_recording is not None:
-            raise CommandFailure(f"A recording is already in progress.")
+            raise CommandFailure("A recording is already in progress.")
         audio: pyaudio.PyAudio = pyaudio.PyAudio()
         device_info = audio.get_default_input_device_info()
         device_index: int = device_info["index"]  # type: ignore
@@ -94,10 +92,9 @@ class Record(Base):
         )
         self._curr_recording = Recording(ffmpeg_process, audio_stream)
 
-    @repl.command()
-    async def do_terminate(self, _) -> None:
+    async def stop_recording(self) -> None:
         if self._curr_recording is None:
-            raise CommandFailure(f"No recording is in progress.")
+            raise CommandFailure("No recording is in progress.")
         self._curr_recording.shall_terminate = True
         while not self._curr_recording.audio_stream.is_stopped():
             await asyncio.sleep(0.1)

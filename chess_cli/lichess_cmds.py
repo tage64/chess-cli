@@ -57,10 +57,10 @@ class LichessCmds(LichessApi):
         challenge: dict = challenge_data["challenge"]
         self.poutput(challenge)
         self.poutput(
-            f"Created {challenge['variant']['name']} game -- "
-            f"{'rated' if challenge['rated'] else 'not rated'} {challenge['speed']} "
-            f"{challenge['timeControl'].get('show', '')}"
+            f"Created {challenge["variant"]["name"]} game -- "
+            f"{"rated" if challenge["rated"] else "not rated"} {challenge["speed"]} "
+            f"{challenge["timeControl"].get("show", "")}"
         )
-        self.poutput(f"URL:\n  {challenge['url']}")
-        self.poutput(f"White URL:\n  {challenge_data['urlWhite']}")
-        self.poutput(f"Black URL:\n  {challenge_data['urlBlack']}")
+        self.poutput(f"URL:\n  {challenge["url"]}")
+        self.poutput(f"White URL:\n  {challenge_data["urlWhite"]}")
+        self.poutput(f"Black URL:\n  {challenge_data["urlBlack"]}")

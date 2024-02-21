@@ -4,7 +4,6 @@ import re
 import shutil
 import urllib.request
 from collections.abc import Iterable, Mapping
-from typing import Any
 
 import appdirs
 import chess
@@ -165,7 +164,7 @@ class EngineCmds(Engine):
     engine_log_subcmds.add_parser("show", help="Show the log.")
 
     @argparse_command(engine_argparser)
-    async def do_engine(self, args: Any) -> None:
+    async def do_engine(self, args) -> None:
         """Everything related to chess engines.
 
         See subcommands for detailes.

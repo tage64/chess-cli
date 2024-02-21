@@ -149,7 +149,7 @@ class AnalysisCmds(Analysis):
         def score_and_wdl_str(info: chess.engine.InfoDict) -> str:
             res: str = ""
             if "pv" in info:
-                res += f"{analysis.board.san(info['pv'][0])}: "
+                res += f"{analysis.board.san(info["pv"][0])}: "
             if "score" in info:
                 score: chess.engine.Score = info["score"].relative
                 res += score_str(score) + ", "
@@ -188,7 +188,7 @@ class AnalysisCmds(Analysis):
             for i, info in enumerate(analysis.result.multipv, 1):
                 show_str += f"\n  {i}: {score_and_wdl_str(info)}"
                 if "pv" in info and len(info["pv"]) >= 2:
-                    show_str += f"\n    {analysis.board.variation_san(info['pv'])}"
+                    show_str += f"\n    {analysis.board.variation_san(info["pv"])}"
         self.poutput(show_str)
 
     def analysis_ls(self, args) -> None:
