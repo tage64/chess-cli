@@ -26,6 +26,7 @@ class Recording:
     """Data for an ongoing recording."""
 
     ffmpeg_process: subprocess.Process
+    audio_file: str  # Path to the temporary audio file.
     ffmpeg_stderr_file: str  # Path to a temporary file holding the stderr from ffmpeg.
     audio_stream: pyaudio.Stream
     # A list of (timestamp, board) pairs where the timestamp is the value returned by
@@ -58,13 +59,14 @@ class Record(Base):
         channels: int = min(device_info["maxInputChannels"], MAX_CHANNELS)  # type: ignore
         print(f"Connecting to {name} with {sample_rate} kHz and {channels} channels.")
 
+        _, audio_file = tempfile.mkstemp(suffix=".opus")
         ffmpeg_stderr_fd, ffmpeg_stderr_file = tempfile.mkstemp()
         ffmpeg_process = await asyncio.create_subprocess_exec(
             "ffmpeg",
             "-hide_banner",
             "-v",
             "error",
-            "-n",
+            "-y",
             "-f",
             SAMPLE_FORMAT_TO_FFMPEG,
             "-ar",
@@ -77,7 +79,7 @@ class Record(Base):
             "libopus",
             "-b:a",
             "64k",
-            "a.opus",
+            audio_file,
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
             stderr=ffmpeg_stderr_fd,
@@ -117,6 +119,7 @@ class Record(Base):
         )
         self._curr_recording = Recording(
             ffmpeg_process,
+            audio_file,
             ffmpeg_stderr_file,
             audio_stream,
             terminate,
