@@ -27,7 +27,7 @@ def main() -> None:
     argparser.add_argument("pgn_file", nargs="?", help="Open the given pgn file.")
     argparser.add_argument("--config-file", type=str, help="Path to the config file.")
     args = argparser.parse_args()
-    init_args: InitArgs = InitArgs(**{
-        key: val for key, val in vars(args).items() if val is not None
-    })
+    init_args: InitArgs = InitArgs(
+        **{key: val for key, val in vars(args).items() if val is not None}
+    )
     asyncio.run(Main(init_args).cmd_loop())

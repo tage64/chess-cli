@@ -296,7 +296,9 @@ class EngineCmds(Engine):
         os.makedirs(dir, exist_ok=True)
         match platform.system():
             case "Linux":
-                url: str = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
+                url: str = (
+                    "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
+                )
                 archive_format: str = "tar"
                 executable: str = "stockfish/stockfish-ubuntu-x86-64-avx2"
             case "Windows":

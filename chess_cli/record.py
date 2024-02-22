@@ -43,25 +43,97 @@ class Recording:
     # is_paused_at = the time when the recording was paused if it is currently paused else None:
     is_paused_at: float | None = None
 
-    def __del__(self) -> None:
+    def is_paused(self) -> bool:
+        """Check if the recording is paused."""
+        return self.is_paused_at is None
+
+    def pause(self) -> None:
+        """Pause the recording."""
+        assert self.is_paused_at is None
+        self.audio_stream.stop_stream()
+        self.is_paused_at = self.audio_stream.get_time()
+
+    def resume(self) -> None:
+        """Resume the recording."""
+        assert self.is_paused_at is not None
+        self.audio_stream.start_stream()
+        self.total_pause_time += self.audio_stream.get_time() - self.is_paused_at
+        self.is_paused_at = None
+
+    def set_board(self, board: chess.Board) -> None:
+        """Set the current board in the video.
+
+        Assumes that the recording is not paused.
+        """
+        assert not self.is_paused()
+        if not board == self.boards[-1][1]:
+            self.boards.append((self.audio_stream.get_time() - self.total_pause_time, board))
+    async def stop(self) -> None:
+        """Stop the recording.
+
+        No pause/resumes can take place after this.
+        """
+        self.terminate.set()
+        # Wait for the audio stream to be closed.
+        start_time: float = time.perf_counter()
+        while (
+            self.audio_stream.is_active()
+            and time.perf_counter() - start_time < self.buffer_max_duration * 2
+        ):
+            await asyncio.sleep(self.buffer_max_duration / 10)
+        if self.audio_stream.is_active():
+            self.audio_stream.close()
+            # The pipe to ffmpeg was not closed so we have to kill ffmpeg.
+            self.ffmpeg_process.terminate()
+            try:
+                await asyncio.wait_for(self.ffmpeg_process.wait(), PROCESS_TERMINATE_TIMEOUT)
+            except TimeoutError:
+                print("Warning: ffmpeg did not listen to SIGTERM so we have to kill it.")
+                self.ffmpeg_process.kill()
+                await self.ffmpeg_process.wait()
+        else:
+            self.audio_stream.close()
+            try:
+                await asyncio.wait_for(self.ffmpeg_process.wait(), PROCESS_TERMINATE_TIMEOUT)
+            except TimeoutError:
+                print("ffmpeg did not terminate properly so we have to kill it.")
+                self.ffmpeg_process.kill()
+                await self.ffmpeg_process.wait()
+            with open(self.ffmpeg_output_file) as f:
+                output: str = f.read()
+            if (retcode := self.ffmpeg_process.returncode) != 0 or ERROR_REGEX.search(output):
+                print(f"ffmpeg seem to have failed, return code: {retcode}")
+                print(f"ffmpeg output: {output}")
+
+
+    async def save(self) -> None:
+        """Save the recording.
+
+        May only be called after `self.stop()`.
+        """
+        pass # TODO
+
+    def cleanup(self) -> None:
+        """Remove temporary files."""
         with suppress(FileNotFoundError):
             os.remove(self.audio_file)
         with suppress(FileNotFoundError):
             os.remove(self.ffmpeg_output_file)
             print("removed!")
+    def __del__(self) -> None:
+        self.cleanup()
 
 
 class Record(Base):
     """An extention to chess-cli to record various things."""
 
-    _curr_recording: Recording | None = None  # Currently active recording.
+    recording: Recording | None = None  # Currently active recording.
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
 
     async def start_recording(self) -> None:
-        if self._curr_recording is not None:
-            raise CommandFailure("A recording is already in progress.")
+        assert self.recording is None
         audio: pyaudio.PyAudio = pyaudio.PyAudio()
         device_info = audio.get_default_input_device_info()
         device_index: int = device_info["index"]  # type: ignore
@@ -137,7 +209,7 @@ class Record(Base):
             frames_per_buffer=FRAMES_PER_BUFFER,
             stream_callback=stream_callback,
         )
-        self._curr_recording = Recording(
+        self.recording = Recording(
             ffmpeg_process,
             audio_file,
             ffmpeg_output_file,
@@ -149,52 +221,17 @@ class Record(Base):
 
     @override
     async def prompt(self) -> None:
-        if self._curr_recording is not None:
-            boards = self._curr_recording.boards
-            if (board := self.game_node.board()) != boards[-1][1]:
-                boards.append((time.perf_counter(), board))
+        if self.recording is not None:
+            self.recording.set_board(self.game_node.board())
         await super().prompt()
 
-    async def stop_recording(self) -> None:
-        if self._curr_recording is None:
-            raise CommandFailure("No recording is in progress.")
-        recording: Recording = self._curr_recording
-        recording.terminate.set()
-        # Wait for the audio stream to be closed.
-        start_time: float = time.perf_counter()
-        while (
-            recording.audio_stream.is_active()
-            and time.perf_counter() - start_time < recording.buffer_max_duration * 2
-        ):
-            await asyncio.sleep(recording.buffer_max_duration / 10)
-        if recording.audio_stream.is_active():
-            recording.audio_stream.close()
-            # The pipe to ffmpeg was not closed so we have to kill ffmpeg.
-            recording.ffmpeg_process.terminate()
-            try:
-                await asyncio.wait_for(recording.ffmpeg_process.wait(), PROCESS_TERMINATE_TIMEOUT)
-            except TimeoutError:
-                self.perror("Warning: ffmpeg did not listen to SIGTERM so we have to kill it.")
-                recording.ffmpeg_process.kill()
-                await recording.ffmpeg_process.wait()
-        else:
-            recording.audio_stream.close()
-            try:
-                await asyncio.wait_for(recording.ffmpeg_process.wait(), PROCESS_TERMINATE_TIMEOUT)
-            except TimeoutError:
-                self.perror("ffmpeg did not terminate properly so we have to kill it.")
-                recording.ffmpeg_process.kill()
-                await recording.ffmpeg_process.wait()
-            with open(recording.ffmpeg_output_file) as f:
-                output: str = f.read()
-            if (retcode := recording.ffmpeg_process.returncode) != 0 or ERROR_REGEX.search(output):
-                self.perror(f"ffmpeg seem to have failed, return code: {retcode}")
-                self.perror(f"ffmpeg output: {output}")
+    async def save_recording(self) -> None:
+        assert self.recording is not None
+        await self.recording.stop()
+        await self.recording.save()
+        self.delete_recording()
 
-        concat_file_lines: list[str] = []
-        prev_timestamp: float = recording.boards[0][0]
-        for timestamp, board in recording.boards:
-            duration: float = timestamp - prev_timestamp
-            # TODO
-        self._curr_recording = None
-        del recording  # Make sure `recording.ffmpeg_output_file` is deleted.
+    def delete_recording(self) -> None:
+        assert self.recording is not None
+        self.recording.cleanup()
+        self.recording = None

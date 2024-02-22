@@ -223,7 +223,9 @@ class ReplBase:
                 print(traceback.format_exc())
 
 
-def command[T: ReplBase](
+def command[
+    T: ReplBase
+](
     name: str | None = None,
     aliases: list[str] | None = None,
     summary: str | None = None,
@@ -267,9 +269,11 @@ def command[T: ReplBase](
     return decorator
 
 
-def argparse_command[T: ReplBase](
-    argparser: Cmd2ArgumentParser, aliases: list[str] | None = None
-) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
+def argparse_command[
+    T: ReplBase
+](argparser: Cmd2ArgumentParser, aliases: list[str] | None = None) -> Callable[
+    [ArgparseCmdFunc[T]], Command[T]
+]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
 
@@ -300,9 +304,11 @@ def argparse_command[T: ReplBase](
     return decorator
 
 
-def key_binding[T: ReplBase](
-    keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs
-) -> Callable[[KeyBindingFunc[T]], KeyBinding[T]]:
+def key_binding[
+    T: ReplBase
+](keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs) -> Callable[
+    [KeyBindingFunc[T]], KeyBinding[T]
+]:
     """A decorator for methods of `Repl` to add them as key bindings.
 
     :param keys: one or more key bindings to trigger the method
