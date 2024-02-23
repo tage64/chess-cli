@@ -47,7 +47,7 @@ class Recording:
 
     def is_paused(self) -> bool:
         """Check if the recording is paused."""
-        return self.is_paused_at is None
+        return self.is_paused_at is not None
 
     def pause(self) -> None:
         """Pause the recording."""
@@ -256,7 +256,7 @@ class Record(Base):
 
     @override
     async def prompt(self) -> None:
-        if self.recording is not None:
+        if self.recording is not None and not self.recording.is_paused():
             self.recording.set_board(self.game_node.board())
         await super().prompt()
 
