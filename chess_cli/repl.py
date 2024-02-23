@@ -44,6 +44,14 @@ class Command[T]:
     async def __call__(self, self_: T, prompt: str) -> None:
         return await self.func(self_, prompt)
 
+    async def call_wrap_exception(self, self_: T, prompt: str) -> None:
+        try:
+            return await self.func(self_, prompt)
+        except ReplException as ex:  # Reraise
+            raise ex
+        except Exception as ex:
+            raise _CommandException(ex) from ex
+
 
 @dataclass
 class KeyBinding[T: "ReplBase"]:
@@ -59,19 +67,24 @@ class KeyBinding[T: "ReplBase"]:
 
     def call_catch_exception(self, repl: T, event: KeyPressEvent) -> None:
         try:
-            self.func(repl, event)
+            try:
+                self.func(repl, event)
+            except ReplException as ex:  # Reraise
+                raise ex from ex
+            except Exception as ex:  # Wrap in CommandException
+                raise _CommandException(ex) from ex
         except Exception as exc:
             repl._kb_exceptions.put_nowait(exc)
             repl._kb_exception_event.set()
 
 
-class QuitRepl(Exception):
-    """Exception to raise to quit the REPL."""
+class ReplException(Exception):
+    """Base exception for exceptions related to the REPL and the command loop."""
 
     pass
 
 
-class CommandFailure(Exception):
+class CommandFailure(ReplException):
     """An exception to raise when a command fails.
 
     The message of the exception will be printed on STDERR.
@@ -80,11 +93,24 @@ class CommandFailure(Exception):
     pass
 
 
-class CmdLoopContinue(Exception):
+class QuitRepl(ReplException):
+    """Exception to raise to quit the REPL."""
+
+    pass
+
+
+class CmdLoopContinue(ReplException):
     """Raise this exception to clear the current prompt and continue to the next
     iteration in the cmd loop."""
 
     pass
+
+
+@dataclass
+class _CommandException(Exception):
+    """Wrapper class for exceptions thrown from key binding handlers or command functions."""
+
+    inner_exc: Exception
 
 
 class ReplBase:
@@ -179,13 +205,13 @@ class ReplBase:
     async def prompt(self) -> None:
         """Issue a prompt and execute the entered command."""
         input_str: str
-        if False:
+        if sys.stdin.isatty():
             input_str = await self._interactive_prompt()
         else:
             input_str = input()
             if input_str == "":
-                raise EOFError()
-        await self.exec_cmd(input_str)
+                raise QuitRepl()
+        return await self.exec_cmd(input_str)
 
     async def _interactive_prompt(self) -> str:
         """Issue a prompt and execute the entered command."""
@@ -201,6 +227,8 @@ class ReplBase:
                 return await self.prompt_session.prompt_async(self.prompt_str())
             except KeyboardInterrupt as ex:
                 raise CmdLoopContinue() from ex
+            except EOFError as ex:
+                raise QuitRepl() from ex
 
         kb_exc_task: asyncio.Task = asyncio.create_task(kb_exc())
         prompt_task: asyncio.Task = asyncio.create_task(prompt_wrapper())
@@ -224,14 +252,14 @@ class ReplBase:
         while True:
             try:
                 await self.prompt()
-            except (CmdLoopContinue, KeyboardInterrupt):
+            except CmdLoopContinue:
                 continue
-            except (QuitRepl, EOFError):
+            except QuitRepl:
                 break
             except CommandFailure as e:
                 self.perror(f"Error: {e}")
-            except Exception:
-                print(traceback.format_exc())
+            except _CommandException as ex:
+                traceback.print_exception(ex.inner_exc)
 
 
 def command[T: ReplBase](
