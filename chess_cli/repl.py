@@ -6,12 +6,12 @@ import re
 import shlex
 import sys
 import traceback
+from argparse import ArgumentParser
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Never, Self
 
 import more_itertools
-from cmd2 import Cmd2ArgumentParser
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.keys import Keys
@@ -178,6 +178,17 @@ class ReplBase:
 
     async def prompt(self) -> None:
         """Issue a prompt and execute the entered command."""
+        input_str: str
+        if False:
+            input_str = await self._interactive_prompt()
+        else:
+            input_str = input()
+            if input_str == "":
+                raise EOFError()
+        await self.exec_cmd(input_str)
+
+    async def _interactive_prompt(self) -> str:
+        """Issue a prompt and execute the entered command."""
 
         async def kb_exc() -> Never:
             """Wait for any key binding handler to throw an exception and reraise it."""
@@ -203,10 +214,10 @@ class ReplBase:
                 self.prompt_session.app.exit()
                 await prompt_task
                 kb_exc_task.result()
+                raise CmdLoopContinue()  # TODO improve this
             else:
                 kb_exc_task.cancel()
-                input: str = prompt_task.result()
-                await self.exec_cmd(input)
+                return prompt_task.result()
 
     async def cmd_loop(self) -> None:
         """Run the application in a loop."""
@@ -223,9 +234,7 @@ class ReplBase:
                 print(traceback.format_exc())
 
 
-def command[
-    T: ReplBase
-](
+def command[T: ReplBase](
     name: str | None = None,
     aliases: list[str] | None = None,
     summary: str | None = None,
@@ -269,11 +278,9 @@ def command[
     return decorator
 
 
-def argparse_command[
-    T: ReplBase
-](argparser: Cmd2ArgumentParser, aliases: list[str] | None = None) -> Callable[
-    [ArgparseCmdFunc[T]], Command[T]
-]:
+def argparse_command[T: ReplBase](
+    argparser: ArgumentParser, aliases: list[str] | None = None
+) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
 
@@ -304,11 +311,9 @@ def argparse_command[
     return decorator
 
 
-def key_binding[
-    T: ReplBase
-](keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs) -> Callable[
-    [KeyBindingFunc[T]], KeyBinding[T]
-]:
+def key_binding[T: ReplBase](
+    keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs
+) -> Callable[[KeyBindingFunc[T]], KeyBinding[T]]:
     """A decorator for methods of `Repl` to add them as key bindings.
 
     :param keys: one or more key bindings to trigger the method
@@ -347,7 +352,7 @@ class Repl(ReplBase):
         """Exit the REPL."""
         raise QuitRepl()
 
-    help_argparser = Cmd2ArgumentParser()
+    help_argparser = ArgumentParser()
     help_argparser.add_argument("command", nargs="?", help="Get help for this specific command.")
 
     @argparse_command(help_argparser, aliases=["h"])

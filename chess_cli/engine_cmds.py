@@ -3,13 +3,13 @@ import platform
 import re
 import shutil
 import urllib.request
+from argparse import ArgumentParser
 from collections.abc import Iterable, Mapping
 
 import appdirs
 import chess
 import chess.engine
 import chess.pgn
-import cmd2
 import psutil
 
 from .base import CommandFailure
@@ -21,7 +21,7 @@ from .utils import sizeof_fmt
 class EngineCmds(Engine):
     """Basic commands related to chess engines."""
 
-    engine_argparser = cmd2.Cmd2ArgumentParser()
+    engine_argparser = ArgumentParser()
     engine_subcmds = engine_argparser.add_subparsers(dest="subcmd")
     engine_ls_argparser = engine_subcmds.add_parser("ls", help="List loaded chess engines.")
     engine_ls_argparser.add_argument(
@@ -296,9 +296,7 @@ class EngineCmds(Engine):
         os.makedirs(dir, exist_ok=True)
         match platform.system():
             case "Linux":
-                url: str = (
-                    "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
-                )
+                url: str = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
                 archive_format: str = "tar"
                 executable: str = "stockfish/stockfish-ubuntu-x86-64-avx2"
             case "Windows":

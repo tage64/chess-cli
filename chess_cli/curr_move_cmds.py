@@ -2,13 +2,13 @@ import datetime
 import os
 import re
 import tempfile
+from argparse import ArgumentParser
 from collections.abc import Iterable
 
 import chess
 import chess.engine
 import chess.pgn
 import chess.svg
-import cmd2
 
 from . import nags
 from .base import Base
@@ -64,7 +64,7 @@ class CurrMoveCmds(Base):
             return None
         return str(datetime.timedelta(seconds=clock)).strip("0")
 
-    show_argparser = cmd2.Cmd2ArgumentParser()
+    show_argparser = ArgumentParser()
 
     @argparse_command(show_argparser)
     def do_show(self, args) -> None:
@@ -90,21 +90,21 @@ class CurrMoveCmds(Base):
         if clock is not None:
             self.poutput(f"Clock: {clock}")
 
-    fen_argparser = cmd2.Cmd2ArgumentParser()
+    fen_argparser = ArgumentParser()
 
     @argparse_command(fen_argparser)
     def do_fen(self, args) -> None:
         """Show the position as FEN (Forsynth-Edwards Notation)."""
         self.poutput(self.show_fen())
 
-    board_argparser = cmd2.Cmd2ArgumentParser()
+    board_argparser = ArgumentParser()
 
     @argparse_command(board_argparser)
     def do_board(self, args) -> None:
         """Show the current position as an ASCII chess board."""
         self.poutput(self.show_board())
 
-    comment_argparser = cmd2.Cmd2ArgumentParser()
+    comment_argparser = ArgumentParser()
     comment_argparser.add_argument(
         "-s",
         "--starting-comment",
@@ -183,7 +183,7 @@ class CurrMoveCmds(Base):
             case _:
                 raise AssertionError("Unknown subcommand.")
 
-    nag_argparser = cmd2.Cmd2ArgumentParser()
+    nag_argparser = ArgumentParser()
     nag_subcmds = nag_argparser.add_subparsers(dest="subcmd")
     nag_subcmds.add_parser("show", help="Show the NAGs at this move.")
     nag_add_argparser = nag_subcmds.add_parser(
@@ -231,7 +231,7 @@ class CurrMoveCmds(Base):
             case _:
                 raise AssertionError("Unknown subcommand.")
 
-    evaluation_argparser = cmd2.Cmd2ArgumentParser()
+    evaluation_argparser = ArgumentParser()
     evaluation_subcmds = evaluation_argparser.add_subparsers(dest="subcmd")
     evaluation_show_argparser = evaluation_subcmds.add_parser(
         "show",
@@ -291,7 +291,7 @@ class CurrMoveCmds(Base):
             case _:
                 raise AssertionError("Unknown subcommand.")
 
-    arrow_argparser = cmd2.Cmd2ArgumentParser()
+    arrow_argparser = ArgumentParser()
     arrow_subcmds = arrow_argparser.add_subparsers(dest="subcmds")
     arrow_subcmds.add_parser("show", help="Show all arrows on the board.")
     arrow_subcmds.add_parser("clear", help="Clear all arrows on the board.")
@@ -344,7 +344,7 @@ class CurrMoveCmds(Base):
             case _:
                 raise AssertionError("Unknown subcommand.")
 
-    clock_argparser = cmd2.Cmd2ArgumentParser()
+    clock_argparser = ArgumentParser()
     clock_subcmds = clock_argparser.add_subparsers(dest="subcmd")
     clock_subcmds.add_parser(
         "show", help="Show the remaining time for the player making this move."

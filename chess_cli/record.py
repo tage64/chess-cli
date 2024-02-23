@@ -9,12 +9,14 @@ import traceback
 from asyncio import subprocess
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import PurePath
 from typing import override
 
 import chess
+import chess.svg
 import pyaudio
 
-from .base import Base, CommandFailure, InitArgs
+from .base import Base, InitArgs
 
 SAMPLE_FORMAT = pyaudio.paInt16
 SAMPLE_SIZE: int = pyaudio.get_sample_size(SAMPLE_FORMAT)
@@ -66,8 +68,9 @@ class Recording:
         Assumes that the recording is not paused.
         """
         assert not self.is_paused()
-        if not board == self.boards[-1][1]:
+        if board != self.boards[-1][1]:
             self.boards.append((self.audio_stream.get_time() - self.total_pause_time, board))
+
     async def stop(self) -> None:
         """Stop the recording.
 
@@ -105,13 +108,44 @@ class Recording:
                 print(f"ffmpeg seem to have failed, return code: {retcode}")
                 print(f"ffmpeg output: {output}")
 
-
     async def save(self) -> None:
         """Save the recording.
 
         May only be called after `self.stop()`.
         """
-        pass # TODO
+        with tempfile.TemporaryDirectory() as svg_dir:
+            svg_dir_path: PurePath = PurePath(svg_dir)
+            concat_file_lines: list[str] = []
+            prev_timestamp: float = self.boards[0][0]
+            for i, (timestamp, board) in enumerate(self.boards):
+                duration: float = timestamp - prev_timestamp
+                assert duration >= 0
+                svg_file_path: PurePath = svg_dir_path / f"{i}.svg"
+                with open(svg_file_path, "w+") as f:
+                    f.write(chess.svg.board(board))
+                concat_file_lines.append(f"file '{svg_file_path}'")
+                concat_file_lines.append(f"duration {duration}")
+            # Due to a quirk, the last image has to be specified twice,
+            # the 2nd time without any duration directive.
+            concat_file_lines.append(concat_file_lines[-2])
+            with tempfile.NamedTemporaryFile(mode="w+") as concat_file:
+                concat_file.writelines(concat_file_lines)
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-i",
+                    "a.opus",
+                    "-f",
+                    "concat",
+                    "-i",
+                    concat_file.name,
+                    "-c:a",
+                    "copy",
+                    "-c:v",
+                    "libx264",
+                    "out.mp4",
+                )
+                await proc.wait()
 
     def cleanup(self) -> None:
         """Remove temporary files."""
@@ -120,6 +154,7 @@ class Recording:
         with suppress(FileNotFoundError):
             os.remove(self.ffmpeg_output_file)
             print("removed!")
+
     def __del__(self) -> None:
         self.cleanup()
 

@@ -1,6 +1,5 @@
 import enum
-
-import cmd2
+from argparse import ArgumentParser
 
 from .lichess_api import LichessApi
 from .repl import argparse_command
@@ -23,7 +22,7 @@ class LichessVariant(enum.StrEnum):
 class LichessCmds(LichessApi):
     """Basic commands related to the Lichess API."""
 
-    challenge_argparser = cmd2.Cmd2ArgumentParser()
+    challenge_argparser = ArgumentParser()
     challenge_argparser.add_argument(
         "-t", "--time", type=int, help="Time limit for the game in seconds."
     )

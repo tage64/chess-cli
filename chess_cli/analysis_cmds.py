@@ -1,9 +1,9 @@
+from argparse import ArgumentParser
 from collections.abc import Iterable
 
 import chess
 import chess.engine
 import chess.pgn
-import cmd2
 from prompt_toolkit.shortcuts import yes_no_dialog
 
 from .analysis import Analysis, AnalysisInfo
@@ -14,7 +14,7 @@ from .utils import MoveNumber, score_str
 class AnalysisCmds(Analysis):
     """Basic commands related to analysis."""
 
-    analysis_argparser = cmd2.Cmd2ArgumentParser()
+    analysis_argparser = ArgumentParser()
     analysis_subcmds = analysis_argparser.add_subparsers(dest="subcmd")
     analysis_start_argparser = analysis_subcmds.add_parser(
         "start", help="Start to analyse with the selected engine."

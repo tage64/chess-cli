@@ -1,11 +1,11 @@
 import webbrowser
+from argparse import ArgumentParser
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import override
 from urllib.parse import urljoin, urlsplit
 
 import berserk
-import cmd2
 import requests
 from authlib.integrations.requests_client import OAuth2Session  # type: ignore
 
@@ -58,7 +58,7 @@ class LichessApi(Base):
         self.config["lichess-api"]["access-token"] = self._access_token
         super().save_config()
 
-    authorize_argparser = cmd2.Cmd2ArgumentParser()
+    authorize_argparser = ArgumentParser()
 
     def init_auth_client(self) -> None:
         """Initialize the Lichess client.

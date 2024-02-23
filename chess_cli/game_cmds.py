@@ -1,9 +1,9 @@
 import os
+from argparse import ArgumentParser
 from collections.abc import Iterable
 
 import chess
 import chess.pgn
-import cmd2
 
 from .game_utils import GameUtils
 from .repl import argparse_command, command
@@ -13,7 +13,7 @@ from .utils import MoveNumber
 class GameCmds(GameUtils):
     """Basic commands to view and alter the game."""
 
-    play_argparser = cmd2.Cmd2ArgumentParser()
+    play_argparser = ArgumentParser()
     play_argparser.add_argument(
         "moves", nargs="+", help="A list of moves in standard algibraic notation."
     )
@@ -60,7 +60,7 @@ class GameCmds(GameUtils):
         if args.comment is not None:
             self.game_node.comment = args.comment
 
-    game_argparser = cmd2.Cmd2ArgumentParser()
+    game_argparser = ArgumentParser()
     game_argparser.add_argument(
         "-a", "--all", action="store_true", help="Print the entire game from the start."
     )
@@ -74,7 +74,7 @@ class GameCmds(GameUtils):
         else:
             await self.exec_cmd("moves -s -r -c --fc")
 
-    moves_argparser = cmd2.Cmd2ArgumentParser()
+    moves_argparser = ArgumentParser()
     moves_argparser.add_argument(
         "-c",
         "--comments",
@@ -176,7 +176,7 @@ class GameCmds(GameUtils):
         for line in lines:
             self.poutput(f"  {line}")
 
-    goto_argparser = cmd2.Cmd2ArgumentParser()
+    goto_argparser = ArgumentParser()
     goto_argparser.add_argument(
         "move",
         help=(
@@ -238,7 +238,7 @@ class GameCmds(GameUtils):
         """Delete the current move if this is not the root of the game."""
         self.delete_current_move()
 
-    games_argparser = cmd2.Cmd2ArgumentParser()
+    games_argparser = ArgumentParser()
     games_subcmds = games_argparser.add_subparsers(dest="subcmd")
     games_ls_argparser = games_subcmds.add_parser("ls", help="List all games.")
     games_rm_argparser = games_subcmds.add_parser(
@@ -288,7 +288,7 @@ class GameCmds(GameUtils):
             case _:
                 raise AssertionError("Unknown subcommand.")
 
-    save_argparser = cmd2.Cmd2ArgumentParser()
+    save_argparser = ArgumentParser()
     save_argparser.add_argument(
         "file", nargs="?", help="File to save to. Defaults to the loaded file."
     )
@@ -313,7 +313,7 @@ class GameCmds(GameUtils):
             else:
                 self.save_games_to_file(args.file)
 
-    load_argparser = cmd2.Cmd2ArgumentParser()
+    load_argparser = ArgumentParser()
     load_argparser.add_argument("file", help="PGN file to read.")
 
     @argparse_command(load_argparser)
@@ -324,7 +324,7 @@ class GameCmds(GameUtils):
         """
         self.load_games(args.file)
 
-    promote_argparser = cmd2.Cmd2ArgumentParser()
+    promote_argparser = ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()
     promote_group.add_argument(
         "-m", "--main", action="store_true", help="Promote this move to be main variation."
@@ -347,7 +347,7 @@ class GameCmds(GameUtils):
             for _ in range(n):
                 self.game_node.parent.promote(self.game_node)
 
-    demote_argparser = cmd2.Cmd2ArgumentParser()
+    demote_argparser = ArgumentParser()
     demote_group = demote_argparser.add_mutually_exclusive_group()
     demote_group.add_argument(
         "-l", "--last", action="store_true", help="Demote this move to be the last variation."

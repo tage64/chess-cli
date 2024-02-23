@@ -1,4 +1,4 @@
-import cmd2
+from argparse import ArgumentParser
 
 from .record import Record
 from .repl import CommandFailure, argparse_command
@@ -7,7 +7,7 @@ from .repl import CommandFailure, argparse_command
 class RecordCmds(Record):
     """Basic commands related to recordings."""
 
-    record_argparser = cmd2.Cmd2ArgumentParser()
+    record_argparser = ArgumentParser()
     record_subcmds = record_argparser.add_subparsers(dest="subcmd")
     record_start_argparser = record_subcmds.add_parser("start", help="Start a recording.")
     record_pause_argparser = record_subcmds.add_parser(

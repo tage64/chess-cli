@@ -1,4 +1,4 @@
-import chess_cli
+import chess_cli.main
 
 if __name__ == "__main__":
-    chess_cli.run()
+    chess_cli.main.main()

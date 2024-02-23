@@ -14,7 +14,6 @@ chess-cli = 'chess_cli.main:main'
 
 [tool.poetry.dependencies]
 python = "^3.12"
-cmd2 = "^2.4.3"
 chess = "^1.10.0"
 appdirs = "^1.4.4"
 toml = "^0.10.2"
