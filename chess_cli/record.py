@@ -1,19 +1,22 @@
 import asyncio
 import os
 import re
+import shutil
 import sys
 import tempfile
 import threading
 import time
 import traceback
 from asyncio import subprocess
+from collections.abc import Iterable
 from contextlib import suppress
-from dataclasses import dataclass
-from pathlib import PurePath
+from dataclasses import dataclass, field
+from pathlib import Path, PurePath
 from typing import override
 
 import chess
 import chess.svg
+import more_itertools
 import pyaudio
 
 from .base import Base, InitArgs
@@ -37,13 +40,14 @@ class Recording:
     audio_stream: pyaudio.Stream
     # A list of (timestamp, board) pairs where the timestamp is the value returned by
     terminate: threading.Event
-    # `time.perf_counter()` when board was visited.
-    boards: list[tuple[float, chess.Board]]
     # The maximum duration for an audio buffer from portaudio.
     buffer_max_duration: float
+    # Time in the audio stream when boards were visited.
+    boards: list[tuple[float, chess.Board]] = field(default_factory=list)
     total_pause_time: float = 0.0  # The summed duration of all pauses in the recording.
     # is_paused_at = the time when the recording was paused if it is currently paused else None:
     is_paused_at: float | None = None
+    _is_cleaned: bool = False  # Set to true after self.cleanup() is called.
 
     def is_paused(self) -> bool:
         """Check if the recording is paused."""
@@ -68,8 +72,10 @@ class Recording:
         Assumes that the recording is not paused.
         """
         assert not self.is_paused()
-        if board != self.boards[-1][1]:
+        if not self.boards or board != self.boards[-1][1]:
             self.boards.append((self.audio_stream.get_time() - self.total_pause_time, board))
+            if len(self.boards) > 1:
+                assert self.boards[-2][0] <= self.boards[-1][0]
 
     async def stop(self) -> None:
         """Stop the recording.
@@ -108,55 +114,75 @@ class Recording:
                 print(f"ffmpeg seem to have failed, return code: {retcode}")
                 print(f"ffmpeg output: {output}")
 
-    async def save(self) -> None:
+    async def save(self, no_cleanup: bool = False) -> None:
         """Save the recording.
 
         May only be called after `self.stop()`.
         """
-        with tempfile.TemporaryDirectory() as svg_dir:
-            svg_dir_path: PurePath = PurePath(svg_dir)
-            concat_file_lines: list[str] = []
-            prev_timestamp: float = self.boards[0][0]
-            for i, (timestamp, board) in enumerate(self.boards):
-                duration: float = timestamp - prev_timestamp
-                assert duration >= 0
-                svg_file_path: PurePath = svg_dir_path / f"{i}.svg"
+        svg_dir: Path = Path(tempfile.mkdtemp())
+        try:
+            boards: list[chess.Board] = [b for (_, b) in self.boards]
+            svg_files: list[PurePath] = [svg_dir / f"{i}.svg" for i in range(len(boards))]
+            for board, svg_file_path in zip(boards, svg_files, strict=False):
                 with open(svg_file_path, "w+") as f:
                     f.write(chess.svg.board(board))
-                concat_file_lines.append(f"file '{svg_file_path}'")
-                concat_file_lines.append(f"duration {duration}")
-            # Due to a quirk, the last image has to be specified twice,
-            # the 2nd time without any duration directive.
-            concat_file_lines.append(concat_file_lines[-2])
-            with tempfile.NamedTemporaryFile(mode="w+") as concat_file:
-                concat_file.writelines(concat_file_lines)
+            timestamps: Iterable[float] = (t for (t, _) in self.boards)
+            durations: Iterable[float] = map(
+                lambda x: x[1] - x[0], more_itertools.pairwise(timestamps)
+            )
+            concat_file_lines: Iterable[str] = more_itertools.interleave_longest(
+                (f"file '{f}'\n" for f in svg_files), (f"duration {d}\n" for d in durations)
+            )
+            concat_fd, concat_file_name = tempfile.mkstemp(suffix=".txt", text=True)
+            try:
+                with os.fdopen(concat_fd, mode="w") as concat_file:
+                    concat_file.writelines(more_itertools.side_effect(print, concat_file_lines))
                 proc = await asyncio.create_subprocess_exec(
                     "ffmpeg",
                     "-hide_banner",
+                    "-v",
+                    "error",
                     "-i",
                     "a.opus",
                     "-f",
                     "concat",
+                    "-safe",
+                    "0",
                     "-i",
-                    concat_file.name,
+                    concat_file_name,
                     "-c:a",
                     "copy",
                     "-c:v",
                     "libx264",
+                    "-shortest",
                     "out.mp4",
                 )
                 await proc.wait()
+            finally:
+                if no_cleanup:
+                    print(f"Forgetting concat file: {concat_file_name}")
+                else:
+                    os.remove(concat_file_name)
+        finally:
+            if no_cleanup:
+                print(f"Forgetting directory with SVG files: {svg_dir}")
+            else:
+                shutil.rmtree(svg_dir)
 
-    def cleanup(self) -> None:
+    def cleanup(self, dry_run: bool = False) -> None:
         """Remove temporary files."""
-        with suppress(FileNotFoundError):
-            os.remove(self.audio_file)
+        if dry_run:
+            print(f"Forgetting audio file: {self.audio_file}")
+        else:
+            with suppress(FileNotFoundError):
+                os.remove(self.audio_file)
         with suppress(FileNotFoundError):
             os.remove(self.ffmpeg_output_file)
-            print("removed!")
+        self._is_cleaned = True
 
     def __del__(self) -> None:
-        self.cleanup()
+        if not self._is_cleaned:
+            self.cleanup()
 
 
 class Record(Base):
@@ -250,9 +276,9 @@ class Record(Base):
             ffmpeg_output_file,
             audio_stream,
             terminate,
-            boards=[(time.perf_counter(), self.game_node.board())],
             buffer_max_duration=FRAMES_PER_BUFFER / sample_rate,
         )
+        self.recording.set_board(self.game_node.board())
 
     @override
     async def prompt(self) -> None:
@@ -260,13 +286,25 @@ class Record(Base):
             self.recording.set_board(self.game_node.board())
         await super().prompt()
 
-    async def save_recording(self) -> None:
+    async def save_recording(self, no_cleanup: bool = False) -> None:
         assert self.recording is not None
         await self.recording.stop()
-        await self.recording.save()
-        self.delete_recording()
+        await self.recording.save(no_cleanup=no_cleanup)
+        self.recording.cleanup(dry_run=no_cleanup)
+        self.recording = None
 
-    def delete_recording(self) -> None:
+    async def delete_recording(self) -> None:
         assert self.recording is not None
+        await self.recording.stop()
         self.recording.cleanup()
         self.recording = None
+
+    # Close recording on exit.
+    @override
+    async def cmd_loop(self) -> None:
+        try:
+            await super().cmd_loop()
+        finally:
+            if self.recording is not None:
+                print("Warning: Cancelling recording.")
+                await self.delete_recording()
