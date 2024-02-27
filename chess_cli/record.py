@@ -25,6 +25,17 @@ SAMPLE_FORMAT = pyaudio.paInt16
 SAMPLE_SIZE: int = pyaudio.get_sample_size(SAMPLE_FORMAT)
 SAMPLE_FORMAT_TO_FFMPEG = f"s16{"le" if sys.byteorder == "little" else "be"}"
 MAX_CHANNELS: int = 2
+AUDIO_BITRATE: str = "48k"
+# For reference on audio filters, see: <https://ffmpeg.org/ffmpeg-filters.html>.
+AUDIO_FILTER: str = (
+    "afftdn=noise_reduction=40:noise_floor=-70:track_noise=true,"
+    "dynaudnorm=gausssize=21:correctdc=1:maxgain=4:altboundary=true"
+)
+# See <https://trac.ffmpeg.org/wiki/Encode/H.264> for more information on these parameters.
+CRF: int = 23
+PRESET: str = "slower"
+TUNE: str = "stillimage"
+
 FRAMES_PER_BUFFER: int = 8192
 ERROR_REGEX: re.Pattern = re.compile("error", flags=re.IGNORECASE)
 PROCESS_TERMINATE_TIMEOUT: float = 3.0  # Timeout for a process to terminate before killing it.
@@ -156,6 +167,14 @@ class Recording:
                     "copy",
                     "-c:v",
                     "libx264",
+                    "-crf",
+                    str(CRF),
+                    "-preset",
+                    PRESET,
+                    "-tune",
+                    TUNE,
+                    "-pix_fmt",
+                    "yuv420p",
                     output_file,
                 ]
                 if override_output_file:
@@ -207,7 +226,7 @@ class Record(Base):
         channels: int = min(device_info["maxInputChannels"], MAX_CHANNELS)  # type: ignore
         print(f"Connecting to {name} with {sample_rate} kHz and {channels} channels.")
 
-        _, audio_file = tempfile.mkstemp(suffix=".opus")
+        _, audio_file = tempfile.mkstemp(suffix=".aac")
         ffmpeg_output_fd, ffmpeg_output_file = tempfile.mkstemp()
         ffmpeg_process = await asyncio.create_subprocess_exec(
             "ffmpeg",
@@ -223,10 +242,12 @@ class Record(Base):
             str(channels),
             "-i",
             "pipe:",
+            "-af",
+            AUDIO_FILTER,
             "-c:a",
-            "libopus",
+            "aac",
             "-b:a",
-            "64k",
+            AUDIO_BITRATE,
             audio_file,
             stdin=subprocess.PIPE,
             stdout=ffmpeg_output_fd,
