@@ -114,7 +114,9 @@ class Recording:
                 print(f"ffmpeg seem to have failed, return code: {retcode}")
                 print(f"ffmpeg output: {output}")
 
-    async def save(self, no_cleanup: bool = False) -> None:
+    async def save(
+        self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
+    ) -> None:
         """Save the recording.
 
         May only be called after `self.stop()`.
@@ -136,14 +138,14 @@ class Recording:
             concat_fd, concat_file_name = tempfile.mkstemp(suffix=".txt", text=True)
             try:
                 with os.fdopen(concat_fd, mode="w") as concat_file:
-                    concat_file.writelines(more_itertools.side_effect(print, concat_file_lines))
-                proc = await asyncio.create_subprocess_exec(
+                    concat_file.writelines(concat_file_lines)
+                ffmpeg_args: list[str] = [
                     "ffmpeg",
                     "-hide_banner",
                     "-v",
                     "error",
                     "-i",
-                    "a.opus",
+                    self.audio_file,
                     "-f",
                     "concat",
                     "-safe",
@@ -154,9 +156,11 @@ class Recording:
                     "copy",
                     "-c:v",
                     "libx264",
-                    "-shortest",
-                    "out.mp4",
-                )
+                    output_file,
+                ]
+                if override_output_file:
+                    ffmpeg_args.append("-y")
+                proc = await asyncio.create_subprocess_exec(*ffmpeg_args)
                 await proc.wait()
             finally:
                 if no_cleanup:
@@ -286,10 +290,16 @@ class Record(Base):
             self.recording.set_board(self.game_node.board())
         await super().prompt()
 
-    async def save_recording(self, no_cleanup: bool = False) -> None:
+    async def save_recording(
+        self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
+    ) -> None:
         assert self.recording is not None
         await self.recording.stop()
-        await self.recording.save(no_cleanup=no_cleanup)
+        await self.recording.save(
+            output_file=output_file.with_suffix(".mp4"),
+            override_output_file=override_output_file,
+            no_cleanup=no_cleanup,
+        )
         self.recording.cleanup(dry_run=no_cleanup)
         self.recording = None
 

@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from pathlib import PurePath
 
 from .record import Record
 from .repl import CommandFailure, argparse_command
@@ -17,6 +18,15 @@ class RecordCmds(Record):
         "resume", aliases=["r"], help="Resume a paused recording."
     )
     record_save_argparser = record_subcmds.add_parser("save", help="Finish and save a recording.")
+    record_save_argparser.add_argument(
+        "output_file", type=PurePath, help="The name of the output file."
+    )
+    record_save_argparser.add_argument(
+        "-y",
+        "--override",
+        action="store_true",
+        help="Override the output file if it already exists.",
+    )
     record_save_argparser.add_argument(
         "--no-cleanup",
         action="store_true",
@@ -54,7 +64,11 @@ class RecordCmds(Record):
             case "save":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
-                await self.save_recording(no_cleanup=args.no_cleanup)
+                await self.save_recording(
+                    output_file=args.output_file,
+                    override_output_file=args.override,
+                    no_cleanup=args.no_cleanup,
+                )
             case "delete":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
