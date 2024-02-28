@@ -1,6 +1,6 @@
 [project]
 name = "chess-cli"
-requires-python = ">=3.12"
+requires-python = ">=3.12, <3.13"
 
 [tool.poetry]
 name = "chess-cli"
@@ -13,7 +13,7 @@ license = "GPL-3.0-or-later"
 chess-cli = 'chess_cli.main:main'
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "~3.12"
 chess = "^1.10.0"
 appdirs = "^1.4.4"
 toml = "^0.10.2"
@@ -38,6 +38,7 @@ docformatter = "^1.7.5"
 pyright = "^1.1.350"
 isort = "^5.13.2"
 ruff = "^0.2.1"
+pyinstaller = "^6.4.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
