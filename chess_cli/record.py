@@ -41,6 +41,13 @@ FRAMES_PER_BUFFER: int = 8192
 ERROR_REGEX: re.Pattern = re.compile("error", flags=re.IGNORECASE)
 PROCESS_TERMINATE_TIMEOUT: float = 3.0  # Timeout for a process to terminate before killing it.
 
+_ffmpeg_exe = shutil.which(b"ffmpeg") or shutil.which(
+    b"ffmpeg", path=PurePath(".") / "ffmpeg" / "bin"
+)
+assert _ffmpeg_exe is not None, "ffmpeg was not found in your path or ./ffmpeg/bin/"
+print(f"ffmpeg: {_ffmpeg_exe}")
+FFMPEG_EXE: bytes = _ffmpeg_exe
+
 
 class _StreamInfo:
     """Realtime information about an audio stream.
@@ -239,38 +246,34 @@ class Recording:
             try:
                 with os.fdopen(concat_fd, mode="w") as concat_file:
                     concat_file.writelines(concat_file_lines)
-                ffmpeg_args: list[str] = (
-                    [
-                        "ffmpeg",
-                        "-hide_banner",
-                        "-v",
-                        "error",
-                        "-i",
-                        self.audio_file,
-                        "-f",
-                        "concat",
-                        "-safe",
-                        "0",
-                    ]
-                    + VIDEO_INPUT_OPTS
-                    + [
-                        "-i",
-                        concat_file_name,
-                        "-c:a",
-                        "copy",
-                        "-c:v",
-                        "libx264",
-                        "-crf",
-                        str(CRF),
-                        "-preset",
-                        PRESET,
-                        "-tune",
-                        TUNE,
-                        "-pix_fmt",
-                        "yuv420p",
-                        str(output_file),
-                    ]
-                )
+                ffmpeg_args: list[str] = [
+                    FFMPEG_EXE,
+                    "-hide_banner",
+                    "-v",
+                    "error",
+                    "-i",
+                    self.audio_file,
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    *VIDEO_INPUT_OPTS,
+                    "-i",
+                    concat_file_name,
+                    "-c:a",
+                    "copy",
+                    "-c:v",
+                    "libx264",
+                    "-crf",
+                    str(CRF),
+                    "-preset",
+                    PRESET,
+                    "-tune",
+                    TUNE,
+                    "-pix_fmt",
+                    "yuv420p",
+                    str(output_file),
+                ]
                 if override_output_file:
                     ffmpeg_args.append("-y")
                 proc = await asyncio.create_subprocess_exec(*ffmpeg_args)
@@ -323,7 +326,7 @@ class Record(Base):
         _, audio_file = tempfile.mkstemp(suffix=".aac")
         ffmpeg_output_fd, ffmpeg_output_file = tempfile.mkstemp()
         ffmpeg_process = await asyncio.create_subprocess_exec(
-            "ffmpeg",
+            FFMPEG_EXE,
             "-hide_banner",
             "-v",
             "error",
