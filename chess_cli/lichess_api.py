@@ -49,7 +49,9 @@ class LichessApi(Base):
         try:
             with suppress(KeyError):
                 self._access_token = self.config["lichess-api"]["access-token"]
-                assert isinstance(self._access_token, str), "Lichess access token must be a str."
+                assert self._access_token is None or isinstance(
+                    self._access_token, str
+                ), f"Lichess access token must be a str, not {type(self._access_token)}"
         except Exception as ex:
             raise self.config_error(repr(ex)) from ex
 
