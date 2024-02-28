@@ -57,13 +57,13 @@ class Engine(Base):
     _engines_log_queue: queue.SimpleQueue[str]  # A queue where engine log messages are first put.
 
     def __init__(self, args: InitArgs) -> None:
-        super().__init__(args)
-
         self._engine_confs = {}
-
         # No engines are loaded or selected at startup.
         self._loaded_engines = {}
         self._selected_engine = None
+
+
+        super().__init__(args)
 
         ## Setup logging:
         self._engines_saved_log = deque()
