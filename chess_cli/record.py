@@ -49,9 +49,10 @@ def _find_ffmpeg_exe() -> list[bytes] | None:
 
     Returns a list of arguments, E.G ["/usr/bin/ffmpeg"] or ["wsl", "ffmpeg"].
     """
-    if (ffmpeg_exe := shutil.which(b"ffmpeg")) is not None:
-        return [ffmpeg_exe]
-    # TODO
+    f = shutil.which(b"ffmpeg") or shutil.which(b"ffmpeg", path=PurePath(".") / "ffmpeg" / "bin")
+    if f is not None:
+        return [f]
+    return None
 
 
 FFMPEG_EXE: list[bytes] | None = _find_ffmpeg_exe()
