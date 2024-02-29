@@ -14,12 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import override
 
+import cairosvg
 import chess
 import chess.svg
 import more_itertools
 import pyaudio
 
-from .base import Base, InitArgs
+from .base import Base, CommandFailure, InitArgs
 
 SAMPLE_FORMAT = pyaudio.paInt16
 SAMPLE_SIZE: int = pyaudio.get_sample_size(SAMPLE_FORMAT)
@@ -32,6 +33,7 @@ AUDIO_FILTER: str = (
     "dynaudnorm=gausssize=21:correctdc=1:maxgain=4:altboundary=true"
 )
 VIDEO_INPUT_OPTS: list[str] = ["-width", "400", "-height", "400"]
+BOARD_PIXELS: int = 400
 # See <https://trac.ffmpeg.org/wiki/Encode/H.264> for more information on these parameters.
 CRF: int = 28
 PRESET: str = "slower"
@@ -41,12 +43,18 @@ FRAMES_PER_BUFFER: int = 8192
 ERROR_REGEX: re.Pattern = re.compile("error", flags=re.IGNORECASE)
 PROCESS_TERMINATE_TIMEOUT: float = 3.0  # Timeout for a process to terminate before killing it.
 
-_ffmpeg_exe = shutil.which(b"ffmpeg") or shutil.which(
-    b"ffmpeg", path=PurePath(".") / "ffmpeg" / "bin"
-)
-assert _ffmpeg_exe is not None, "ffmpeg was not found in your path or ./ffmpeg/bin/"
-print(f"ffmpeg: {_ffmpeg_exe}")
-FFMPEG_EXE: bytes = _ffmpeg_exe
+
+def _find_ffmpeg_exe() -> list[bytes] | None:
+    """Try to find the ffmpeg executable by various means.
+
+    Returns a list of arguments, E.G ["/usr/bin/ffmpeg"] or ["wsl", "ffmpeg"].
+    """
+    if (ffmpeg_exe := shutil.which(b"ffmpeg")) is not None:
+        return [ffmpeg_exe]
+    # TODO
+
+
+FFMPEG_EXE: list[bytes] | None = _find_ffmpeg_exe()
 
 
 class _StreamInfo:
@@ -230,24 +238,31 @@ class Recording:
         May only be called after `self.stop()`.
         """
         assert len(self.boards) == len(self.timestamps)
-        svg_dir: Path = Path(tempfile.mkdtemp())
+        png_dir: Path = Path(tempfile.mkdtemp())
         try:
-            svg_files: list[PurePath] = [svg_dir / f"{i}.svg" for i in range(len(self.boards))]
-            for board, svg_file_path in zip(self.boards, svg_files, strict=False):
-                with open(svg_file_path, "w+") as f:
-                    f.write(chess.svg.board(board))
+            png_files: list[PurePath] = [png_dir / f"{i}.png" for i in range(len(self.boards))]
+            for board, png_file_path in zip(self.boards, png_files, strict=True):
+                with open(png_file_path, "w+b") as f:
+                    svg: str = chess.svg.board(board)
+                    cairosvg.svg2png(
+                        bytestring=svg,
+                        output_width=BOARD_PIXELS,
+                        output_height=BOARD_PIXELS,
+                        write_to=f,
+                    )
             durations: Iterable[float] = map(
                 lambda x: x[1] - x[0], more_itertools.pairwise(self.timestamps)
             )
             concat_file_lines: Iterable[str] = more_itertools.interleave_longest(
-                (f"file '{f}'\n" for f in svg_files), (f"duration {d}\n" for d in durations)
+                (f"file '{f}'\n" for f in png_files), (f"duration {d}\n" for d in durations)
             )
             concat_fd, concat_file_name = tempfile.mkstemp(suffix=".txt", text=True)
             try:
                 with os.fdopen(concat_fd, mode="w") as concat_file:
                     concat_file.writelines(concat_file_lines)
-                ffmpeg_args: list[str] = [
-                    FFMPEG_EXE,
+                assert FFMPEG_EXE is not None
+                ffmpeg_args: list[bytes | str] = [
+                    *FFMPEG_EXE,
                     "-hide_banner",
                     "-v",
                     "error",
@@ -257,7 +272,6 @@ class Recording:
                     "concat",
                     "-safe",
                     "0",
-                    *VIDEO_INPUT_OPTS,
                     "-i",
                     concat_file_name,
                     "-c:a",
@@ -285,9 +299,9 @@ class Recording:
                     os.remove(concat_file_name)
         finally:
             if no_cleanup:
-                print(f"Forgetting directory with SVG files: {svg_dir}")
+                print(f"Forgetting directory with PNG files: {png_dir}")
             else:
-                shutil.rmtree(svg_dir)
+                shutil.rmtree(png_dir)
 
     def cleanup(self, dry_run: bool = False) -> None:
         """Remove temporary files."""
@@ -314,6 +328,8 @@ class Record(Base):
         super().__init__(args)
 
     async def start_recording(self) -> None:
+        if FFMPEG_EXE is None:
+            raise CommandFailure("FFmpeg was not found on your system.")
         assert self.recording is None
         audio: pyaudio.PyAudio = pyaudio.PyAudio()
         device_info = audio.get_default_input_device_info()
@@ -326,7 +342,7 @@ class Record(Base):
         _, audio_file = tempfile.mkstemp(suffix=".aac")
         ffmpeg_output_fd, ffmpeg_output_file = tempfile.mkstemp()
         ffmpeg_process = await asyncio.create_subprocess_exec(
-            FFMPEG_EXE,
+            *FFMPEG_EXE,
             "-hide_banner",
             "-v",
             "error",
