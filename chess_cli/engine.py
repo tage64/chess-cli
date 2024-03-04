@@ -6,7 +6,7 @@ import shutil
 from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
-from typing import override
+from typing import assert_never, override
 
 import chess.engine
 
@@ -62,7 +62,6 @@ class Engine(Base):
         self._loaded_engines = {}
         self._selected_engine = None
 
-
         super().__init__(args)
 
         ## Setup logging:
@@ -87,9 +86,7 @@ class Engine(Base):
 
     @property
     def loaded_engines(self) -> Mapping[str, LoadedEngine]:
-        """Get all the currently loaded engines in a {name: engine}
-        dictionary.
-        """
+        """Get all the currently loaded engines in a {name: engine} dictionary."""
         return self._loaded_engines.items().mapping
 
     @property
@@ -149,19 +146,19 @@ class Engine(Base):
     def load_config(self) -> None:
         super().load_config()
         ## Retrieve the engine configurations from `self.config`:
-        try:
-            engine_confs = self.config["engine-configurations"]
-            assert isinstance(engine_confs, dict), "Section 'engine-configurations' must be a dict"
-            self._engine_confs = {
-                name: EngineConf(**values) for (name, values) in engine_confs.items()
-            }
-        except Exception as ex:
-            raise self.config_error(repr(ex)) from ex
+        engine_confs = self.config["engine-configurations"]
+        assert isinstance(engine_confs, dict), "Section 'engine-configurations' must be a dict"
+        self._engine_confs = {
+            name: EngineConf(**{**values, "protocol": EngineProtocol(values["protocol"])})  # type: ignore
+            for (name, values) in engine_confs.items()
+        }
 
     @override
     def save_config(self) -> None:
         self.config["engine-configurations"] = {
-            name: {f.name: getattr(conf, f.name) for f in fields(conf) if f.name != "loaded_as"}
+            name: {
+                f.name: str(getattr(conf, f.name)) for f in fields(conf) if f.name != "loaded_as"
+            }
             for (name, conf) in self.engine_confs.items()
         }
         super().save_config()
@@ -192,10 +189,8 @@ class Engine(Base):
             conf: EngineConf = self.engine_confs[self.loaded_engines[name].config_name]
         else:
             conf = self.engine_confs[name]
-        if name == self.selected_engine:
-            show_str: str = ">"
-        else:
-            show_str = " "
+        show_str: str
+        show_str = ">" if name == self.selected_engine else " "
         show_str += name
         if conf.fullname is not None:
             show_str += ": " + conf.fullname
@@ -208,6 +203,7 @@ class Engine(Base):
         self.poutput(show_str)
         if verbose:
             self.poutput(f"    Executable: {conf.path}")
+            self.poutput(f"    Protocol: {conf.protocol}")
             if name in self.loaded_engines:
                 engine: chess.engine.SimpleEngine = self.loaded_engines[name].engine
                 for key, val in engine.id.items():
@@ -278,6 +274,7 @@ class Engine(Base):
         `config_name` must be in `self.engine_confs`.
         """
         engine_conf: EngineConf = self.engine_confs[config_name]
+        engine: chess.engine.SimpleEngine
         try:
             match engine_conf.protocol:
                 case EngineProtocol.UCI:
@@ -288,6 +285,8 @@ class Engine(Base):
                     engine = chess.engine.SimpleEngine.popen_xboard(
                         engine_conf.path, timeout=LOAD_TIMEOUT
                     )
+                case x:
+                    assert_never(x)
         except chess.engine.EngineError as e:
             self.poutput(
                 f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it"
@@ -320,3 +319,4 @@ class Engine(Base):
                 self.poutput(f"  {opt_name} will be removed from the configuration.")
         for x in invalid_options:
             del engine_conf.options[x]
+        self.select_engine(name)

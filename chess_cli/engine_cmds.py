@@ -224,8 +224,8 @@ class EngineCmds(Engine):
                 )
                 return
             name: str = args.load_as or args.name
-            if name in self.engine_confs:
-                self.poutput(f"Error: There is already an engine named {name}.")
+            if name in self.loaded_engines:
+                self.poutput(f"There is already an engine loaded with the name {name}")
                 return
             if name in self.loaded_engines:
                 self.poutput(

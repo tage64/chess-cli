@@ -196,7 +196,7 @@ class ReplBase:
             self.perror(f"Error: Command not found: {cmd_name}")
             return
         command: Command = self._cmds[cmd_name]
-        await command(self, rest)
+        await command.call_wrap_exception(self, rest)
 
     def prompt_str(self) -> str:
         """Get the string for the prompt, you can override this."""
