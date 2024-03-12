@@ -25,6 +25,8 @@ requests = "^2.31.0"
 prompt-toolkit = "^3.0.43"
 pyaudio = "^0.2.14"
 cairosvg = "^2.7.1"
+svglib = "^1.5.1"
+pydantic = "^2.6.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4.4"
@@ -38,7 +40,7 @@ types-requests = "^2.31.0.20240125"
 docformatter = "^1.7.5"
 pyright = "^1.1.350"
 isort = "^5.13.2"
-ruff = "^0.2.1"
+ruff = ">= 0.3"
 pyinstaller = "^6.4.0"
 
 [build-system]

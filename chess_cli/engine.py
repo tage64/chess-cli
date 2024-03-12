@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, fields
 from typing import assert_never, override
 
 import chess.engine
+from pydantic import BaseModel
 
 from .base import Base, CommandFailure, InitArgs
 
@@ -22,8 +23,7 @@ class EngineProtocol(enum.StrEnum):
     XBOARD = enum.auto()
 
 
-@dataclass
-class EngineConf:
+class EngineConf(BaseModel):
     """Configuration for an engine."""
 
     path: str  # Path of engine executable.
@@ -149,16 +149,13 @@ class Engine(Base):
         engine_confs = self.config["engine-configurations"]
         assert isinstance(engine_confs, dict), "Section 'engine-configurations' must be a dict"
         self._engine_confs = {
-            name: EngineConf(**{**values, "protocol": EngineProtocol(values["protocol"])})  # type: ignore
-            for (name, values) in engine_confs.items()
+            name: EngineConf.validate(values) for (name, values) in engine_confs.items()
         }
 
     @override
     def save_config(self) -> None:
         self.config["engine-configurations"] = {
-            name: {
-                f.name: str(getattr(conf, f.name)) for f in fields(conf) if f.name != "loaded_as"
-            }
+            name: conf.model_dump(mode="json", exclude={"loaded_as"})
             for (name, conf) in self.engine_confs.items()
         }
         super().save_config()
