@@ -1,3 +1,4 @@
+import asyncio
 import enum
 import logging
 import logging.handlers
@@ -5,7 +6,8 @@ import queue
 import shutil
 from collections import deque
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields
+from contextlib import suppress
+from dataclasses import dataclass
 from typing import assert_never, override
 
 import chess.engine
@@ -13,7 +15,7 @@ from pydantic import BaseModel
 
 from .base import Base, CommandFailure, InitArgs
 
-LOAD_TIMEOUT: int = 120  # Timeout for loading an engine in seconds.
+ENGINE_TIMEOUT: int = 120  # Timeout for engine related operations.
 
 
 class EngineProtocol(enum.StrEnum):
@@ -28,20 +30,20 @@ class EngineConf(BaseModel):
 
     path: str  # Path of engine executable.
     protocol: EngineProtocol
-    options: dict[str, str | int | bool | None] = field(default_factory=dict)
+    options: dict[str, str | int | bool | None] = dict()
     fullname: str | None = None  # Full name of the engine from id.name.
     # The directory where the engine is installed.
     # This will be removed if the engine is removed.
     install_dir: str | None = None
     # Loaded instance of this engine. This is not really part of the configuration but stored here
     # anyway and discarded when saving the configuration.
-    loaded_as: set[str] = field(default_factory=set, init=False)
+    loaded_as: set[str] = set()
 
 
 @dataclass
 class LoadedEngine:
     config_name: str  # The name of the engine in the configuration.
-    engine: chess.engine.SimpleEngine  # The actual engine instance.
+    engine: chess.engine.Protocol  # The actual engine instance.
 
 
 class Engine(Base):
@@ -54,7 +56,8 @@ class Engine(Base):
     # The currently selected engine. Should be a member of loaded_engines.
     _selected_engine: str | None
     _engines_saved_log: deque[str]  # Log messages from all engines.
-    _engines_log_queue: queue.SimpleQueue[str]  # A queue where engine log messages are first put.
+    # A queue for incoming log messages from engines.
+    _engines_log_queue: queue.SimpleQueue[logging.LogRecord]
 
     def __init__(self, args: InitArgs) -> None:
         self._engine_confs = {}
@@ -77,7 +80,7 @@ class Engine(Base):
     async def cmd_loop(self, *args, **kwargs) -> None:
         await super().cmd_loop(*args, **kwargs)
         while self.selected_engine is not None:
-            self.close_engine(self.selected_engine)
+            await self.close_engine(self.selected_engine)
 
     @property
     def engine_confs(self) -> Mapping[str, EngineConf]:
@@ -109,11 +112,12 @@ class Engine(Base):
         assert engine in self.loaded_engines
         self._selected_engine = engine
 
-    def close_engine(self, name: str) -> None:
+    async def close_engine(self, name: str) -> None:
         """Stop and quit an engine."""
         engine: LoadedEngine = self._loaded_engines.pop(name)
         self.engine_confs[engine.config_name].loaded_as.remove(name)
-        engine.engine.quit()
+        async with asyncio.timeout(ENGINE_TIMEOUT):
+            await engine.engine.quit()
         if self.selected_engine == engine:
             try:
                 self.select_engine(next(iter(self.loaded_engines)))
@@ -125,11 +129,9 @@ class Engine(Base):
         """Get log messages from all engines."""
         # Read all log messages from the log_queue:
         # Note that this is not wait free.
-        try:
+        with suppress(queue.Empty):
             while True:
-                self._engines_saved_log.append(self._engines_log_queue.get_nowait())
-        except queue.Empty:
-            pass
+                self._engines_saved_log.append(self._engines_log_queue.get_nowait().message)
         return self._engines_saved_log
 
     def clear_engines_log(self) -> None:
@@ -165,6 +167,11 @@ class Engine(Base):
 
         `name` should not be in `self.engine_confs`.
         """
+        if name in self.engine_confs:
+            raise CommandFailure(
+                f"The name {name} is already given to an engine. "
+                f"You have to remove it with `engine rm {name}` first."
+            )
         engine_conf: EngineConf = EngineConf(path=path, protocol=protocol)
         self._engine_confs[name] = engine_conf
         self.save_config()
@@ -202,12 +209,14 @@ class Engine(Base):
             self.poutput(f"    Executable: {conf.path}")
             self.poutput(f"    Protocol: {conf.protocol}")
             if name in self.loaded_engines:
-                engine: chess.engine.SimpleEngine = self.loaded_engines[name].engine
+                engine: chess.engine.Protocol = self.loaded_engines[name].engine
                 for key, val in engine.id.items():
                     if key != "name":
                         self.poutput(f"   {key}: {val}")
 
-    def set_engine_option(self, engine: str, name: str, value: str | int | bool | None) -> None:
+    async def set_engine_option(
+        self, engine: str, name: str, value: str | int | bool | None
+    ) -> None:
         """Set an option on a loaded engine."""
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
         option: chess.engine.Option = options[name]
@@ -263,27 +272,25 @@ class Engine(Base):
                 )
         else:
             raise AssertionError(f"Unsupported option type: {option.type}")
-        self.loaded_engines[engine].engine.configure({option.name: value})
+        async with asyncio.timeout(ENGINE_TIMEOUT):
+            await self.loaded_engines[engine].engine.configure({option.name: value})
 
-    def load_engine(self, config_name: str, name: str) -> None:
+    async def load_engine(self, config_name: str, name: str) -> None:
         """Load an engine.
 
         `config_name` must be in `self.engine_confs`.
         """
         engine_conf: EngineConf = self.engine_confs[config_name]
-        engine: chess.engine.SimpleEngine
+        engine: chess.engine.Protocol
         try:
-            match engine_conf.protocol:
-                case EngineProtocol.UCI:
-                    engine = chess.engine.SimpleEngine.popen_uci(
-                        engine_conf.path, timeout=LOAD_TIMEOUT
-                    )
-                case EngineProtocol.XBOARD:
-                    engine = chess.engine.SimpleEngine.popen_xboard(
-                        engine_conf.path, timeout=LOAD_TIMEOUT
-                    )
-                case x:
-                    assert_never(x)
+            async with asyncio.timeout(ENGINE_TIMEOUT):
+                match engine_conf.protocol:
+                    case EngineProtocol.UCI:
+                        _, engine = await chess.engine.popen_uci(engine_conf.path)
+                    case EngineProtocol.XBOARD:
+                        _, engine = await chess.engine.popen_xboard(engine_conf.path)
+                    case x:
+                        assert_never(x)
         except chess.engine.EngineError as e:
             self.poutput(
                 f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it"
@@ -305,7 +312,7 @@ class Engine(Base):
         invalid_options: list[str] = []
         for opt_name, value in engine_conf.options.items():
             try:
-                self.set_engine_option(name, opt_name, value)
+                await self.set_engine_option(name, opt_name, value)
             except ValueError as e:
                 self.poutput(
                     f"Warning: Couldn't set {opt_name} to {value} as specified in the"

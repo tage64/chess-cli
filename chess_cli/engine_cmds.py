@@ -173,9 +173,9 @@ class EngineCmds(Engine):
             case "ls":
                 self.engine_ls(args)
             case "import":
-                self.engine_import(args)
+                await self.engine_import(args)
             case "load":
-                self.engine_load(args)
+                await self.engine_load(args)
             case "rm" | "remove":
                 self.engine_rm(args)
             case "install":
@@ -185,9 +185,9 @@ class EngineCmds(Engine):
             case "log":
                 self.engine_log(args)
             case "conf" | "config" | "configure":
-                self.engine_config(args)
+                await self.engine_config(args)
             case "quit":
-                self.engine_quit(args)
+                await self.engine_quit(args)
             case _:
                 raise AssertionError("Unsupported subcommand.")
 
@@ -215,7 +215,7 @@ class EngineCmds(Engine):
         for engine in engines:
             self.show_engine(engine, verbose=args.verbose)
 
-    def engine_load(self, args) -> None:
+    async def engine_load(self, args) -> None:
         try:
             if args.name not in self.engine_confs:
                 self.poutput(
@@ -234,7 +234,7 @@ class EngineCmds(Engine):
                     " `engine load <name> --as <name2>`"
                 )
                 return
-            self.load_engine(args.name, name)
+            await self.load_engine(args.name, name)
             self.select_engine(name)
             self.show_engine(name, verbose=True)
             self.poutput(f"Successfully loaded and selected {name}.")
@@ -251,7 +251,7 @@ class EngineCmds(Engine):
         except (chess.engine.EngineError, chess.engine.EngineTerminatedError):
             self.poutput(f"Loading of {args.name} failed.")
 
-    def engine_import(self, args) -> None:
+    async def engine_import(self, args) -> None:
         if args.name in self.engine_confs:
             self.poutput(
                 f"Error: The name {args.name} is already in use, please pick another name or"
@@ -261,7 +261,7 @@ class EngineCmds(Engine):
             return
         self.add_engine(args.path, args.protocol, args.name)
         try:
-            self.load_engine(args.name, args.name)
+            await self.load_engine(args.name, args.name)
             self.poutput(f"Successfully imported, loaded and selected {args.name}.")
         except (OSError, chess.engine.EngineError, chess.engine.EngineTerminatedError):
             self.rm_engine(args.name)
@@ -294,18 +294,20 @@ class EngineCmds(Engine):
     async def install_stockfish(self) -> None:
         dir: str = os.path.join(appdirs.user_data_dir("chess-cli"), "stockfish")
         os.makedirs(dir, exist_ok=True)
+        url: str
+        archive_format: str
+        executable: str
         match platform.system():
             case "Linux":
-                url: str = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-ubuntu-x86-64-avx2.tar"
-                archive_format: str = "tar"
-                executable: str = "stockfish/stockfish-ubuntu-x86-64-avx2"
+                url = "https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-ubuntu-x86-64-avx2.tar"
+                archive_format = "tar"
+                executable = "stockfish/stockfish-ubuntu-x86-64-avx2"
             case "Windows":
-                url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_16/stockfish-windows-x86-64-avx2.zip"
+                url = "https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-windows-x86-64-avx2.zip"
                 archive_format = "zip"
                 executable = "stockfish/stockfish-windows-x86-64-avx2.exe"
             case x:
-                self.poutput(f"Error: Unsupported platform: {x}")
-                return
+                raise CommandFailure(f"Error: Unsupported platform: {x}")
         self.poutput("Downloading Stockfish...")
         engine_archive, _ = urllib.request.urlretrieve(url)
         self.poutput("Download complete. Unpacking...")
@@ -333,11 +335,11 @@ class EngineCmds(Engine):
         await self.exec_cmd(f"engine config set hash {ram_use_MiB}")
         self.poutput("You can change these settings and more with the engine config command.")
 
-    def engine_quit(self, _args) -> None:
+    async def engine_quit(self, _args) -> None:
         if self.selected_engine is None:
             self.poutput("Error: No engine to quit.")
         else:
-            self.close_engine(self.selected_engine)
+            await self.close_engine(self.selected_engine)
             self.poutput(f"Quitted {self.selected_engine} without any problems.")
 
     def show_engine_option(self, engine: str, name: str) -> None:
@@ -394,7 +396,7 @@ class EngineCmds(Engine):
 
         self.poutput(show_str)
 
-    def engine_config(self, args) -> None:
+    async def engine_config(self, args) -> None:
         if not self.selected_engine:
             self.poutput("Error: No engine is loaded.")
             return
@@ -404,11 +406,11 @@ class EngineCmds(Engine):
             case "get":
                 self.engine_config_get(args)
             case "set":
-                self.engine_config_set(args)
+                await self.engine_config_set(args)
             case "unset":
-                self.engine_config_unset(args)
+                await self.engine_config_unset(args)
             case "trigger":
-                self.engine_config_trigger(args)
+                await self.engine_config_trigger(args)
             case _:
                 raise AssertionError("Invalid subcommand.")
 
@@ -473,7 +475,7 @@ class EngineCmds(Engine):
                 continue
             self.show_engine_option(engine, name)
 
-    def engine_config_set(self, args) -> None:
+    async def engine_config_set(self, args) -> None:
         engine: str = self.get_selected_engine()
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
         conf: EngineConf = self.engine_confs[engine]
@@ -521,9 +523,9 @@ class EngineCmds(Engine):
         if not args.temporary:
             conf.options[option.name] = value
             self.save_config()
-        self.set_engine_option(engine, option.name, value)
+        await self.set_engine_option(engine, option.name, value)
 
-    def engine_config_unset(self, args) -> None:
+    async def engine_config_unset(self, args) -> None:
         engine: str = self.get_selected_engine()
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
         opt_name: str = self.get_engine_opt_name(engine, args.name)
@@ -539,7 +541,7 @@ class EngineCmds(Engine):
                 f"Warning: {opt_name} has no default value so it's unchanged in the running engine."
             )
         else:
-            self.loaded_engines[engine].engine.configure({opt_name: default})
+            await self.loaded_engines[engine].engine.configure({opt_name: default})
             self.poutput(f"Successfully changed {opt_name} back to its default value: {default}.")
 
         if not args.temporary:
@@ -547,14 +549,14 @@ class EngineCmds(Engine):
             conf.options.pop(opt_name, None)
             self.save_config()
 
-    def engine_config_trigger(self, args) -> None:
+    async def engine_config_trigger(self, args) -> None:
         engine: str = self.get_selected_engine()
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
         opt_name: str = self.get_engine_opt_name(engine, args.name)
         if options[opt_name].type not in ["button", "reset", "save"]:
             self.poutput(f"Error: {opt_name} is not a button.")
             return
-        self.loaded_engines[engine].engine.configure({opt_name: None})
+        await self.loaded_engines[engine].engine.configure({opt_name: None})
 
     def engine_log(self, args) -> None:
         match args.log_subcmd:

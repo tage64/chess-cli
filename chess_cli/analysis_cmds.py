@@ -119,9 +119,9 @@ class AnalysisCmds(Analysis):
             )
             return
         if args.fixed:
-            self.start_analysis(engine, args.number_of_moves, args.limit)
+            await self.start_analysis(engine, args.number_of_moves, args.limit)
         else:
-            self.start_auto_analysis(engine, args.number_of_moves)
+            await self.start_auto_analysis(engine, args.number_of_moves)
         self.poutput(f"{engine} is now analysing.")
 
     def analysis_stop(self, args) -> None:
