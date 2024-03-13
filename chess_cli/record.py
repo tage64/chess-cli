@@ -68,6 +68,7 @@ class _StreamInfo:
     sample_rate: int  # The sample rate for the stream.
     _received_frames: int = 0  # Number of received frames.
     _last_frame_timestamp: float | None = None  # The time when the last frame was recorded.
+    stream: pyaudio.Stream | None = None
     # If the stream is paused, then this is the timestamp when the pause began, None otherwise.
     _is_paused_at: float | None = None
     # The total duration of all **completed** pauses since the last frame was received.
@@ -78,28 +79,20 @@ class _StreamInfo:
     def __init__(self, sample_rate: int) -> None:
         self.sample_rate = sample_rate
         self._lock = threading.Lock()
-        self._timestamp = time.perf_counter()
 
-    def set_time(self, timestamp: float) -> None:
-        """Call this as soon as the stream is started.
-
-        It will set self._last_frame_timestamp to this value and in case no buffer has
-        been received yet. It is important to call this before calling self.pause() or
-        self.elapsed_time().
-        """
+    def start(self, stream: pyaudio.Stream) -> None:
+        """Call this to start the stream."""
         with self._lock:
-            if self._last_frame_timestamp is None:
-                self._last_frame_timestamp = timestamp
+            self.stream = stream
+            assert self._last_frame_timestamp is None
+            self._last_frame_timestamp = stream.get_time()
+            stream.start_stream()
 
-    def buffer_received(self, frames: int, input_buffer_adc_time: float) -> None:
-        """A new buffer was received from portaudio.
-
-        frames is the number of frames in the buffer and input_buffer_adc_time is the
-        timestamp when the first sample was captured at the ADC input (as in portaudio's
-        PaStreamCallbackTimeInfo).
-        """
+    def buffer_received(self, frames: int) -> None:
+        """A new buffer was received from portaudio with `frames` frames."""
         with self._lock:
-            self._last_frame_timestamp = input_buffer_adc_time + frames / self.sample_rate
+            assert self.stream is not None
+            self._last_frame_timestamp = self.stream.get_time()
             self._received_frames += frames
             if self._is_paused_at is not None:
                 # A buffer was received after the pause began.
@@ -109,6 +102,8 @@ class _StreamInfo:
     def pause(self, current_timestamp: float) -> None:
         """Pause the stream."""
         with self._lock:
+            assert self.stream is not None
+            self.stream.stop_stream()
             assert self._last_frame_timestamp is not None
             assert self._is_paused_at is None
             assert current_timestamp >= self._last_frame_timestamp
@@ -117,6 +112,8 @@ class _StreamInfo:
     def resume(self, current_timestamp: float) -> None:
         """Resume a paused stream."""
         with self._lock:
+            assert self.stream is not None
+            self.stream.start_stream()
             assert self._is_paused_at is not None
             assert self._is_paused_at <= current_timestamp
             self._total_pause_duration += self._is_paused_at - current_timestamp
@@ -127,13 +124,15 @@ class _StreamInfo:
         with self._lock:
             return self._is_paused_at is not None
 
-    def elapsed_time(self, current_timestamp: float) -> float:
+    def elapsed_time(self) -> float:
         """Get an estimate of the elapsed time in the audio stream (excluding pauses).
 
         Note that although this is a good estimate, it may not be monotonically
         increasing.
         """
         with self._lock:
+            assert self.stream is not None
+            current_timestamp: float = self.stream.get_time()
             assert self._last_frame_timestamp is not None
             received_time: float = self._received_frames / self.sample_rate
             t: float = current_timestamp if self._is_paused_at is None else self._is_paused_at
@@ -153,6 +152,7 @@ class Recording:
     terminate: threading.Event
     boards: list[chess.Board]  # A list of the positions to show in the video.
     timestamps: list[float]  # Timestamps for all boards.
+    _is_stopped: bool = False  # Set to True after self.stop() is called.
     _is_cleaned: bool = False  # Set to true after self.cleanup() is called.
 
     def is_paused(self) -> bool:
@@ -161,17 +161,11 @@ class Recording:
 
     def pause(self) -> None:
         """Pause the recording."""
-        self.audio_stream.stop_stream()
         self.stream_info.pause(self.audio_stream.get_time())
 
     def resume(self) -> None:
         """Resume the recording."""
-        self.audio_stream.start_stream()
         self.stream_info.resume(self.audio_stream.get_time())
-
-    def elapsed_time(self) -> float:
-        """Get the number of seconds in this recording without pauses."""
-        return self.stream_info.elapsed_time(self.audio_stream.get_time())
 
     def set_board(self, board: chess.Board) -> None:
         """Set the current board in the video.
@@ -179,10 +173,13 @@ class Recording:
         Assumes that the recording is not paused.
         """
         assert not self.is_paused()
-        timestamp: float = self.elapsed_time()
+        timestamp: float = self.stream_info.elapsed_time()
         with self.stream_info._lock:
             print(f"Received: {self.stream_info._received_frames / self.stream_info.sample_rate}")
             print(f"Elapsed {timestamp}")
+            print(
+                f"Curr: {self.audio_stream.get_time()}, last: {self.stream_info._last_frame_timestamp}"
+            )
             print(f"Latency: {self.audio_stream.get_input_latency()}")
         if timestamp < self.timestamps[-1]:
             print(
@@ -199,6 +196,7 @@ class Recording:
 
         No pause/resumes can take place after this.
         """
+        assert not self._is_stopped
         self.terminate.set()
         # Wait for the audio stream to be closed.
         start_time: float = time.perf_counter()
@@ -230,6 +228,7 @@ class Recording:
             if (retcode := self.ffmpeg_process.returncode) != 0 or ERROR_REGEX.search(output):
                 print(f"ffmpeg seem to have failed, return code: {retcode}")
                 print(f"ffmpeg output: {output}")
+        self._is_stopped = True
 
     async def save(
         self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
@@ -265,8 +264,8 @@ class Recording:
                 ffmpeg_args: list[bytes | str] = [
                     *FFMPEG_EXE,
                     "-hide_banner",
-                    "-v",
-                    "error",
+                    # "-v",
+                    # "error",
                     "-i",
                     self.audio_file,
                     "-f",
@@ -291,28 +290,52 @@ class Recording:
                 ]
                 if override_output_file:
                     ffmpeg_args.append("-y")
-                proc = await asyncio.create_subprocess_exec(*ffmpeg_args)
-                await proc.wait()
+                proc: subprocess.Process | None = None
+                try:
+                    proc = await asyncio.create_subprocess_exec(*ffmpeg_args)
+                    await proc.wait()
+                finally:
+                    if proc is not None and proc.returncode is None:
+                        proc.kill()
             finally:
                 if no_cleanup:
                     print(f"Forgetting concat file: {concat_file_name}")
                 else:
-                    os.remove(concat_file_name)
+                    try:
+                        os.remove(concat_file_name)
+                    except (FileNotFoundError, PermissionError) as e:
+                        print(
+                            "Warning: Could not remove temporary concat file "
+                            f"{concat_file_name}: {e}"
+                        )
         finally:
             if no_cleanup:
                 print(f"Forgetting directory with PNG files: {png_dir}")
             else:
-                shutil.rmtree(png_dir)
+                try:
+                    shutil.rmtree(png_dir)
+                except (FileNotFoundError, PermissionError) as e:
+                    print(f"Warning: Could not remove temporary PNG files in {png_dir}: {e}")
 
     def cleanup(self, dry_run: bool = False) -> None:
         """Remove temporary files."""
+        self.terminate.set()
+        if self.ffmpeg_process.returncode is None:
+            self.ffmpeg_process.kill()
         if dry_run:
             print(f"Forgetting audio file: {self.audio_file}")
         else:
-            with suppress(FileNotFoundError):
+            try:
                 os.remove(self.audio_file)
-        with suppress(FileNotFoundError):
+            except (FileNotFoundError, PermissionError) as e:
+                print(f"Warning: Could not remove temporary audio file at {self.audio_file}: {e}")
+        try:
             os.remove(self.ffmpeg_output_file)
+        except (FileNotFoundError, PermissionError) as e:
+            print(
+                "Warning: Could not remove temporary file for logging ffmpeg's output "
+                f"at {self.ffmpeg_output_file}: {e}"
+            )
         self._is_cleaned = True
 
     def __del__(self) -> None:
@@ -374,7 +397,7 @@ class Record(Base):
         stream_info: _StreamInfo = _StreamInfo(sample_rate)
 
         def stream_callback(
-            in_data: bytes | None, frame_count: int, time_info: Mapping[str, float], _status_flags
+            in_data: bytes | None, frame_count: int, _, _status_flags
         ) -> tuple[None, int]:
             try:
                 assert in_data is not None
@@ -382,7 +405,7 @@ class Record(Base):
                     len(in_data) == frame_count * channels * SAMPLE_SIZE
                 ), f"frames={frame_count}, bytes={len(in_data)}, channels={channels}"
                 assert frame_count <= FRAMES_PER_BUFFER
-                stream_info.buffer_received(frame_count, time_info["input_buffer_adc_time"])
+                stream_info.buffer_received(frame_count)
                 if ffmpeg_stdin.is_closing():
                     action = pyaudio.paAbort
                     print("is closing")
@@ -410,8 +433,9 @@ class Record(Base):
             input_device_index=device_index,
             frames_per_buffer=FRAMES_PER_BUFFER,
             stream_callback=stream_callback,
+            start=False,
         )
-        stream_info.set_time(audio_stream.get_time())
+        stream_info.start(audio_stream)
         self.recording = Recording(
             ffmpeg_process,
             audio_file,

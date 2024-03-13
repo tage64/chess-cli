@@ -259,5 +259,5 @@ class GameUtils(Base):
                     elif i > 0:
                         self.game_node = parent.variations[i - 1]
                     else:
-                        self.game_node = parent
+                        self.game_node = parent  # type: ignore
                     parent.variations = parent.variations[:i] + parent.variations[i + 1 :]
