@@ -48,8 +48,14 @@ def _find_ffmpeg_exe() -> list[bytes] | None:
     """Try to find the ffmpeg executable by various means.
 
     Returns a list of arguments, E.G ["/usr/bin/ffmpeg"] or ["wsl", "ffmpeg"].
+
+    In addition to the normal PATH environment variable, we also search for a directory
+    named "ffmpeg" in the repo directory, that is as a sibling to the parent directory
+    of this source file.
     """
-    f = shutil.which(b"ffmpeg") or shutil.which(b"ffmpeg", path=PurePath(".") / "ffmpeg" / "bin")
+    f = shutil.which(b"ffmpeg") or shutil.which(
+        b"ffmpeg", path=Path(__file__).absolute().parent.parent / "ffmpeg" / "bin"
+    )
     if f is not None:
         return [f]
     return None
@@ -152,7 +158,6 @@ class Recording:
     terminate: threading.Event
     boards: list[chess.Board]  # A list of the positions to show in the video.
     timestamps: list[float]  # Timestamps for all boards.
-    _is_stopped: bool = False  # Set to True after self.stop() is called.
     _is_cleaned: bool = False  # Set to true after self.cleanup() is called.
 
     def is_paused(self) -> bool:
@@ -168,26 +173,20 @@ class Recording:
         self.stream_info.resume(self.audio_stream.get_time())
 
     def set_board(self, board: chess.Board) -> None:
-        """Set the current board in the video.
-
-        Assumes that the recording is not paused.
-        """
-        assert not self.is_paused()
+        """Set the current board in the video."""
+        if self.terminate.is_set():
+            return
         timestamp: float = self.stream_info.elapsed_time()
-        with self.stream_info._lock:
-            print(f"Received: {self.stream_info._received_frames / self.stream_info.sample_rate}")
-            print(f"Elapsed {timestamp}")
-            print(
-                f"Curr: {self.audio_stream.get_time()}, last: {self.stream_info._last_frame_timestamp}"
-            )
-            print(f"Latency: {self.audio_stream.get_input_latency()}")
         if timestamp < self.timestamps[-1]:
             print(
                 "Warning: Recording.set_board(): timestamps are not monotone: "
                 f"current timestamp: {timestamp}, previous timestamp: {self.timestamps[-1]}"
             )
             return
-        if board != self.boards[-1]:
+        if timestamp == self.timestamps[-1]:
+            self.boards.pop()
+            self.timestamps.pop()
+        elif not (self.boards and board == self.boards[-1]):
             self.boards.append(board)
             self.timestamps.append(timestamp)
 
@@ -196,7 +195,6 @@ class Recording:
 
         No pause/resumes can take place after this.
         """
-        assert not self._is_stopped
         self.terminate.set()
         # Wait for the audio stream to be closed.
         start_time: float = time.perf_counter()
@@ -209,6 +207,7 @@ class Recording:
         self.audio_stream.close()
         if was_active:
             # The pipe to ffmpeg was not closed so we have to kill ffmpeg.
+            print("Terminating FFMpeg.")
             self.ffmpeg_process.terminate()
             try:
                 await asyncio.wait_for(self.ffmpeg_process.wait(), PROCESS_TERMINATE_TIMEOUT)
@@ -228,7 +227,6 @@ class Recording:
             if (retcode := self.ffmpeg_process.returncode) != 0 or ERROR_REGEX.search(output):
                 print(f"ffmpeg seem to have failed, return code: {retcode}")
                 print(f"ffmpeg output: {output}")
-        self._is_stopped = True
 
     async def save(
         self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
@@ -264,8 +262,8 @@ class Recording:
                 ffmpeg_args: list[bytes | str] = [
                     *FFMPEG_EXE,
                     "-hide_banner",
-                    # "-v",
-                    # "error",
+                    "-v",
+                    "error",
                     "-i",
                     self.audio_file,
                     "-f",
@@ -408,13 +406,11 @@ class Record(Base):
                 stream_info.buffer_received(frame_count)
                 if ffmpeg_stdin.is_closing():
                     action = pyaudio.paAbort
-                    print("is closing")
                 else:
                     ffmpeg_stdin.write(in_data)
                     if terminate.is_set():
                         action = pyaudio.paComplete
                         ffmpeg_stdin.close()
-                        print("closing")
                     else:
                         action = pyaudio.paContinue
             except Exception as e:

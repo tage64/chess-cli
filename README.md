@@ -7,15 +7,17 @@ See [manual here][3].
 
 ## Prerequisites
 
-You need [Python 3.11 or later][1] and [Poetry][2].
+You need [Python 3.12 or later][1] and [Poetry][2].
 You can install the latter with:
 ```Bash
 $ pip install poetry
 ```
 
+You also need ffmpeg and portaudio installed.
+
 ### Running in Development Environment
 
-nstall the virtual environment with:
+Install the virtual environment with:
 ```Bash
 $ poetry install
 ```
@@ -34,16 +36,14 @@ $ poetry build
 $ pip install dist/*.whl
 ```
 
-### Building an Windows executable
+### Building a Windows executable
 
 Inside Powershell, run:
 ```
-$ windows_build.bat
+$ .\pyinstaller_windows.bat
 ```
 
-Answer yes on all queries. (It might take some time and consume alot of memory.)
-
-The resulting standalone executable is named "chess-cli.exe".
+The resulting (standalone) executable should be dist/chess-cli.exe.
 
 ## Usage
 
