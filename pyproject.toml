@@ -98,3 +98,4 @@ warn_unreachable = true
 [tool.pyright]
 include = ["chess_cli/"]
 reportWildcardImportFromLibrary = false
+reportIncompatibleMethodOverride = false  # Bug in pyright: Incorrectly classifies setting a setter as an error.

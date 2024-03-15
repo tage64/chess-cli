@@ -1,6 +1,7 @@
 import os
 from argparse import ArgumentParser
 from collections.abc import Iterable
+from typing import assert_never
 
 import chess
 import chess.pgn
@@ -8,6 +9,7 @@ import chess.pgn
 from .game_utils import GameUtils
 from .repl import argparse_command, command
 from .utils import MoveNumber
+from .base import CommandFailure
 
 
 class GameCmds(GameUtils):
@@ -380,3 +382,28 @@ class GameCmds(GameUtils):
         """Show all sidelines to this move."""
         if self.game_node.parent is not None:
             self.show_variations(self.game_node.parent)
+
+    setup_argparser = ArgumentParser()
+    pos_group = setup_argparser.add_mutually_exclusive_group(required=True)
+    pos_group.add_argument("fen", nargs="?", help="The position as a FEN string.")
+    pos_group.add_argument("-e", "--empty", action="store_true", help="Setup an empty board.")
+    pos_group.add_argument(
+        "-s", "--start", action="store_true", help="Setup the starting position."
+    )
+
+    @argparse_command(setup_argparser)
+    def do_setup(self, args) -> None:
+        """Setup a starting position."""
+        board: chess.Board
+        if args.fen:
+            try:
+                board = chess.Board(args.fen)
+            except ValueError as e:
+                raise CommandFailure(f"Bad FEN: {e}")
+        elif args.empty:
+            board = chess.Board.empty()
+        elif args.start:
+            board = chess.Board()
+        else:
+            assert_never(args)
+        self.set_position(board)

@@ -259,5 +259,10 @@ class GameUtils(Base):
                     elif i > 0:
                         self.game_node = parent.variations[i - 1]
                     else:
-                        self.game_node = parent  # type: ignore
+                        self.game_node = parent
                     parent.variations = parent.variations[:i] + parent.variations[i + 1 :]
+
+    def set_position(self, board: chess.Board) -> None:
+        """Delete the current game and set the starting position."""
+        self.game_node = self.game_node.game()
+        self.game_node.setup(board)
