@@ -183,8 +183,14 @@ def show_time(secs: float, decimals: int = 1) -> str:
     secs %= 60
     res = ""
     if hours != 0:
-        res += f"{hours} hours "
+        res += f"{hours} hour"
+        if hours != 1:
+            res += "s"
+        res += " and " if minutes == 0 else ", "
     if minutes != 0:
-        res += f"{minutes} minutes "
+        res += f"{minutes} minute"
+        if minutes != 1:
+            res += "s"
+        res += " and "
     res += f"{secs:.{decimals}f} seconds"
     return res
