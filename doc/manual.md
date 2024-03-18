@@ -69,7 +69,7 @@ Like "play --help" or "quit --help".
 
 ## All commands
 
-Now follows a structured discription of all commands in Chess-CLI.
+Here follows a structured discription of all commands in Chess-CLI.
 You should probably not read this from top to bottom, but rather skim through the sections and read what you find useful.
 
 Note that these explonations focus rather on examples and less on completeness.
@@ -159,6 +159,63 @@ start: load foo.pgn
 The "save" command saves the current game.
 If the current game is not loaded from a file and the game hasn't been saved before, a file name is required as argument.
 
+### Recording Chess Videos
+
+Chess-CLI has basic capabilities to record chess videos. Specifically, it can record audio and render the current chess board. So the resulting video will only contain your voice and the chess board, there is no functionality to film yourself at the moment.
+
+#### `record start`
+
+The `record start` command starts the recording of audio with your default microphone. There is no
+way to select microphone at the moment.
+
+Once the recording is started, the current chess board will be rendered in the video. So if you now
+make moves or move to another position in the game, the chess board in the video will be updated.
+For example:
+
+```
+start: record start
+Recording started successfully.
+<<Talk about the starting position>>
+<<Say that we should look at the Danish gambit>>
+start: play e4 e5 d4 exd4
+2... exd4:
+<<The position in the video is now updated>>
+<<We can go back to the move e5>>
+2... exd4: goto e5
+1... e5:
+<<The chess board in the video will now show the position after 1. e4 e5>>
+```
+
+If you are about to show a chess game or a complex analysis it might be advisable to prepair the
+game first and only move around in the game with the arrow keys or the `goto` command. Remember that
+you can use the shift-key plus any arrow key to quickly navigate in the game.
+
+#### `record pause` and `record resume`
+
+Pause/resume the recording:
+
+```
+1... e5: record pause
+Paused recording at 8.8 seconds
+<<You can say what you want, the recording is paused. >>
+1... e5: record resume
+Resumed recording at 8.8 seconds
+```
+
+#### `record delete`
+
+If you want to discard the recording you can use the `record delete` command.
+
+#### `record save`
+
+Save the recording with the `record save <FILE>.mp4` command. The file name **must** end with
+`.mp4`.
+
+```
+1... e5: record save danish_gambit.mp4
+Recording successfully saved to danish_gambit.mp4
+It was 3 minutes and 7.2 seconds long.
+```
 
 [1]: https://en.wikipedia.org/wiki/Command-line_interface
 [2]: https://en.wikipedia.org/wiki/Screen_reader
