@@ -8,7 +8,7 @@ import threading
 import time
 import traceback
 from asyncio import subprocess
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePath

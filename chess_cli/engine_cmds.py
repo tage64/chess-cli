@@ -420,8 +420,6 @@ class EngineCmds(Engine):
         Raises CommandFailure if not found.
         """
         options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
-        if name in options:
-            return name
         try:
             return next(name for name in options if name.lower() == name.lower())
         except StopIteration:

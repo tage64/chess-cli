@@ -5,17 +5,19 @@ import logging.handlers
 import queue
 import shutil
 from collections import deque
-from collections.abc import Mapping, Sequence
-from contextlib import suppress
+from collections.abc import AsyncGenerator, Mapping, Sequence
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import assert_never, override
 
 import chess.engine
+from prompt_toolkit.patch_stdout import StdoutProxy
 from pydantic import BaseModel
 
 from .base import Base, CommandFailure, InitArgs
 
-ENGINE_TIMEOUT: int = 120  # Timeout for engine related operations.
+ENGINE_TIMEOUT: int = 10  # Timeout for engine related operations.
+ENGINE_LONG_TIMEOUT: int = 120  # Timeout when opening engine.
 
 
 class EngineProtocol(enum.StrEnum):
@@ -70,9 +72,9 @@ class Engine(Base):
         ## Setup logging:
         self._engines_saved_log = deque()
         self._engines_log_queue = queue.SimpleQueue()
-        log_handler = logging.handlers.QueueHandler(self._engines_log_queue)
+        log_handler = logging.StreamHandler(StdoutProxy())
         log_handler.setLevel(logging.WARNING)
-        log_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        log_handler.setFormatter(logging.Formatter("%(message)s"))
         chess.engine.LOGGER.addHandler(log_handler)
 
     # Close engines when REPL is quit.
@@ -116,14 +118,30 @@ class Engine(Base):
         """Stop and quit an engine."""
         engine: LoadedEngine = self._loaded_engines.pop(name)
         self.engine_confs[engine.config_name].loaded_as.remove(name)
-        async with asyncio.timeout(ENGINE_TIMEOUT):
-            await engine.engine.quit()
-        if self.selected_engine == engine:
+        if self.selected_engine == name:
             try:
                 self.select_engine(next(iter(self.loaded_engines)))
             except StopIteration:
                 self._selected_engine = None
-        self._selected_engine = None
+        async with self.engine_timeout(name, close=False, context="close_engine()"):
+            await engine.engine.quit()
+
+    @asynccontextmanager
+    async def engine_timeout(
+        self, engine: str, long: bool = False, close: bool = True, context: str | None = None
+    ) -> AsyncGenerator[None, None]:
+        timeout = ENGINE_TIMEOUT if not long else ENGINE_LONG_TIMEOUT
+        try:
+            async with asyncio.timeout(timeout):
+                yield
+        except (TimeoutError, chess.engine.EngineError, chess.engine.EngineTerminatedError) as e:
+            if close:
+                await self.close_engine(engine)
+            raise CommandFailure(
+                f"Engine {engine} crashed"
+                + (" in {context}" if context is not None else "")
+                + f": {e}"
+            ) from e
 
     def get_engines_log(self) -> Sequence[str]:
         """Get log messages from all engines."""
@@ -272,7 +290,7 @@ class Engine(Base):
                 )
         else:
             raise AssertionError(f"Unsupported option type: {option.type}")
-        async with asyncio.timeout(ENGINE_TIMEOUT):
+        async with self.engine_timeout(engine):
             await self.loaded_engines[engine].engine.configure({option.name: value})
 
     async def load_engine(self, config_name: str, name: str) -> None:
@@ -283,7 +301,7 @@ class Engine(Base):
         engine_conf: EngineConf = self.engine_confs[config_name]
         engine: chess.engine.Protocol
         try:
-            async with asyncio.timeout(ENGINE_TIMEOUT):
+            async with self.engine_timeout(name, long=True, close=False):
                 match engine_conf.protocol:
                     case EngineProtocol.UCI:
                         _, engine = await chess.engine.popen_uci(engine_conf.path)
@@ -291,19 +309,12 @@ class Engine(Base):
                         _, engine = await chess.engine.popen_xboard(engine_conf.path)
                     case x:
                         assert_never(x)
-        except chess.engine.EngineError as e:
-            self.poutput(
-                f"Engine Terminated Error: The engine {engine_conf.path} didn't behaved as it"
-                " should. Either it is broken, or this program containes a bug. It might also be"
-                " that you've specified wrong path to the engine executable."
-            )
-            raise e
         except FileNotFoundError as e:
-            self.poutput(f"Error: Couldn't find the engine executable {engine_conf.path}: {e}")
-            raise e
+            raise CommandFailure(
+                f"Error: Couldn't find the engine executable {engine_conf.path}: {e}"
+            ) from e
         except OSError as e:
-            self.poutput(f"Error: While loading engine executable {engine_conf.path}: {e}")
-            raise e
+            raise CommandFailure(f"While loading engine executable {engine_conf.path}: {e}") from e
         self._loaded_engines[name] = LoadedEngine(config_name, engine)
         engine_conf.fullname = engine.id.get("name")
         engine_conf.loaded_as.add(name)

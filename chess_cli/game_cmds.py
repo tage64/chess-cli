@@ -6,10 +6,10 @@ from typing import assert_never
 import chess
 import chess.pgn
 
+from .base import CommandFailure
 from .game_utils import GameUtils
 from .repl import argparse_command, command
 from .utils import MoveNumber
-from .base import CommandFailure
 
 
 class GameCmds(GameUtils):
@@ -399,7 +399,7 @@ class GameCmds(GameUtils):
             try:
                 board = chess.Board(args.fen)
             except ValueError as e:
-                raise CommandFailure(f"Bad FEN: {e}")
+                raise CommandFailure(f"Bad FEN: {e}") from None
         elif args.empty:
             board = chess.Board.empty()
         elif args.start:

@@ -260,6 +260,8 @@ class ReplBase:
                 self.perror(f"Error: {e}")
             except _CommandException as ex:
                 traceback.print_exception(ex.inner_exc)
+            except asyncio.exceptions.CancelledError:
+                self.perror("CancelledException thrown!")
 
 
 def command[T: ReplBase](

@@ -1,4 +1,3 @@
-import asyncio
 from collections import defaultdict
 from collections.abc import Mapping
 from contextlib import suppress
@@ -9,8 +8,8 @@ import chess
 import chess.engine
 import chess.pgn
 
-from .base import CommandFailure, InitArgs
-from .engine import ENGINE_TIMEOUT, Engine
+from .base import InitArgs
+from .engine import Engine
 
 
 @dataclass
@@ -68,36 +67,34 @@ class Analysis(Engine):
     ) -> None:
         if engine in self._running_analyses:
             return
-        try:
-            async with asyncio.timeout(ENGINE_TIMEOUT):
-                analysis: AnalysisInfo = AnalysisInfo(
-                    result=await self.loaded_engines[engine].engine.analysis(
-                        self.game_node.board(), limit=limit, multipv=number_of_moves, game="this"
-                    ),
-                    engine=engine,
-                    board=self.game_node.board(),
-                    san=(
-                        self.game_node.san()
-                        if isinstance(self.game_node, chess.pgn.ChildNode)
-                        else None
-                    ),
-                )
-        except TimeoutError:
-            raise chess.engine.EngineError(f"Timeout")
+        async with self.engine_timeout(engine, long=True):
+            analysis: AnalysisInfo = AnalysisInfo(
+                result=await self.loaded_engines[engine].engine.analysis(
+                    self.game_node.board(), limit=limit, multipv=number_of_moves, game="this"
+                ),
+                engine=engine,
+                board=self.game_node.board(),
+                san=(
+                    self.game_node.san()
+                    if isinstance(self.game_node, chess.pgn.ChildNode)
+                    else None
+                ),
+            )
         self._analyses.add(analysis)
         self._running_analyses[engine] = analysis
         self._analysis_by_node[self.game_node][engine] = analysis
 
-    def stop_analysis(self, engine: str) -> None:
-        self._running_analyses[engine].result.stop()
-        del self._running_analyses[engine]
+    def stop_analysis(self, engine: str, remove_auto: bool = True) -> None:
         with suppress(KeyError):
-            self._auto_analysis_engines.remove(engine)
+            self._running_analyses[engine].result.stop()
+            del self._running_analyses[engine]
+        if remove_auto:
+            with suppress(KeyError):
+                self._auto_analysis_engines.remove(engine)
 
     @override
     async def close_engine(self, name: str) -> None:
-        if name in self.running_analyses:
-            self.stop_analysis(name)
+        self.stop_analysis(name)
         await super().close_engine(name)
 
     async def update_auto_analysis(self) -> None:
@@ -106,12 +103,8 @@ class Analysis(Engine):
                 engine in self._running_analyses
                 and self._running_analyses[engine].board != self.game_node.board()
             ):
-                self.stop_analysis(engine)
-            try:
-                await self.start_analysis(engine, self._auto_analysis_number_of_moves)
-            except chess.engine.EngineError as e:
-                self._auto_analysis_engines.remove(engine)
-                raise CommandFailure(f"Engine {engine} terminated unexpectedly: {e}")
+                self.stop_analysis(engine, remove_auto=False)
+            await self.start_analysis(engine, self._auto_analysis_number_of_moves)
 
     async def start_auto_analysis(self, engine: str, number_of_moves: int) -> None:
         """Start auto analysis on the current position."""

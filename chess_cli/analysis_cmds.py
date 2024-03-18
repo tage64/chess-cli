@@ -104,10 +104,10 @@ class AnalysisCmds(Analysis):
     async def analysis_start(self, args) -> None:
         engine: str = self.get_selected_engine()
         if engine in self.analysis_by_node[self.game_node]:
-            answer: bool = yes_no_dialog(
+            answer: bool = await yes_no_dialog(
                 title=f"Error: There's allready an analysis made by {engine} at this move.",
                 text="Do you want to remove it and restart the analysis?",
-            ).run()
+            ).run_async()
             if answer:
                 await self.exec_cmd("analysis rm")
             else:
