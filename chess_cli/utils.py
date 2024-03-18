@@ -1,3 +1,4 @@
+import math
 import re
 from typing import NamedTuple
 
@@ -32,8 +33,7 @@ def comment_text(raw_comment: str) -> str:
 
 def update_comment_text(original_comment: str, new_text: str) -> str:
     """Return a new comment with the same embedded commands but with the text
-    replaced.
-    """
+    replaced."""
     return f"{commands_in_comment(original_comment)}\n{new_text}"
 
 
@@ -67,9 +67,8 @@ class MoveNumber(NamedTuple):
     def parse(move_text: str):
         """Parse a chess move number like "3." or "5...".
 
-        Plain numbers without any dots at the end will be parsed as if
-        it was white who moved. Will raise ValueError if the parsing
-        failes.
+        Plain numbers without any dots at the end will be parsed as if it was white who
+        moved. Will raise ValueError if the parsing failes.
         """
         match = MOVE_NUMBER_REGEX.fullmatch(move_text)
         if match is None:
@@ -174,3 +173,18 @@ def score_str(score: Score) -> str:
     if cp > 0:
         return f"+{cp / 100} pawns"
     return f"{cp / 100} pawns"
+
+
+def show_time(secs: float, decimals: int = 1) -> str:
+    """Make a human friendly string representation of a timestamp."""
+    hours: int = math.floor(secs / 3600)
+    secs %= 3600
+    minutes: int = math.floor(secs / 60)
+    secs %= 60
+    res = ""
+    if hours != 0:
+        res += f"{hours} hours "
+    if minutes != 0:
+        res += f"{minutes} minutes "
+    res += f"{secs:.{decimals}f} seconds"
+    return res

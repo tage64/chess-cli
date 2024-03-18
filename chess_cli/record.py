@@ -30,7 +30,8 @@ AUDIO_BITRATE: str = "48k"
 # For reference on ffmpeg filters, see: <https://ffmpeg.org/ffmpeg-filters.html>.
 AUDIO_FILTER: str = (
     "afftdn=noise_reduction=40:noise_floor=-70:track_noise=true,"
-    "dynaudnorm=gausssize=21:correctdc=1:maxgain=4:altboundary=true"
+    "dynaudnorm=gausssize=21:correctdc=1:maxgain=4:altboundary=true,"
+    "volume=2.5"
 )
 VIDEO_INPUT_OPTS: list[str] = ["-width", "400", "-height", "400"]
 BOARD_PIXELS: int = 400
@@ -94,31 +95,44 @@ class _StreamInfo:
             self._last_frame_timestamp = stream.get_time()
             stream.start_stream()
 
-    def buffer_received(self, frames: int) -> None:
-        """A new buffer was received from portaudio with `frames` frames."""
+    def buffer_received(self, frames: int) -> bool:
+        """A new buffer was received from portaudio with `frames` frames.
+
+        Returns True if the buffer should be sent to ffmpeg and False if the recording
+        is paused.
+        """
         with self._lock:
             assert self.stream is not None
-            self._last_frame_timestamp = self.stream.get_time()
+            timestamp: float = self.stream.get_time()
+            if (
+                self._is_paused_at is not None
+                and timestamp > self._is_paused_at + self.stream.get_input_latency()
+            ):
+                return False
+            self._last_frame_timestamp = timestamp
             self._received_frames += frames
             if self._is_paused_at is not None:
                 # A buffer was received after the pause began.
-                self._is_paused_at = max(self._is_paused_at, self._last_frame_timestamp)
+                self._is_paused_at = timestamp
             self._total_pause_duration = 0.0
+        return True
 
-    def pause(self, current_timestamp: float) -> None:
+    def pause(self) -> None:
         """Pause the stream."""
+        assert self.stream is not None
+        self.stream.stop_stream()
         with self._lock:
-            assert self.stream is not None
-            self.stream.stop_stream()
+            current_timestamp = self.stream.get_time()
             assert self._last_frame_timestamp is not None
             assert self._is_paused_at is None
             assert current_timestamp >= self._last_frame_timestamp
             self._is_paused_at = current_timestamp
 
-    def resume(self, current_timestamp: float) -> None:
+    def resume(self) -> None:
         """Resume a paused stream."""
         with self._lock:
             assert self.stream is not None
+            current_timestamp = self.stream.get_time()
             self.stream.start_stream()
             assert self._is_paused_at is not None
             assert self._is_paused_at <= current_timestamp
@@ -166,11 +180,11 @@ class Recording:
 
     def pause(self) -> None:
         """Pause the recording."""
-        self.stream_info.pause(self.audio_stream.get_time())
+        self.stream_info.pause()
 
     def resume(self) -> None:
         """Resume the recording."""
-        self.stream_info.resume(self.audio_stream.get_time())
+        self.stream_info.resume()
 
     def set_board(self, board: chess.Board) -> None:
         """Set the current board in the video."""
@@ -190,10 +204,11 @@ class Recording:
             self.boards.append(board)
             self.timestamps.append(timestamp)
 
-    async def stop(self) -> None:
+    async def stop(self) -> float:
         """Stop the recording.
 
-        No pause/resumes can take place after this.
+        No pause/resumes can take place after this. Returns the length of the recording
+        in seconds.
         """
         self.terminate.set()
         # Wait for the audio stream to be closed.
@@ -226,7 +241,9 @@ class Recording:
                 output: str = f.read()
             if (retcode := self.ffmpeg_process.returncode) != 0 or ERROR_REGEX.search(output):
                 print(f"ffmpeg seem to have failed, return code: {retcode}")
-                print(f"ffmpeg output: {output}")
+                if output:
+                    print(f"ffmpeg output: {output}")
+        return self.stream_info._received_frames / self.stream_info.sample_rate
 
     async def save(
         self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
@@ -403,11 +420,12 @@ class Record(Base):
                     len(in_data) == frame_count * channels * SAMPLE_SIZE
                 ), f"frames={frame_count}, bytes={len(in_data)}, channels={channels}"
                 assert frame_count <= FRAMES_PER_BUFFER
-                stream_info.buffer_received(frame_count)
+                paused = not stream_info.buffer_received(frame_count)
                 if ffmpeg_stdin.is_closing():
                     action = pyaudio.paAbort
                 else:
-                    ffmpeg_stdin.write(in_data)
+                    if not paused:
+                        ffmpeg_stdin.write(in_data)
                     if terminate.is_set():
                         action = pyaudio.paComplete
                         ffmpeg_stdin.close()
@@ -451,9 +469,13 @@ class Record(Base):
 
     async def save_recording(
         self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
-    ) -> None:
+    ) -> float:
+        """Stop and save the recording.
+
+        Returns the length of the recording in seconds.
+        """
         assert self.recording is not None
-        await self.recording.stop()
+        duration = await self.recording.stop()
         await self.recording.save(
             output_file=output_file.with_suffix(".mp4"),
             override_output_file=override_output_file,
@@ -461,6 +483,7 @@ class Record(Base):
         )
         self.recording.cleanup(dry_run=no_cleanup)
         self.recording = None
+        return duration
 
     async def delete_recording(self) -> None:
         assert self.recording is not None

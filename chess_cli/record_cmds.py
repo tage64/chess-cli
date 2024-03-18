@@ -1,8 +1,10 @@
 from argparse import ArgumentParser
 from pathlib import PurePath
+from typing import assert_never
 
 from .record import Record
 from .repl import CommandFailure, argparse_command
+from .utils import show_time
 
 
 class RecordCmds(Record):
@@ -47,6 +49,7 @@ class RecordCmds(Record):
                         " delete it with 'record delete'."
                     )
                 await self.start_recording()
+                print("Recording successfully started.")
             case "pause" | "p" | "stop":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
@@ -54,24 +57,31 @@ class RecordCmds(Record):
                     self.perror("The recording is already paused.")
                 else:
                     self.recording.pause()
+                    time: float = self.recording.stream_info.elapsed_time()
+                    print(f"Paused recording at {show_time(time)}")
             case "resume" | "r":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
                 if not self.recording.is_paused():
                     self.perror("The recording is not paused.")
                 else:
+                    time: float = self.recording.stream_info.elapsed_time()
                     self.recording.resume()
+                    print(f"Resumed recording at {show_time(time)}")
             case "save":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
-                await self.save_recording(
+                duration: float = await self.save_recording(
                     output_file=args.output_file,
                     override_output_file=args.override,
                     no_cleanup=args.no_cleanup,
                 )
+                print(f"Recording successfully saved to {args.output_file}")
+                print(f"It was {show_time(duration)} long.")
             case "delete":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
                 await self.delete_recording()
-            case _:
-                raise AssertionError("Unsupported subcommand.")
+                print("Recording deleted.")
+            case x:
+                assert_never(x)
