@@ -1,4 +1,6 @@
+import argparse
 import os
+import textwrap
 from argparse import ArgumentParser
 from collections.abc import Iterable
 from typing import assert_never
@@ -9,7 +11,7 @@ import chess.pgn
 from .base import CommandFailure
 from .game_utils import GameUtils
 from .repl import argparse_command, command
-from .utils import MoveNumber
+from .utils import MoveNumber, piece_name
 
 
 class GameCmds(GameUtils):
@@ -385,7 +387,7 @@ class GameCmds(GameUtils):
 
     setup_argparser = ArgumentParser()
     pos_group = setup_argparser.add_mutually_exclusive_group(required=True)
-    pos_group.add_argument("fen", nargs="?", help="The position as a FEN string.")
+    pos_group.add_argument("fen", nargs="?", help="The position as an FEN string.")
     pos_group.add_argument("-e", "--empty", action="store_true", help="Setup an empty board.")
     pos_group.add_argument(
         "-s", "--start", action="store_true", help="Setup the starting position."
@@ -407,3 +409,126 @@ class GameCmds(GameUtils):
         else:
             assert_never(args)
         self.set_position(board)
+
+    clear_argparser = ArgumentParser()
+    clear_argparser.add_argument("square", type=chess.parse_square, help="The square to clear.")
+
+    @argparse_command(clear_argparser)
+    def do_clear(self, args) -> None:
+        """Clear a square on the chess board."""
+        square_name: str = chess.square_name(args.square)
+        board: chess.Board = self.game_node.board().copy()
+        removed: chess.Piece | None = board.remove_piece_at(args.square)
+        if removed is None:
+            print(f"There is no piece at {square_name}")
+            return
+        print(f"Removed {piece_name(removed)} at {square_name}")
+        if self.game_node.parent is not None:
+            print("Setting this as the starting position of the game.")
+        self.set_position(board)
+
+    put_argparser = ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.fill(
+            "The piece-squares identifier begins with a letter for the piece type "
+            "like K for white king or q for black queen. A capital letter means a white "
+            "piece and vice versa. "
+            "Then follows a comma seperated list of squares like e4 or a7,b7,c6. "
+            "So to put a white king on e4, a black king on e6 and white pawns on e2 and e3, "
+            "you can type:"
+        )
+        + "\n    put Ke4 ke6 Pe2,e3",
+    )
+    put_argparser.add_argument(
+        "piece_squares",
+        nargs="+",
+        help="A piece-squares identifier like Kg1 for white king at g1, "
+        "or ra8,e8 for black rooks at a8 and e8.",
+    )
+
+    @argparse_command(put_argparser)
+    def do_put(self, args) -> None:
+        """Put pieces on the chess board."""
+        board: chess.Board = self.game_node.board().copy()
+        for piece_squares in args.piece_squares:
+            try:
+                piece: chess.Piece = chess.Piece.from_symbol(piece_squares[0])
+                squares: list[chess.Square] = [
+                    chess.parse_square(s) for s in piece_squares[1:].split(",")
+                ]
+            except (IndexError, ValueError) as e:
+                raise CommandFailure(f"Bad piece-squares expression: {piece_squares}") from e
+            for square in squares:
+                if (p := board.piece_at(square)) is not None:
+                    print(f"Replacing {piece_name(p)} at {chess.square_name(square)}")
+                board.set_piece_at(square, piece)
+        self.set_position(board)
+
+    turn_argparser = ArgumentParser()
+    turn_argparser.add_argument(
+        "set_color",
+        choices=["white", "black"],
+        nargs="?",
+        help="Set the turn to play. " "Note that this will reset the current game.",
+    )
+
+    @argparse_command(turn_argparser)
+    def do_turn(self, args) -> None:
+        """Get or set the turn to play."""
+        if args.set_color is None:
+            print("white" if self.game_node.turn() == chess.WHITE else "black")
+            return
+        board: chess.Board = self.game_node.board().copy()
+        color: chess.Color = chess.WHITE if args.set_color == "white" else chess.BLACK
+        if board.turn == color:
+            print(f"It is already {args.set_color} to play.")
+            return
+        board.turn = color
+        self.set_position(board)
+        print(f"It is now {args.set_color} to play.")
+
+    castling_argparser = ArgumentParser(
+        epilog="For example: You can get the current castling rights by entering "
+        "'castling' with no arguments. To set white to be able to castle kingside "
+        "and black to castle queenside, enter 'castling Kq'. To clear all castling rights "
+        "simply type 'castling clear'."
+    )
+    castling_argparser.add_argument(
+        "set_rights",
+        nargs="?",
+        help="Set castling rights by a short string which is either 'clear' "
+        "or a combination of the letters 'K', 'k', 'Q' or 'q' "
+        "where each letter denotes king- or queenside castling for white or black respectively.",
+    )
+
+    @argparse_command(castling_argparser)
+    def do_castling(self, args) -> None:
+        """Get or set castling rights."""
+        board: chess.Board = self.game_node.board().copy()
+        if args.set_rights is not None:
+            if args.set_rights == "clear":
+                args.set_rights = ""
+            try:
+                board.set_castling_fen(args.set_rights)
+            except ValueError as e:
+                raise CommandFailure(str(e)) from e
+            self.set_position(board)
+
+        def castling_descr(color: chess.Color) -> str:
+            if board.has_kingside_castling_rights(color):
+                if board.has_queenside_castling_rights(color):
+                    return "can castle on both sides"
+                return "can castle kingside"
+            if board.has_queenside_castling_rights(color):
+                return "can castle queenside"
+            return "is not allowed to castle"
+
+        white_descr = castling_descr(chess.WHITE)
+        black_descr = castling_descr(chess.BLACK)
+        if white_descr == black_descr:
+            if white_descr == "is not allowed to castle":
+                print("Neither white nor black is allowed to castle.")
+            else:
+                print(f"White and black {white_descr}")
+        else:
+            print(f"White {white_descr} and black {black_descr}.")

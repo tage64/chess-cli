@@ -266,3 +266,4 @@ class GameUtils(Base):
         """Delete the current game and set the starting position."""
         self.game_node = self.game_node.game()
         self.game_node.setup(board)
+        self.game_node.variations = []

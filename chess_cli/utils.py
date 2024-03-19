@@ -194,3 +194,10 @@ def show_time(secs: float, decimals: int = 1) -> str:
         res += " and "
     res += f"{secs:.{decimals}f} seconds"
     return res
+
+
+def piece_name(piece: chess.Piece) -> str:
+    """Return a full name (like "white king" or "black pawn") for a piece."""
+    color_name: str = "white" if piece.color == chess.WHITE else "black"
+    piece_name: str = chess.piece_name(piece.piece_type)
+    return f"{color_name} {piece_name}"
