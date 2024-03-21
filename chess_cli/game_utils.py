@@ -6,6 +6,7 @@ import chess.pgn
 import more_itertools
 
 from .base import Base
+from .repl import CmdLoopContinue, CommandFailure
 from .utils import MOVE_NUMBER_REGEX, MoveNumber, move_str
 
 
@@ -116,12 +117,12 @@ class GameUtils(Base):
         recurse_sidelines: bool,
         show_comments: bool,
     ) -> Iterable[str]:
-        """Given a start and end node in this game, which must be connected,
-        yield lines printing all moves between them (including endpoints).
+        """Given a start and end node in this game, which must be connected, yield lines
+        printing all moves between them (including endpoints).
 
-        There are also options to toggle visibility of comments, show a
-        short list of the sidelines at each move with sidelines, or even
-        recurse and show the endire sidelines.
+        There are also options to toggle visibility of comments, show a short list of
+        the sidelines at each move with sidelines, or even recurse and show the endire
+        sidelines.
         """
         # Create a list of all moves that should be displayed following the
         # main line (I.E not recursing into sidelines).
@@ -154,9 +155,8 @@ class GameUtils(Base):
         show_comments: bool,
         include_sidelines_at_first_move: bool = True,
     ) -> Iterable[str]:
-        """Same as display_game_segment(), but this function takes an iterable
-        of moves instead of a starting and ending game node.
-        """
+        """Same as display_game_segment(), but this function takes an iterable of moves
+        instead of a starting and ending game node."""
         moves_per_line: int = 6
         current_line: str = ""
         moves_at_current_line: int = 0
@@ -262,8 +262,18 @@ class GameUtils(Base):
                         self.game_node = parent
                     parent.variations = parent.variations[:i] + parent.variations[i + 1 :]
 
-    def set_position(self, board: chess.Board) -> None:
+    async def set_position(self, board: chess.Board) -> None:
         """Delete the current game and set the starting position."""
+        board.fullmove_number = 1
+        if not board.is_valid():
+            raise CommandFailure("The position will become invalid.")
+        if self.game_node.parent is not None:
+            ans: bool = await self.yes_no_dialog(
+                "Changing the position will delete the entire game "
+                "and set the new position as start. Do you want to continue?"
+            )
+            if not ans:
+                raise CmdLoopContinue()
         self.game_node = self.game_node.game()
-        self.game_node.setup(board)
         self.game_node.variations = []
+        self.game_node.setup(board)

@@ -108,7 +108,8 @@ class CmdLoopContinue(ReplException):
 
 @dataclass
 class _CommandException(Exception):
-    """Wrapper class for exceptions thrown from key binding handlers or command functions."""
+    """Wrapper class for exceptions thrown from key binding handlers or command
+    functions."""
 
     inner_exc: Exception
 
@@ -264,6 +265,17 @@ class ReplBase:
                 self.perror("CancelledException thrown!")
 
 
+def _get_cmd_name(func: Callable) -> str:
+    """Given a method like do_foo_bar(), return the kebab-cased command name like foo-
+    bar."""
+    assert func.__name__.startswith(CMD_FUNC_PREFIX), (
+        f"The name of a command function must start with {CMD_FUNC_PREFIX}, which is not the"
+        f" case with {func.__qualname__}."
+    )
+    name: str = func.__name__[len(CMD_FUNC_PREFIX) :]
+    return name.replace("_", "-")
+
+
 def command[T: ReplBase](
     name: str | None = None,
     aliases: list[str] | None = None,
@@ -280,11 +292,7 @@ def command[T: ReplBase](
             summary = summary_match.group("summary").strip() if summary_match is not None else None
         if long_help is None:
             long_help = func.__doc__.strip() if func.__doc__ else None
-        assert func.__name__.startswith(CMD_FUNC_PREFIX), (
-            f"The name of a command function must start with {CMD_FUNC_PREFIX}, which is not the"
-            f" case with {func.__qualname__}."
-        )
-        name: str = func.__name__[len(CMD_FUNC_PREFIX) :]
+        name: str = _get_cmd_name(func)
         if asyncio.iscoroutinefunction(func):
             cmd: Command[T] = Command(
                 name=name, aliases=aliases or [], func=func, summary=summary, long_help=long_help
@@ -315,8 +323,7 @@ def argparse_command[T: ReplBase](
     argparser."""
 
     def decorator(func: ArgparseCmdFunc[T]) -> Command[T]:
-        if not argparser.prog:
-            argparser.prog = func.__name__
+        argparser.prog = _get_cmd_name(func)
         if not argparser.description:
             argparser.description = func.__doc__
 
@@ -362,8 +369,8 @@ def key_binding[T: ReplBase](
             summary_match = DOC_STRING_REGEX.match(func.__doc__)
             summary = summary_match.group("summary").strip() if summary_match is not None else None
         assert func.__name__.startswith(KEY_BINDING_FUNC_PREFIX), (
-            f"The name of a key binding function must start with {CMD_FUNC_PREFIX}, which is not"
-            f" the case with {func.__qualname__}."
+            f"The name of a key binding function must start with {KEY_BINDING_FUNC_PREFIX}, "
+            f"which is not the case with {func.__qualname__}."
         )
         kb: KeyBinding[T] = KeyBinding(
             keys=keys__, ptk_kwargs=ptk_kwargs, func=func, summary=summary
@@ -376,6 +383,18 @@ def key_binding[T: ReplBase](
 
 class Repl(ReplBase):
     """Base class for a REPL with helpful commands like help or quit."""
+
+    async def yes_no_dialog(self, question: str) -> bool:
+        """Show a yes/no dialog to the user and return True iff the answer was yes."""
+        while True:
+            ans: str = await self.prompt_session.prompt_async(f"{question} [Yes/no]: ")
+            match ans.lower():
+                case "y" | "yes":
+                    return True
+                case "n" | "no":
+                    return False
+                case _:
+                    print("Error: Please answer yes or no.")
 
     @command(aliases=["q", "exit"])
     def do_quit(self, _) -> None:

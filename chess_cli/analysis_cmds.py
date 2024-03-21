@@ -4,7 +4,6 @@ from collections.abc import Iterable
 import chess
 import chess.engine
 import chess.pgn
-from prompt_toolkit.shortcuts import yes_no_dialog
 
 from .analysis import Analysis, AnalysisInfo
 from .repl import argparse_command
@@ -104,10 +103,10 @@ class AnalysisCmds(Analysis):
     async def analysis_start(self, args) -> None:
         engine: str = self.get_selected_engine()
         if engine in self.analysis_by_node[self.game_node]:
-            answer: bool = await yes_no_dialog(
-                title=f"Error: There's allready an analysis made by {engine} at this move.",
-                text="Do you want to remove it and restart the analysis?",
-            ).run_async()
+            answer: bool = await self.yes_no_dialog(
+                f"Error: There's allready an analysis made by {engine} at this move.\n"
+                "Do you want to remove it and restart the analysis?"
+            )
             if answer:
                 await self.exec_cmd("analysis rm")
             else:

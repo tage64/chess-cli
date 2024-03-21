@@ -394,7 +394,7 @@ class GameCmds(GameUtils):
     )
 
     @argparse_command(setup_argparser)
-    def do_setup(self, args) -> None:
+    async def do_setup(self, args) -> None:
         """Setup a starting position."""
         board: chess.Board
         if args.fen:
@@ -408,16 +408,16 @@ class GameCmds(GameUtils):
             board = chess.Board()
         else:
             assert_never(args)
-        self.set_position(board)
+        await self.set_position(board)
 
     clear_argparser = ArgumentParser()
     clear_argparser.add_argument("square", type=chess.parse_square, help="The square to clear.")
 
     @argparse_command(clear_argparser)
-    def do_clear(self, args) -> None:
+    async def do_clear(self, args) -> None:
         """Clear a square on the chess board."""
         square_name: str = chess.square_name(args.square)
-        board: chess.Board = self.game_node.board().copy()
+        board: chess.Board = self.game_node.board()
         removed: chess.Piece | None = board.remove_piece_at(args.square)
         if removed is None:
             print(f"There is no piece at {square_name}")
@@ -425,7 +425,7 @@ class GameCmds(GameUtils):
         print(f"Removed {piece_name(removed)} at {square_name}")
         if self.game_node.parent is not None:
             print("Setting this as the starting position of the game.")
-        self.set_position(board)
+        await self.set_position(board)
 
     put_argparser = ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -447,9 +447,9 @@ class GameCmds(GameUtils):
     )
 
     @argparse_command(put_argparser)
-    def do_put(self, args) -> None:
+    async def do_put(self, args) -> None:
         """Put pieces on the chess board."""
-        board: chess.Board = self.game_node.board().copy()
+        board: chess.Board = self.game_node.board()
         for piece_squares in args.piece_squares:
             try:
                 piece: chess.Piece = chess.Piece.from_symbol(piece_squares[0])
@@ -462,7 +462,7 @@ class GameCmds(GameUtils):
                 if (p := board.piece_at(square)) is not None:
                     print(f"Replacing {piece_name(p)} at {chess.square_name(square)}")
                 board.set_piece_at(square, piece)
-        self.set_position(board)
+        await self.set_position(board)
 
     turn_argparser = ArgumentParser()
     turn_argparser.add_argument(
@@ -473,18 +473,18 @@ class GameCmds(GameUtils):
     )
 
     @argparse_command(turn_argparser)
-    def do_turn(self, args) -> None:
+    async def do_turn(self, args) -> None:
         """Get or set the turn to play."""
         if args.set_color is None:
             print("white" if self.game_node.turn() == chess.WHITE else "black")
             return
-        board: chess.Board = self.game_node.board().copy()
+        board: chess.Board = self.game_node.board()
         color: chess.Color = chess.WHITE if args.set_color == "white" else chess.BLACK
         if board.turn == color:
             print(f"It is already {args.set_color} to play.")
             return
         board.turn = color
-        self.set_position(board)
+        await self.set_position(board)
         print(f"It is now {args.set_color} to play.")
 
     castling_argparser = ArgumentParser(
@@ -502,9 +502,9 @@ class GameCmds(GameUtils):
     )
 
     @argparse_command(castling_argparser)
-    def do_castling(self, args) -> None:
+    async def do_castling(self, args) -> None:
         """Get or set castling rights."""
-        board: chess.Board = self.game_node.board().copy()
+        board: chess.Board = self.game_node.board()
         if args.set_rights is not None:
             if args.set_rights == "clear":
                 args.set_rights = ""
@@ -512,7 +512,7 @@ class GameCmds(GameUtils):
                 board.set_castling_fen(args.set_rights)
             except ValueError as e:
                 raise CommandFailure(str(e)) from e
-            self.set_position(board)
+            await self.set_position(board)
 
         def castling_descr(color: chess.Color) -> str:
             if board.has_kingside_castling_rights(color):
@@ -532,3 +532,45 @@ class GameCmds(GameUtils):
                 print(f"White and black {white_descr}")
         else:
             print(f"White {white_descr} and black {black_descr}.")
+
+    en_passant_argparser = ArgumentParser()
+    en_passant_subcmds = en_passant_argparser.add_subparsers(dest="subcmd")
+    en_passant_subcmds.add_parser(
+        "get",
+        help="Get the possible en passant square if any. "
+        "(This is the default if no arguments are supplied.)",
+    )
+    en_passant_set_argparser = en_passant_subcmds.add_parser(
+        "set", help="Set a valid en passant square."
+    )
+    en_passant_set_argparser.add_argument(
+        "square",
+        type=chess.parse_square,
+        help="The square to which the capturing pawn will move, I.E. on the 6th or 3rd rank.",
+    )
+    en_passant_subcmds.add_parser(
+        "clear", help="Remove en passant possibilities in the current position."
+    )
+
+    @argparse_command(en_passant_argparser)
+    async def do_en_passant(self, args) -> None:
+        """Get, set or clear en passant square in the current position."""
+        board: chess.Board = self.game_node.board()
+        match args.subcmd:
+            case "get" | None:
+                pass  # It will be printed in any case.
+            case "set":
+                ep_rank_idx: int = 5 if board.turn == chess.WHITE else 2
+                if not chess.square_rank(args.square) == ep_rank_idx:
+                    raise CommandFailure("The en passant square must be on the 3rd/6th rank.")
+                board.ep_square = args.square
+                await self.set_position(board)
+            case "clear":
+                board.ep_square = None
+                await self.set_position(board)
+            case x:
+                assert_never(x)
+        if board.ep_square is not None:
+            print(f"En passant is possible at {chess.square_name(board.ep_square)}.")
+        else:
+            print("En passant is not possible in this position.")
