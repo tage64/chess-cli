@@ -24,6 +24,12 @@ class RecordCmds(Record):
         "output_file", type=PurePath, help="The name of the output file."
     )
     record_save_argparser.add_argument(
+        "marks_file",
+        type=PurePath,
+        nargs="?",
+        help="Save marks taken by `record mark` to this .txt file.",
+    )
+    record_save_argparser.add_argument(
         "-y",
         "--override",
         action="store_true",
@@ -34,8 +40,12 @@ class RecordCmds(Record):
         action="store_true",
         help="Don't remove any created temporary files. Mostly useful for debugging.",
     )
-    record_delete_argparser = record_subcmds.add_parser(
-        "delete", help="Delete the ongoing recording."
+    record_subcmds.add_parser("delete", help="Delete the ongoing recording.")
+    record_mark_argparser = record_subcmds.add_parser(
+        "mark", help="Mark the current position so that its timestamp can be remembered."
+    )
+    record_mark_argparser.add_argument(
+        "comment", nargs="?", help="Put a comment / short description on the mark."
     )
 
     @argparse_command(record_argparser)
@@ -71,8 +81,15 @@ class RecordCmds(Record):
             case "save":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
+                if self.recording.marks and args.marks_file is None:
+                    print(f"You have not specified a file where to save the marked timestamps.")
+                    ans: bool = await self.yes_no_dialog("Do you want to discard the marks?")
+                    if not ans:
+                        print("Nothing was saved. Please call the save method again.")
+                        return
                 duration: float = await self.save_recording(
                     output_file=args.output_file,
+                    marks_file=args.marks_file,
                     override_output_file=args.override,
                     no_cleanup=args.no_cleanup,
                 )
@@ -83,5 +100,9 @@ class RecordCmds(Record):
                     raise CommandFailure("No recording in progress.")
                 await self.delete_recording()
                 print("Recording deleted.")
+            case "mark":
+                if self.recording is None:
+                    raise CommandFailure("No recording in progress.")
+                self.recording.set_mark(args.comment)
             case x:
                 assert_never(x)

@@ -12,15 +12,18 @@ from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import override
+from typing import Tuple, override
 
 import cairosvg
 import chess
+import chess.pgn
 import chess.svg
 import more_itertools
 import pyaudio
+from pydantic import BaseModel
 
 from .base import Base, CommandFailure, InitArgs
+from .utils import move_str, show_time
 
 SAMPLE_FORMAT = pyaudio.paInt16
 SAMPLE_SIZE: int = pyaudio.get_sample_size(SAMPLE_FORMAT)
@@ -168,10 +171,12 @@ class Recording:
     ffmpeg_output_file: str  # Path to a temporary file holding the stdout/stderr from ffmpeg.
     audio_stream: pyaudio.Stream
     stream_info: _StreamInfo
-    # A list of (timestamp, board) pairs where the timestamp is the value returned by
     terminate: threading.Event
-    boards: list[chess.Board]  # A list of the positions to show in the video.
+    boards: list[chess.pgn.GameNode]  # A list of the positions to show in the video.
     timestamps: list[float]  # Timestamps for all boards.
+    # A list of marked positions. The elements are tuples of indices in the `boards` list
+    # and optional comments about the position.
+    marks: list[Tuple[int, str | None]]
     _is_cleaned: bool = False  # Set to true after self.cleanup() is called.
 
     def is_paused(self) -> bool:
@@ -186,7 +191,7 @@ class Recording:
         """Resume the recording."""
         self.stream_info.resume()
 
-    def set_board(self, board: chess.Board) -> None:
+    def set_board(self, pos: chess.pgn.GameNode) -> None:
         """Set the current board in the video."""
         if self.terminate.is_set():
             return
@@ -200,9 +205,14 @@ class Recording:
         if timestamp == self.timestamps[-1]:
             self.boards.pop()
             self.timestamps.pop()
-        elif not (self.boards and board == self.boards[-1]):
-            self.boards.append(board)
+        elif not (self.boards and pos is self.boards[-1]):
+            self.boards.append(pos)
             self.timestamps.append(timestamp)
+
+    def set_mark(self, comment: str | None = None) -> None:
+        """Mark the current position."""
+        assert len(self.boards) > 0
+        self.marks.append((len(self.boards) - 1, comment))
 
     async def stop(self) -> float:
         """Stop the recording.
@@ -246,7 +256,11 @@ class Recording:
         return self.stream_info._received_frames / self.stream_info.sample_rate
 
     async def save(
-        self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
+        self,
+        output_file: PurePath,
+        marks_file: PurePath | None,
+        override_output_file: bool = False,
+        no_cleanup: bool = False,
     ) -> None:
         """Save the recording.
 
@@ -256,9 +270,9 @@ class Recording:
         png_dir: Path = Path(tempfile.mkdtemp())
         try:
             png_files: list[PurePath] = [png_dir / f"{i}.png" for i in range(len(self.boards))]
-            for board, png_file_path in zip(self.boards, png_files, strict=True):
+            for pos, png_file_path in zip(self.boards, png_files, strict=True):
                 with open(png_file_path, "w+b") as f:
-                    svg: str = chess.svg.board(board)
+                    svg: str = chess.svg.board(pos.board())
                     cairosvg.svg2png(
                         bytestring=svg,
                         output_width=BOARD_PIXELS,
@@ -323,6 +337,15 @@ class Recording:
                             "Warning: Could not remove temporary concat file "
                             f"{concat_file_name}: {e}"
                         )
+
+            if marks_file is not None:
+                with open(marks_file, "w") as f:
+                    for i, comment in self.marks:
+                        timestamp: str = show_time(self.timestamps[i])
+                        move: str = move_str(self.boards[i])
+                        print(f"- {move}: {timestamp}", file=f)
+                        if comment is not None:
+                            print(f"  {comment}", file=f)
         finally:
             if no_cleanup:
                 print(f"Forgetting directory with PNG files: {png_dir}")
@@ -457,18 +480,23 @@ class Record(Base):
             audio_stream,
             stream_info,
             terminate=terminate,
-            boards=[self.game_node.board()],
+            boards=[self.game_node],
             timestamps=[0.0],
+            marks=[],
         )
 
     @override
     async def prompt(self) -> None:
         if self.recording is not None and not self.recording.is_paused():
-            self.recording.set_board(self.game_node.board())
+            self.recording.set_board(self.game_node)
         await super().prompt()
 
     async def save_recording(
-        self, output_file: PurePath, override_output_file: bool = False, no_cleanup: bool = False
+        self,
+        output_file: PurePath,
+        marks_file: PurePath | None = None,
+        override_output_file: bool = False,
+        no_cleanup: bool = False,
     ) -> float:
         """Stop and save the recording.
 
@@ -478,6 +506,7 @@ class Record(Base):
         duration = await self.recording.stop()
         await self.recording.save(
             output_file=output_file.with_suffix(".mp4"),
+            marks_file=m.with_suffix(".txt") if (m := marks_file) is not None else None,
             override_output_file=override_output_file,
             no_cleanup=no_cleanup,
         )
