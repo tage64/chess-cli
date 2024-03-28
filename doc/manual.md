@@ -202,17 +202,28 @@ Paused recording at 8.8 seconds
 Resumed recording at 8.8 seconds
 ```
 
+#### `record mark`
+
+Sometimes when recording a lengthy video it is hard to find certain positions or variations within
+the video. Therefor we have developed a system to mark certain key positions while recording, and
+then export the timestamps for those positions within the video to a text file.
+
+To put a mark on the current position (while recording), simply type:
+```
+1... e5: record mark [<COMMENT>]
+```
+where `[<COMMENT>]` is an **optional** comment at the mark. When saving the video, you will also need to specify a TXT file where to save the marks.
+
 #### `record delete`
 
 If you want to discard the recording you can use the `record delete` command.
 
 #### `record save`
 
-Save the recording with the `record save <FILE>.mp4` command. The file name **must** end with
-`.mp4`.
-
+Save the recording with the `record save <FILE>.mp4` command. If you have taken marks, you should
+also specify a TXT file for the marks.
 ```
-1... e5: record save danish_gambit.mp4
+1... e5: record save danish_gambit.mp4 marks.txt
 Recording successfully saved to danish_gambit.mp4
 It was 3 minutes and 7.2 seconds long.
 ```
