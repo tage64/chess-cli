@@ -13,7 +13,7 @@ import chess.pgn
 import psutil
 
 from .base import CommandFailure
-from .engine import Engine, EngineConf, EngineProtocol
+from .engine import Engine, EngineConf, EngineProtocol, LoadedEngine
 from .repl import argparse_command
 from .utils import sizeof_fmt
 
@@ -22,7 +22,7 @@ class EngineCmds(Engine):
     """Basic commands related to chess engines."""
 
     engine_argparser = ArgumentParser()
-    engine_subcmds = engine_argparser.add_subparsers(dest="subcmd")
+    engine_subcmds = engine_argparser.add_subparsers(dest="subcmd", required=True)
     engine_ls_argparser = engine_subcmds.add_parser("ls", help="List loaded chess engines.")
     engine_ls_argparser.add_argument(
         "-v", "--verbose", action="store_true", help="Display more information about the engines."
@@ -121,6 +121,9 @@ class EngineCmds(Engine):
             " reason to change them so they are hidden by default. This option makes them vissable."
         ),
     )
+    engine_config_subcmds.add_parser(
+        "reset", help="Reset all configured options for an engine."
+    )
     engine_config_set_argparser = engine_config_subcmds.add_parser(
         "set", help="Set a value of an option for the selected engine."
     )
@@ -175,7 +178,7 @@ class EngineCmds(Engine):
             case "import":
                 await self.engine_import(args)
             case "load":
-                await self.engine_load(args)
+                await self.engine_load(args.name, args.load_as or args.name)
             case "rm" | "remove":
                 self.engine_rm(args)
             case "install":
@@ -215,26 +218,22 @@ class EngineCmds(Engine):
         for engine in engines:
             self.show_engine(engine, verbose=args.verbose)
 
-    async def engine_load(self, args) -> None:
+    async def engine_load(self, name: str, load_as: str) -> None:
         try:
-            if args.name not in self.engine_confs:
+            if name not in self.engine_confs:
                 self.poutput(
-                    f"Error: There is no engine named {args.name}. Consider importing one with"
+                    f"Error: There is no engine named {name}. Consider importing one with"
                     " `engine import`."
                 )
                 return
-            name: str = args.load_as or args.name
-            if name in self.loaded_engines:
-                self.poutput(f"There is already an engine loaded with the name {name}")
-                return
-            if name in self.loaded_engines:
+            if load_as in self.loaded_engines:
                 self.poutput(
-                    f"Error: An engine named {name} is already loaded. If you want to run multiple"
+                    f"Error: An engine named {load_as} is already loaded. If you want to run multiple"
                     " instances of a given engine, consider to load it as another name like"
                     " `engine load <name> --as <name2>`"
                 )
                 return
-            await self.load_engine(args.name, name)
+            await self.load_engine(name, load_as)
             self.select_engine(name)
             self.show_engine(name, verbose=True)
             self.poutput(f"Successfully loaded and selected {name}.")
@@ -249,7 +248,7 @@ class EngineCmds(Engine):
                 " necessary."
             )
         except (chess.engine.EngineError, chess.engine.EngineTerminatedError):
-            self.poutput(f"Loading of {args.name} failed.")
+            self.poutput(f"Loading of {name} failed.")
 
     async def engine_import(self, args) -> None:
         if args.name in self.engine_confs:
@@ -263,9 +262,10 @@ class EngineCmds(Engine):
         try:
             await self.load_engine(args.name, args.name)
             self.poutput(f"Successfully imported, loaded and selected {args.name}.")
-        except (OSError, chess.engine.EngineError, chess.engine.EngineTerminatedError):
+        except Exception as e:
             self.rm_engine(args.name)
             self.poutput(f"Importing of the engine {args.path} failed.")
+            raise e from e
 
     def engine_rm(self, args) -> None:
         if args.engine not in self.engine_confs:
@@ -342,9 +342,9 @@ class EngineCmds(Engine):
             await self.close_engine(self.selected_engine)
             self.poutput(f"Quitted {self.selected_engine} without any problems.")
 
-    def show_engine_option(self, engine: str, name: str) -> None:
-        opt: chess.engine.Option = self.loaded_engines[engine].engine.options[name]
-        configured_val: str | int | bool | None = self.engine_confs[engine].options.get(name)
+    def show_engine_option(self, engine: LoadedEngine, name: str) -> None:
+        opt: chess.engine.Option = engine.engine.options[name]
+        configured_val: str | int | bool | None = self.engine_confs[engine.config_name].options.get(name)
         val: str | int | bool | None = configured_val or opt.default
 
         show_str: str = name
@@ -405,6 +405,8 @@ class EngineCmds(Engine):
                 self.engine_config_ls(args)
             case "get":
                 self.engine_config_get(args)
+            case "reset":
+                await self.engine_config_reset(args)
             case "set":
                 await self.engine_config_set(args)
             case "unset":
@@ -414,37 +416,38 @@ class EngineCmds(Engine):
             case _:
                 raise AssertionError("Invalid subcommand.")
 
-    def get_engine_opt_name(self, engine: str, name: str) -> str:
+    def get_engine_opt_name(self, engine: LoadedEngine, name: str) -> str:
         """Case insensitively search for a name of an option on an engine.
 
         Raises CommandFailure if not found.
         """
-        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
+        options: Mapping[str, chess.engine.Option] = engine.engine.options
         try:
-            return next(name for name in options if name.lower() == name.lower())
+            return next(n for n in options if n.lower() == name.lower())
         except StopIteration:
             self.poutput(
-                f"Error: No option named {name} in the engine {engine}. List all availlable options"
-                " with `engine config ls`."
+                f"Error: No option named {name} in the engine {engine.loaded_name}. "
+                "List all availlable options with `engine config ls`."
             )
             raise CommandFailure() from None
 
-    def get_selected_engine(self) -> str:
-        """Get the selected engine or raise CommandFailure."""
-        if self.selected_engine is None:
-            self.poutput("Error: No engine is selected.")
-            raise CommandFailure()
-        return self.selected_engine
-
     def engine_config_get(self, args) -> None:
-        engine: str = self.get_selected_engine()
+        engine: LoadedEngine = self.get_selected_engine()
         opt_name: str = self.get_engine_opt_name(engine, args.name)
         self.show_engine_option(engine, opt_name)
 
+    async def engine_config_reset(self, args) -> None:
+        engine: LoadedEngine = self.get_selected_engine()
+        conf: EngineConf = self.engine_confs[engine.config_name]
+        conf.options.clear()
+        self.save_config()
+        await self.close_engine(engine)
+        await self.engine_load(engine.loaded_name, engine.config_name)
+
     def engine_config_ls(self, args) -> None:
-        engine: str = self.get_selected_engine()
-        conf: EngineConf = self.engine_confs[engine]
-        for name, opt in self.loaded_engines[engine].engine.options.items():
+        engine: LoadedEngine = self.get_selected_engine()
+        conf: EngineConf = self.engine_confs[engine.config_name]
+        for name, opt in engine.engine.options.items():
             if (args.configured and name not in conf.options) or (
                 args.not_configured and name in conf.options
             ):
@@ -474,9 +477,9 @@ class EngineCmds(Engine):
             self.show_engine_option(engine, name)
 
     async def engine_config_set(self, args) -> None:
-        engine: str = self.get_selected_engine()
-        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
-        conf: EngineConf = self.engine_confs[engine]
+        engine: LoadedEngine = self.get_selected_engine()
+        options: Mapping[str, chess.engine.Option] = engine.engine.options
+        conf: EngineConf = self.engine_confs[engine.config_name]
         opt_name: str = self.get_engine_opt_name(engine, args.name)
         option: chess.engine.Option = options[opt_name]
         if option.type in ["string", "combo", "file", "path"]:
@@ -524,8 +527,8 @@ class EngineCmds(Engine):
         await self.set_engine_option(engine, option.name, value)
 
     async def engine_config_unset(self, args) -> None:
-        engine: str = self.get_selected_engine()
-        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
+        engine: LoadedEngine = self.get_selected_engine()
+        options: Mapping[str, chess.engine.Option] = engine.engine.options
         opt_name: str = self.get_engine_opt_name(engine, args.name)
         default = options[opt_name].default
         if default is None:
@@ -539,22 +542,22 @@ class EngineCmds(Engine):
                 f"Warning: {opt_name} has no default value so it's unchanged in the running engine."
             )
         else:
-            await self.loaded_engines[engine].engine.configure({opt_name: default})
+            await engine.engine.configure({opt_name: default})
             self.poutput(f"Successfully changed {opt_name} back to its default value: {default}.")
 
         if not args.temporary:
-            conf: EngineConf = self.engine_confs[engine]
+            conf: EngineConf = self.engine_confs[engine.config_name]
             conf.options.pop(opt_name, None)
             self.save_config()
 
     async def engine_config_trigger(self, args) -> None:
-        engine: str = self.get_selected_engine()
-        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
+        engine: LoadedEngine = self.get_selected_engine()
+        options: Mapping[str, chess.engine.Option] = engine.engine.options
         opt_name: str = self.get_engine_opt_name(engine, args.name)
         if options[opt_name].type not in ["button", "reset", "save"]:
             self.poutput(f"Error: {opt_name} is not a button.")
             return
-        await self.loaded_engines[engine].engine.configure({opt_name: None})
+        await engine.engine.configure({opt_name: None})
 
     def engine_log(self, args) -> None:
         match args.log_subcmd:

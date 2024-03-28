@@ -9,7 +9,7 @@ import chess.engine
 import chess.pgn
 
 from .base import InitArgs
-from .engine import Engine
+from .engine import Engine, LoadedEngine
 
 
 @dataclass
@@ -93,9 +93,9 @@ class Analysis(Engine):
                 self._auto_analysis_engines.remove(engine)
 
     @override
-    async def close_engine(self, name: str) -> None:
-        self.stop_analysis(name)
-        await super().close_engine(name)
+    async def close_engine(self, engine: LoadedEngine) -> None:
+        self.stop_analysis(engine.loaded_name)
+        await super().close_engine(engine)
 
     async def update_auto_analysis(self) -> None:
         for engine in self._auto_analysis_engines:

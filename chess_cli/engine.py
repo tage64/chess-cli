@@ -44,6 +44,7 @@ class EngineConf(BaseModel):
 
 @dataclass
 class LoadedEngine:
+    loaded_name: str  # The name with which the engine is loaded.
     config_name: str  # The name of the engine in the configuration.
     engine: chess.engine.Protocol  # The actual engine instance.
 
@@ -56,7 +57,7 @@ class Engine(Base):
     # loaded instance which may not be the same as in `_engine_confs`.
     _loaded_engines: dict[str, LoadedEngine]
     # The currently selected engine. Should be a member of loaded_engines.
-    _selected_engine: str | None
+    _selected_engine: LoadedEngine | None
     _engines_saved_log: deque[str]  # Log messages from all engines.
     # A queue for incoming log messages from engines.
     _engines_log_queue: queue.SimpleQueue[logging.LogRecord]
@@ -95,14 +96,14 @@ class Engine(Base):
         return self._loaded_engines.items().mapping
 
     @property
-    def selected_engine(self) -> str | None:
+    def selected_engine(self) -> LoadedEngine | None:
         """The currently selected engine.
 
         `None` iff `self.loaded_engines()` is empty.
         """
         return self._selected_engine
 
-    def get_selected_engine(self) -> str:
+    def get_selected_engine(self) -> LoadedEngine:
         """Get the selected engine or raise CommandFailure."""
         if self.selected_engine is None:
             self.poutput("Error: No engine is selected.")
@@ -112,33 +113,37 @@ class Engine(Base):
     def select_engine(self, engine: str) -> None:
         """Select an engine."""
         assert engine in self.loaded_engines
-        self._selected_engine = engine
+        self._selected_engine = self.loaded_engines[engine]
 
-    async def close_engine(self, name: str) -> None:
+    async def close_engine(self, engine: LoadedEngine) -> None:
         """Stop and quit an engine."""
-        engine: LoadedEngine = self._loaded_engines.pop(name)
-        self.engine_confs[engine.config_name].loaded_as.remove(name)
-        if self.selected_engine == name:
+        self._loaded_engines.pop(engine.loaded_name)
+        self.engine_confs[engine.config_name].loaded_as.remove(engine.loaded_name)
+        if self.selected_engine is engine:
             try:
                 self.select_engine(next(iter(self.loaded_engines)))
             except StopIteration:
                 self._selected_engine = None
-        async with self.engine_timeout(name, close=False, context="close_engine()"):
+        async with self.engine_timeout(engine.loaded_name, close=False, context="close_engine()"):
             await engine.engine.quit()
 
     @asynccontextmanager
     async def engine_timeout(
-        self, engine: str, long: bool = False, close: bool = True, context: str | None = None
+        self,
+        engine_name: str,
+        long: bool = False,
+        close: bool = True,
+        context: str | None = None,
     ) -> AsyncGenerator[None, None]:
         timeout = ENGINE_TIMEOUT if not long else ENGINE_LONG_TIMEOUT
         try:
             async with asyncio.timeout(timeout):
                 yield
         except (TimeoutError, chess.engine.EngineError, chess.engine.EngineTerminatedError) as e:
-            if close:
-                await self.close_engine(engine)
+            if close and engine_name in self.loaded_engines:
+                await self.close_engine(self.loaded_engines[engine_name])
             raise CommandFailure(
-                f"Engine {engine} crashed"
+                f"Engine {engine_name} crashed"
                 + (" in {context}" if context is not None else "")
                 + f": {e}"
             ) from e
@@ -212,7 +217,11 @@ class Engine(Base):
         else:
             conf = self.engine_confs[name]
         show_str: str
-        show_str = ">" if name == self.selected_engine else " "
+        show_str = (
+            ">"
+            if self.selected_engine is not None and name == self.selected_engine.loaded_name
+            else " "
+        )
         show_str += name
         if conf.fullname is not None:
             show_str += ": " + conf.fullname
@@ -233,10 +242,10 @@ class Engine(Base):
                         self.poutput(f"   {key}: {val}")
 
     async def set_engine_option(
-        self, engine: str, name: str, value: str | int | bool | None
+        self, engine: LoadedEngine, name: str, value: str | int | bool | None
     ) -> None:
         """Set an option on a loaded engine."""
-        options: Mapping[str, chess.engine.Option] = self.loaded_engines[engine].engine.options
+        options: Mapping[str, chess.engine.Option] = engine.engine.options
         option: chess.engine.Option = options[name]
         if option.type in ["string", "file", "path"]:
             if not isinstance(value, str):
@@ -290,8 +299,8 @@ class Engine(Base):
                 )
         else:
             raise AssertionError(f"Unsupported option type: {option.type}")
-        async with self.engine_timeout(engine):
-            await self.loaded_engines[engine].engine.configure({option.name: value})
+        async with self.engine_timeout(engine.loaded_name):
+            await engine.engine.configure({option.name: value})
 
     async def load_engine(self, config_name: str, name: str) -> None:
         """Load an engine.
@@ -299,14 +308,14 @@ class Engine(Base):
         `config_name` must be in `self.engine_confs`.
         """
         engine_conf: EngineConf = self.engine_confs[config_name]
-        engine: chess.engine.Protocol
+        engine_: chess.engine.Protocol
         try:
             async with self.engine_timeout(name, long=True, close=False):
                 match engine_conf.protocol:
                     case EngineProtocol.UCI:
-                        _, engine = await chess.engine.popen_uci(engine_conf.path)
+                        _, engine_ = await chess.engine.popen_uci(engine_conf.path)
                     case EngineProtocol.XBOARD:
-                        _, engine = await chess.engine.popen_xboard(engine_conf.path)
+                        _, engine_ = await chess.engine.popen_xboard(engine_conf.path)
                     case x:
                         assert_never(x)
         except FileNotFoundError as e:
@@ -315,15 +324,16 @@ class Engine(Base):
             ) from e
         except OSError as e:
             raise CommandFailure(f"While loading engine executable {engine_conf.path}: {e}") from e
-        self._loaded_engines[name] = LoadedEngine(config_name, engine)
-        engine_conf.fullname = engine.id.get("name")
+        engine: LoadedEngine = LoadedEngine(name, config_name, engine_)
+        self._loaded_engines[name] = engine
+        engine_conf.fullname = engine_.id.get("name")
         engine_conf.loaded_as.add(name)
 
         ## Set all the configured options:
         invalid_options: list[str] = []
         for opt_name, value in engine_conf.options.items():
             try:
-                await self.set_engine_option(name, opt_name, value)
+                await self.set_engine_option(engine, opt_name, value)
             except ValueError as e:
                 self.poutput(
                     f"Warning: Couldn't set {opt_name} to {value} as specified in the"

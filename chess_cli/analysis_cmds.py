@@ -6,6 +6,7 @@ import chess.engine
 import chess.pgn
 
 from .analysis import Analysis, AnalysisInfo
+from .engine import LoadedEngine
 from .repl import argparse_command
 from .utils import MoveNumber, score_str
 
@@ -101,7 +102,7 @@ class AnalysisCmds(Analysis):
                 raise AssertionError("Invalid subcommand.")
 
     async def analysis_start(self, args) -> None:
-        engine: str = self.get_selected_engine()
+        engine: str = self.get_selected_engine().loaded_name
         if engine in self.analysis_by_node[self.game_node]:
             answer: bool = await self.yes_no_dialog(
                 f"Error: There's allready an analysis made by {engine} at this move.\n"
@@ -127,7 +128,7 @@ class AnalysisCmds(Analysis):
         if args.all:
             engines: Iterable[str] = self.running_analyses.keys()
         else:
-            engine: str = self.get_selected_engine()
+            engine: str = self.get_selected_engine().loaded_name
             if engine not in self.running_analyses:
                 self.poutput("Error: {engine} is not running any analysis.")
                 return
@@ -219,7 +220,7 @@ class AnalysisCmds(Analysis):
             if args.engine:
                 engine: str = args.engine
             else:
-                engine = self.get_selected_engine()
+                engine = self.get_selected_engine().loaded_name
             if engine not in self.analysis_by_node[self.game_node]:
                 self.poutput(f"Error: There is no analysis made by {engine} at this move.")
                 return
