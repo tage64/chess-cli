@@ -172,6 +172,7 @@ class Recording:
     audio_stream: pyaudio.Stream
     stream_info: _StreamInfo
     terminate: threading.Event
+    ffmpeg_stdin: asyncio.StreamWriter
     boards: list[chess.pgn.GameNode]  # A list of the positions to show in the video.
     timestamps: list[float]  # Timestamps for all boards.
     # A list of marked positions. The elements are tuples of indices in the `boards` list
@@ -221,6 +222,8 @@ class Recording:
         in seconds.
         """
         self.terminate.set()
+        if self.is_paused():
+            self.ffmpeg_stdin.close()
         # Wait for the audio stream to be closed.
         start_time: float = time.perf_counter()
         buffer_duration: float = FRAMES_PER_BUFFER / self.stream_info.sample_rate
@@ -480,6 +483,7 @@ class Record(Base):
             audio_stream,
             stream_info,
             terminate=terminate,
+            ffmpeg_stdin=ffmpeg_stdin,
             boards=[self.game_node],
             timestamps=[0.0],
             marks=[],
