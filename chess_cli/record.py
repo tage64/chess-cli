@@ -45,7 +45,7 @@ TUNE: str = "stillimage"
 
 FRAMES_PER_BUFFER: int = 8192
 ERROR_REGEX: re.Pattern = re.compile("error", flags=re.IGNORECASE)
-PROCESS_TERMINATE_TIMEOUT: float = 3.0  # Timeout for a process to terminate before killing it.
+PROCESS_TERMINATE_TIMEOUT: float = 20.0  # Timeout for a process to terminate before killing it.
 
 
 def _find_ffmpeg_exe() -> list[bytes] | None:
@@ -214,7 +214,7 @@ class Recording:
         assert len(self.boards) > 0
         self.marks.append((len(self.boards) - 1, comment))
 
-    async def stop(self) -> float:
+    async def stop(self, timeout: float | None = None) -> float:
         """Stop the recording.
 
         No pause/resumes can take place after this. Returns the length of the recording
@@ -235,7 +235,7 @@ class Recording:
             print("Terminating FFMpeg.")
             self.ffmpeg_process.terminate()
             try:
-                await asyncio.wait_for(self.ffmpeg_process.wait(), PROCESS_TERMINATE_TIMEOUT)
+                await asyncio.wait_for(self.ffmpeg_process.wait(), timeout)
             except TimeoutError:
                 print("Warning: ffmpeg did not listen to SIGTERM so we have to kill it.")
                 self.ffmpeg_process.kill()
@@ -497,13 +497,14 @@ class Record(Base):
         marks_file: PurePath | None = None,
         override_output_file: bool = False,
         no_cleanup: bool = False,
+        timeout: float | None = None,
     ) -> float:
         """Stop and save the recording.
 
         Returns the length of the recording in seconds.
         """
         assert self.recording is not None
-        duration = await self.recording.stop()
+        duration = await self.recording.stop(timeout=timeout)
         await self.recording.save(
             output_file=output_file.with_suffix(".mp4"),
             marks_file=m.with_suffix(".txt") if (m := marks_file) is not None else None,
