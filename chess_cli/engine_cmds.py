@@ -121,9 +121,7 @@ class EngineCmds(Engine):
             " reason to change them so they are hidden by default. This option makes them vissable."
         ),
     )
-    engine_config_subcmds.add_parser(
-        "reset", help="Reset all configured options for an engine."
-    )
+    engine_config_subcmds.add_parser("reset", help="Reset all configured options for an engine.")
     engine_config_set_argparser = engine_config_subcmds.add_parser(
         "set", help="Set a value of an option for the selected engine."
     )
@@ -228,8 +226,8 @@ class EngineCmds(Engine):
                 return
             if load_as in self.loaded_engines:
                 self.poutput(
-                    f"Error: An engine named {load_as} is already loaded. If you want to run multiple"
-                    " instances of a given engine, consider to load it as another name like"
+                    f"Error: An engine named {load_as} is already loaded. If you want to run "
+                    "multiple instances of a given engine, consider to load it as another name like"
                     " `engine load <name> --as <name2>`"
                 )
                 return
@@ -344,7 +342,9 @@ class EngineCmds(Engine):
 
     def show_engine_option(self, engine: LoadedEngine, name: str) -> None:
         opt: chess.engine.Option = engine.engine.options[name]
-        configured_val: str | int | bool | None = self.engine_confs[engine.config_name].options.get(name)
+        configured_val: str | int | bool | None = self.engine_confs[engine.config_name].options.get(
+            name
+        )
         val: str | int | bool | None = configured_val or opt.default
 
         show_str: str = name

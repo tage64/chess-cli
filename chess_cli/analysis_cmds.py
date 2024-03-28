@@ -6,7 +6,6 @@ import chess.engine
 import chess.pgn
 
 from .analysis import Analysis, AnalysisInfo
-from .engine import LoadedEngine
 from .repl import argparse_command
 from .utils import MoveNumber, score_str
 

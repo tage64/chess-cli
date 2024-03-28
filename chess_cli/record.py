@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Tuple, override
+from typing import override
 
 import cairosvg
 import chess
@@ -20,7 +20,6 @@ import chess.pgn
 import chess.svg
 import more_itertools
 import pyaudio
-from pydantic import BaseModel
 
 from .base import Base, CommandFailure, InitArgs
 from .utils import move_str, show_time
@@ -177,7 +176,7 @@ class Recording:
     timestamps: list[float]  # Timestamps for all boards.
     # A list of marked positions. The elements are tuples of indices in the `boards` list
     # and optional comments about the position.
-    marks: list[Tuple[int, str | None]]
+    marks: list[tuple[int, str | None]]
     _is_cleaned: bool = False  # Set to true after self.cleanup() is called.
 
     def is_paused(self) -> bool:

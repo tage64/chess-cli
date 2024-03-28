@@ -40,7 +40,9 @@ class RecordCmds(Record):
         action="store_true",
         help="Don't remove any created temporary files. Mostly useful for debugging.",
     )
-    record_save_argparser.add_argument("--timeout", type=float, help="A timeout for stopping ffmpeg.")
+    record_save_argparser.add_argument(
+        "--timeout", type=float, help="A timeout for stopping ffmpeg."
+    )
     record_subcmds.add_parser("delete", help="Delete the ongoing recording.")
     record_mark_argparser = record_subcmds.add_parser(
         "mark", help="Mark the current position so that its timestamp can be remembered."
@@ -83,7 +85,7 @@ class RecordCmds(Record):
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
                 if self.recording.marks and args.marks_file is None:
-                    print(f"You have not specified a file where to save the marked timestamps.")
+                    print("You have not specified a file where to save the marked timestamps.")
                     ans: bool = await self.yes_no_dialog("Do you want to discard the marks?")
                     if not ans:
                         print("Nothing was saved. Please call the save method again.")

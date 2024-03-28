@@ -129,11 +129,7 @@ class Engine(Base):
 
     @asynccontextmanager
     async def engine_timeout(
-        self,
-        engine_name: str,
-        long: bool = False,
-        close: bool = True,
-        context: str | None = None,
+        self, engine_name: str, long: bool = False, close: bool = True, context: str | None = None
     ) -> AsyncGenerator[None, None]:
         timeout = ENGINE_TIMEOUT if not long else ENGINE_LONG_TIMEOUT
         try:
