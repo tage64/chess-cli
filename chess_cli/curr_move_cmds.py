@@ -272,10 +272,12 @@ class CurrMoveCmds(Base):
     def do_evaluation(self, args) -> None:
         """Show, edit or remove evaluations at the current move."""
         match args.subcmd:
-            case "show":
+            case "show" | None:
                 text = self.show_evaluation()
                 if text is not None:
                     self.poutput(text)
+                else:
+                    self.poutput("No evaluation at this move.")
             case "rm":
                 self.game_node.set_eval(None)
             case "set":
