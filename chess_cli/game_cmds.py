@@ -42,7 +42,7 @@ class GameCmds(GameUtils):
         help="Add this new list of moves as a sideline to the current move.",
     )
 
-    @argparse_command(play_argparser)
+    @argparse_command(play_argparser, alias="p")
     def do_play(self, args) -> None:
         """Play a sequence of moves from the current position."""
         if args.sideline:
@@ -69,7 +69,7 @@ class GameCmds(GameUtils):
         "-a", "--all", action="store_true", help="Print the entire game from the start."
     )
 
-    @argparse_command(game_argparser)
+    @argparse_command(game_argparser, alias="gm")
     async def do_game(self, args) -> None:
         """Print the rest of the game with sidelines and comments in a nice and readable
         format."""
@@ -118,7 +118,7 @@ class GameCmds(GameUtils):
         "-r", "--recurse", action="store_true", help="Recurse into sidelines."
     )
 
-    @argparse_command(moves_argparser)
+    @argparse_command(moves_argparser, alias="m")
     def do_moves(self, args) -> None:
         if args._from is not None:
             # If the user has specified a given move as start.
@@ -206,7 +206,7 @@ class GameCmds(GameUtils):
         "-f", "--forwards-only", action="store_true", help="Only search the game forwards."
     )
 
-    @argparse_command(goto_argparser)
+    @argparse_command(goto_argparser, alias="g")
     def do_goto(self, args) -> None:
         """Goto a move specified by a move number or a move in standard algibraic
         notation.
@@ -237,7 +237,7 @@ class GameCmds(GameUtils):
                     return
                 self.game_node = node
 
-    @command()
+    @command(alias="del")
     def do_delete(self, _) -> None:
         """Delete the current move if this is not the root of the game."""
         self.delete_current_move()
@@ -270,7 +270,7 @@ class GameCmds(GameUtils):
         help="The index where the game should be inserted. Defaults to the end of the game list.",
     )
 
-    @argparse_command(games_argparser)
+    @argparse_command(games_argparser, alias="gs")
     def do_games(self, args) -> None:
         """List, select, delete or create new games."""
         match args.subcmd:
@@ -303,7 +303,7 @@ class GameCmds(GameUtils):
         help="Save only the current game and discard any changes in the other games.",
     )
 
-    @argparse_command(save_argparser)
+    @argparse_command(save_argparser, alias="sv")
     def do_save(self, args) -> None:
         """Save the games to a PGN file."""
         if args.file is None:
@@ -320,7 +320,7 @@ class GameCmds(GameUtils):
     load_argparser = ArgumentParser()
     load_argparser.add_argument("file", help="PGN file to read.")
 
-    @argparse_command(load_argparser)
+    @argparse_command(load_argparser, alias="ld")
     def do_load(self, args) -> None:
         """Load games from a PGN file.
 
@@ -337,7 +337,7 @@ class GameCmds(GameUtils):
         "-n", "--steps", type=int, help="Promote this variation n number of steps."
     )
 
-    @argparse_command(promote_argparser)
+    @argparse_command(promote_argparser, alias="pr")
     def do_promote(self, args) -> None:
         """If current move is a side line, promote it so that it'll be closer to main
         variation."""
@@ -360,7 +360,7 @@ class GameCmds(GameUtils):
         "-n", "--steps", type=int, help="Demote this variation n number of steps."
     )
 
-    @argparse_command(demote_argparser)
+    @argparse_command(demote_argparser, alias="de")
     def do_demote(self, args) -> None:
         """If current move is the main variation or if it isn't the last variation,
         demote it so it'll be far from the main variation."""
@@ -374,12 +374,12 @@ class GameCmds(GameUtils):
             for _ in range(n):
                 self.game_node.parent.demote(self.game_node)
 
-    @command()
+    @command(alias="v")
     def do_variations(self, _) -> None:
         """Print all variations following this move."""
         self.show_variations(self.game_node)
 
-    @command()
+    @command(alias="sl")
     def do_sidelines(self, _) -> None:
         """Show all sidelines to this move."""
         if self.game_node.parent is not None:
@@ -393,7 +393,7 @@ class GameCmds(GameUtils):
         "-s", "--start", action="store_true", help="Setup the starting position."
     )
 
-    @argparse_command(setup_argparser)
+    @argparse_command(setup_argparser, alias="st")
     async def do_setup(self, args) -> None:
         """Setup a starting position."""
         board: chess.Board
@@ -472,7 +472,7 @@ class GameCmds(GameUtils):
         help="Set the turn to play. " "Note that this will reset the current game.",
     )
 
-    @argparse_command(turn_argparser)
+    @argparse_command(turn_argparser, alias="t")
     async def do_turn(self, args) -> None:
         """Get or set the turn to play."""
         if args.set_color is None:
@@ -501,7 +501,7 @@ class GameCmds(GameUtils):
         "where each letter denotes king- or queenside castling for white or black respectively.",
     )
 
-    @argparse_command(castling_argparser)
+    @argparse_command(castling_argparser, alias=["csl"])
     async def do_castling(self, args) -> None:
         """Get or set castling rights."""
         board: chess.Board = self.game_node.board()
@@ -552,7 +552,7 @@ class GameCmds(GameUtils):
         "clear", help="Remove en passant possibilities in the current position."
     )
 
-    @argparse_command(en_passant_argparser)
+    @argparse_command(en_passant_argparser, alias="ep")
     async def do_en_passant(self, args) -> None:
         """Get, set or clear en passant square in the current position."""
         board: chess.Board = self.game_node.board()

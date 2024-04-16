@@ -278,11 +278,13 @@ def _get_cmd_name(func: Callable) -> str:
 
 def command[T: ReplBase](
     name: str | None = None,
-    aliases: list[str] | None = None,
+    alias: list[str] | str | None = None,
     summary: str | None = None,
     long_help: str | None = None,
 ) -> Callable[[CmdFunc[T]], Command[T]]:
     """A decorator for methods of `Repl` to add them as commands."""
+
+    aliases: list[str] = [alias] if isinstance(alias, str) else (alias or [])
 
     def decorator(func: CmdFunc[T]) -> Command[T]:
         nonlocal summary
@@ -295,7 +297,7 @@ def command[T: ReplBase](
         name: str = _get_cmd_name(func)
         if asyncio.iscoroutinefunction(func):
             cmd: Command[T] = Command(
-                name=name, aliases=aliases or [], func=func, summary=summary, long_help=long_help
+                name=name, aliases=aliases, func=func, summary=summary, long_help=long_help
             )
         else:
 
@@ -304,11 +306,7 @@ def command[T: ReplBase](
                 func(*args, **kwargs)
 
             cmd = Command(
-                name=name,
-                aliases=aliases or [],
-                func=async_func,
-                summary=summary,
-                long_help=long_help,
+                name=name, aliases=aliases, func=async_func, summary=summary, long_help=long_help
             )
         functools.update_wrapper(cmd, func)
         return cmd
@@ -317,7 +315,7 @@ def command[T: ReplBase](
 
 
 def argparse_command[T: ReplBase](
-    argparser: ArgumentParser, aliases: list[str] | None = None
+    argparser: ArgumentParser, alias: list[str] | str | None = None
 ) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
@@ -340,7 +338,7 @@ def argparse_command[T: ReplBase](
                 func(repl, parsed_args)
 
         return command(
-            aliases=aliases,
+            alias=alias,
             summary=argparser.description if not func.__doc__ else None,
             long_help=argparser.format_help(),
         )(cmd_func)
@@ -396,7 +394,7 @@ class Repl(ReplBase):
                 case _:
                     print("Error: Please answer yes or no.")
 
-    @command(aliases=["q", "exit"])
+    @command(alias=["q", "exit"])
     def do_quit(self, _) -> None:
         """Exit the REPL."""
         raise QuitRepl()
@@ -404,7 +402,7 @@ class Repl(ReplBase):
     help_argparser = ArgumentParser()
     help_argparser.add_argument("command", nargs="?", help="Get help for this specific command.")
 
-    @argparse_command(help_argparser, aliases=["h"])
+    @argparse_command(help_argparser, alias="h")
     def do_help(self, args: ParsedArgs) -> None:
         """Get a list of all possible commands or get help for a specific command."""
         if args.command is not None:
@@ -438,7 +436,7 @@ class Repl(ReplBase):
             local_vars = {"self": self}
             code.interact(local=local_vars)
 
-    @command(aliases=["kb"])
+    @command(alias="kb")
     def do_key_bindings(self, _) -> None:
         """Print a list of all active key bindings."""
         for kb in self._key_bindings:

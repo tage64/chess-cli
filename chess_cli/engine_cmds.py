@@ -164,7 +164,7 @@ class EngineCmds(Engine):
     engine_log_subcmds.add_parser("clear", help="Clear the log.")
     engine_log_subcmds.add_parser("show", help="Show the log.")
 
-    @argparse_command(engine_argparser)
+    @argparse_command(engine_argparser, alias="e")
     async def do_engine(self, args) -> None:
         """Everything related to chess engines.
 

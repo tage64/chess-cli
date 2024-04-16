@@ -66,7 +66,7 @@ class CurrMoveCmds(Base):
 
     show_argparser = ArgumentParser()
 
-    @argparse_command(show_argparser)
+    @argparse_command(show_argparser, alias=["s"])
     def do_show(self, args) -> None:
         """Show position, comments, NAGs and more about the current move."""
         self.poutput(f"FEN: {self.show_fen()}")
@@ -99,7 +99,7 @@ class CurrMoveCmds(Base):
 
     board_argparser = ArgumentParser()
 
-    @argparse_command(board_argparser)
+    @argparse_command(board_argparser, alias=["b"])
     def do_board(self, args) -> None:
         """Show the current position as an ASCII chess board."""
         self.poutput(self.show_board())
@@ -134,7 +134,7 @@ class CurrMoveCmds(Base):
     )
     comment_append_argparser.add_argument("comment", help="The text to append.")
 
-    @argparse_command(comment_argparser)
+    @argparse_command(comment_argparser, alias=["c"])
     async def do_comment(self, args) -> None:
         """Show, edit or remove the comment at the current move."""
         if args.starting_comment and not self.game_node.starts_variation():
@@ -268,7 +268,7 @@ class CurrMoveCmds(Base):
         "-d", "--depth", type=int, help="The depth at which the analysis was made."
     )
 
-    @argparse_command(evaluation_argparser)
+    @argparse_command(evaluation_argparser, alias=["eval"])
     def do_evaluation(self, args) -> None:
         """Show, edit or remove evaluations at the current move."""
         match args.subcmd:
@@ -321,7 +321,7 @@ class CurrMoveCmds(Base):
         help="Color of the arrow. Red/yellow/green/blue can be abbreviated as r/y/g/b.",
     )
 
-    @argparse_command(arrow_argparser)
+    @argparse_command(arrow_argparser, alias=["ar"])
     def do_arrow(self, args) -> None:
         """Show, edit or remove arrows at the current move."""
         color_abbreviations: dict[str, str] = {"g": "green", "y": "yellow", "r": "red", "b": "blue"}
@@ -357,7 +357,7 @@ class CurrMoveCmds(Base):
     )
     clock_set_argparser.add_argument("time", help="Remaining time.")
 
-    @argparse_command(clock_argparser)
+    @argparse_command(clock_argparser, alias=["cl"])
     def do_clock(self, args) -> None:
         """Show, edit or remove clock information at the current move."""
         match args.subcmd:

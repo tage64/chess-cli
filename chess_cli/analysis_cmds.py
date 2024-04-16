@@ -83,7 +83,7 @@ class AnalysisCmds(Analysis):
         ),
     )
 
-    @argparse_command(analysis_argparser)
+    @argparse_command(analysis_argparser, alias="a")
     async def do_analysis(self, args) -> None:
         """Manage analysis."""
         match args.subcmd:
