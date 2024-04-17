@@ -43,7 +43,7 @@ class CurrMoveCmds(Base):
                 try:
                     square_content: str = str(self.game_node.board().piece_map()[8 * row + col])
                 except KeyError:
-                    square_content = "-"
+                    square_content = "+" if (row + col) % 2 == 0 else "-"
                 text += f"{square_content} "
             text += f"{row + 1}\n"
         text += "  a b c d e f g h  \n"
