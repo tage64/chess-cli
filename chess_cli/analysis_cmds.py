@@ -1,3 +1,4 @@
+import itertools
 from argparse import ArgumentParser
 from collections.abc import Iterable
 
@@ -50,6 +51,13 @@ class AnalysisCmds(Analysis):
     analysis_ls_argparser.add_argument(
         "-v", "--verbose", action="store_true", help="Print out more info."
     )
+    analysis_ls_argparser.add_argument(
+        "-l",
+        "--lines",
+        type=int,
+        nargs="?",
+        help="Maximum number of lines to show for each analysis.",
+    )
     analysis_ls_group = analysis_ls_argparser.add_mutually_exclusive_group()
     analysis_ls_group.add_argument(
         "-r", "--running", action="store_true", help="List only running analysis."
@@ -59,6 +67,9 @@ class AnalysisCmds(Analysis):
     )
     analysis_show_argparser = analysis_subcmds.add_parser(
         "show", help="Show all analysis performed at the current move."
+    )
+    analysis_show_argparser.add_argument(
+        "lines", type=int, nargs="?", help="Maximum number of lines to show."
     )
     analysis_rm_argparser = analysis_subcmds.add_parser(
         "rm",
@@ -138,7 +149,9 @@ class AnalysisCmds(Analysis):
             self.stop_analysis(engine)
             self.poutput(f"Successfully stopped {engine}")
 
-    def show_analysis(self, analysis: AnalysisInfo, verbose: bool = False) -> None:
+    def show_analysis(
+        self, analysis: AnalysisInfo, verbose: bool = False, max_lines: int | None = None
+    ) -> None:
         show_str: str = analysis.engine + " @ "
         if analysis.san is not None:
             show_str += f"{MoveNumber.last(analysis.board)} {analysis.san}: "
@@ -184,7 +197,7 @@ class AnalysisCmds(Analysis):
                     "string",
                 ]:
                     show_str += f"{key}: {val}, "
-            for i, info in enumerate(analysis.result.multipv, 1):
+            for i, info in enumerate(itertools.islice(analysis.result.multipv, max_lines), 1):
                 show_str += f"\n  {i}: {score_and_wdl_str(info)}"
                 if "pv" in info and len(info["pv"]) >= 2:
                     show_str += f"\n    {analysis.board.variation_san(info["pv"])}"
@@ -202,7 +215,7 @@ class AnalysisCmds(Analysis):
                 and analysis == self.running_analyses[analysis.engine]
             ):
                 continue
-            self.show_analysis(analysis, verbose=args.verbose)
+            self.show_analysis(analysis, verbose=args.verbose, max_lines=args.lines)
 
     def analysis_show(self, args) -> None:
         if not self.analysis_by_node[self.game_node]:
@@ -210,7 +223,7 @@ class AnalysisCmds(Analysis):
             return
         for engine, analysis in self.analysis_by_node[self.game_node].items():
             self.poutput(f"({engine}): ", end="")
-            self.show_analysis(analysis, verbose=True)
+            self.show_analysis(analysis, verbose=True, max_lines=args.lines)
 
     def analysis_rm(self, args) -> None:
         if args.all:
