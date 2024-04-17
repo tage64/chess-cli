@@ -1,12 +1,14 @@
 [project]
 name = "chess-cli"
 requires-python = ">=3.12, <3.13"
+version = "0.2.0a8"
+license = "GPL-3.0-or-later"
 
 [tool.poetry]
 name = "chess-cli"
-version = "0.1.0"
+version = "0.2.0a8"
 description = "A repl to edit and analyse chess games."
-authors = ["Tage Johansson <tajo9185@uu.student.se>"]
+authors = ["Tage Johansson <tajo9185@student.uu.se>"]
 license = "GPL-3.0-or-later"
 
 [tool.poetry.scripts]
@@ -26,6 +28,7 @@ prompt-toolkit = "^3.0.43"
 pyaudio = "^0.2.14"
 cairosvg = "^2.7.1"
 pydantic = "^2.6.4"
+spdx-license-list = "^3.23"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4.4"

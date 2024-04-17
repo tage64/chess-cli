@@ -1172,6 +1172,17 @@ files = [
 ]
 
 [[package]]
+name = "spdx-license-list"
+version = "3.23"
+description = "SPDX License List as a Python dictionary"
+optional = false
+python-versions = ">=3.8,<4.0"
+files = [
+    {file = "spdx_license_list-3.23-py3-none-any.whl", hash = "sha256:2cb855dadf97d33f71683f7aef7e9252455c68b255bad0de4142569508545e7c"},
+    {file = "spdx_license_list-3.23.tar.gz", hash = "sha256:4c2ef3ffeadee99c707fc3a809f26f6aca8b736467e727d0aaae2ec004ac0b00"},
+]
+
+[[package]]
 name = "tinycss2"
 version = "1.2.1"
 description = "A tiny CSS parser"
@@ -1428,4 +1439,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "0fcf21f98e7241d57de2bfd400447886db2f9618ce53214691496bc18e2c3133"
+content-hash = "ed4427dc610090170e6a2161731a5cf96e15aa3fdc13d00ebc4486093fae003e"
