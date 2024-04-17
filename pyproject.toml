@@ -4,6 +4,10 @@ requires-python = ">=3.12, <3.13"
 version = "0.2.0a8"
 license = "GPL-3.0-or-later"
 
+[project.urls]
+homepage = "https://github.com/tage64/chess-cli"
+documentation = "https://github.com/tage64/chess-cli/blob/main/doc/manual.md"
+
 [tool.poetry]
 name = "chess-cli"
 version = "0.2.0a8"

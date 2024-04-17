@@ -23,6 +23,9 @@ class Main(
         print(f"Welcome to Chess-CLI v{__version__}")
         print(f"Author: {__author__} <{__metadata__["author-email"]}>")
         print(f"Licensed under {spdx_license_list.LICENSES[__metadata__["license"]].name}")
+        print(
+            "Read the documentation at https://github.com/tage64/chess-cli/blob/main/doc/manual.md"
+        )
         print()
         print("Type 'help' to get a list of possible commands.")
         print()
