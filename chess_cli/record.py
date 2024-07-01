@@ -496,17 +496,21 @@ class Record(Base):
 
     async def save_recording(
         self,
-        output_file: PurePath,
+        output_file: Path,
         marks_file: PurePath | None = None,
         override_output_file: bool = False,
         no_cleanup: bool = False,
         timeout: float | None = None,
-    ) -> float:
+        ) -> None:
         """Stop and save the recording.
-
-        Returns the length of the recording in seconds.
         """
         assert self.recording is not None
+        if not override_output_file and output_file.exists():
+            print(f"The file {output_file} already exists.")
+            ans: bool = await self.yes_no_dialog("Do you want to override it?")
+            if not ans:
+                return
+            override_output_file = True
         duration = await self.recording.stop(timeout=timeout)
         await self.recording.save(
             output_file=output_file.with_suffix(".mp4"),
@@ -516,7 +520,8 @@ class Record(Base):
         )
         self.recording.cleanup(dry_run=no_cleanup)
         self.recording = None
-        return duration
+        print(f"Recording successfully saved to {output_file}")
+        print(f"It was {show_time(duration)} long.")
 
     async def delete_recording(self) -> None:
         assert self.recording is not None

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from pathlib import PurePath
+from pathlib import Path
 from typing import assert_never
 
 from .record import Record
@@ -21,11 +21,11 @@ class RecordCmds(Record):
     )
     record_save_argparser = record_subcmds.add_parser("save", help="Finish and save a recording.")
     record_save_argparser.add_argument(
-        "output_file", type=PurePath, help="The name of the output file."
+        "output_file", type=Path, help="The name of the output file."
     )
     record_save_argparser.add_argument(
         "marks_file",
-        type=PurePath,
+        type=Path,
         nargs="?",
         help="Save marks taken by `record mark` to this .txt file.",
     )
@@ -90,15 +90,13 @@ class RecordCmds(Record):
                     if not ans:
                         print("Nothing was saved. Please call the save method again.")
                         return
-                duration: float = await self.save_recording(
+                await self.save_recording(
                     output_file=args.output_file,
                     marks_file=args.marks_file,
                     override_output_file=args.override,
                     no_cleanup=args.no_cleanup,
                     timeout=args.timeout,
                 )
-                print(f"Recording successfully saved to {args.output_file}")
-                print(f"It was {show_time(duration)} long.")
             case "delete":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
