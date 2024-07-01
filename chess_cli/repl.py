@@ -359,7 +359,7 @@ def key_binding[T: ReplBase](
     """
 
     keys_: list[Keys | str] = keys if isinstance(keys, list) else [keys]
-    keys__: list[Keys] = list(map(Keys, keys_))
+    keys__: list[Keys] = [Keys(k) for k in keys_]
 
     def decorator(func: KeyBindingFunc[T]) -> KeyBinding[T]:
         nonlocal summary
