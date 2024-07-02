@@ -34,20 +34,12 @@ cairosvg = "^2.7.1"
 pydantic = "^2.6.4"
 spdx-license-list = "^3.23"
 
-[tool.poetry.dev-dependencies]
-pytest = "^7.4.4"
-mypy = "^1.8.0"
-nuitka = "^1.9.7"
-types-psutil = "^5.9.5.20240106"
-
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"
 types-requests = "^2.31.0.20240125"
-docformatter = "^1.7.5"
-pyright = "^1.1.350"
-isort = "^5.13.2"
-ruff = ">= 0.3"
+pyright = "^1.1.369"
 pyinstaller = "^6.5.0"
+ruff = "^0.5.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
