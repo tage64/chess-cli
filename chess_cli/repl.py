@@ -126,11 +126,13 @@ class ReplBase:
     _kb_exceptions: asyncio.Queue[Exception]
     # If an exception is thrown in a key binding handler, this event will be set.
     _kb_exception_event: asyncio.Event
+    _custom_tasks: set[asyncio.Task]
     prompt_session: PromptSession
 
     def __init__(self) -> None:
         self._cmds = {}
         self._key_bindings = []
+        self._custom_tasks = set()
         self._kb_manager = KeyBindings()
         self._kb_exceptions = asyncio.Queue()
         self._kb_exception_event = asyncio.Event()
@@ -165,6 +167,13 @@ class ReplBase:
                 f" {self._cmds[name].name}-cmd."
             )
             self._cmds[name] = cmd
+
+    def add_task(self, task: asyncio.Task) -> None:
+        """Add a task which will be run concurrently with the prompt.
+
+        It may through exceptions such as CmdLoopContinue.
+        """
+        self._custom_tasks.add(task)
 
     async def pre_prompt(self) -> None:
         """Called before issuing a new prompt; that is, at every iteration of the cmd loop.
@@ -223,6 +232,7 @@ class ReplBase:
         async def kb_exc() -> Never:
             """Wait for any key binding handler to throw an exception and reraise it."""
             await self._kb_exception_event.wait()
+            self._kb_exception_event.clear()
             raise self._kb_exceptions.get_nowait()
 
         async def prompt_wrapper() -> str:
@@ -237,19 +247,26 @@ class ReplBase:
         kb_exc_task: asyncio.Task = asyncio.create_task(kb_exc())
         prompt_task: asyncio.Task = asyncio.create_task(prompt_wrapper())
         with patch_stdout():
-            done, pending = await asyncio.wait(
-                (kb_exc_task, prompt_task), return_when=asyncio.FIRST_COMPLETED
-            )
-            if kb_exc_task in done:
-                assert self._kb_exceptions.empty()
-                self._kb_exception_event.clear()
-                self.prompt_session.app.exit()
-                await prompt_task
-                kb_exc_task.result()
-                raise CmdLoopContinue()  # TODO improve this
-            else:
+            try:
+                while True:
+                    done, pending = await asyncio.wait(
+                        (kb_exc_task, prompt_task, *self._custom_tasks),
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    assert len(done) == 1
+                    assert self._kb_exceptions.empty()
+                    [done] = done
+                    if done is prompt_task:
+                        return prompt_task.result()
+                    else:
+                        if done is not kb_exc_task:
+                            self._custom_tasks.remove(done)
+                        done.result()
+            finally:
                 kb_exc_task.cancel()
-                return prompt_task.result()
+                if self.prompt_session.app.is_running:
+                    self.prompt_session.app.exit()
+                await prompt_task
 
     async def cmd_loop(self) -> None:
         """Run the application in a loop."""
