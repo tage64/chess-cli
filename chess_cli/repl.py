@@ -166,6 +166,13 @@ class ReplBase:
             )
             self._cmds[name] = cmd
 
+    async def pre_prompt(self) -> None:
+        """Called before issuing a new prompt; that is, at every iteration of the cmd loop.
+
+        You can override this method to simulate post command hooks.
+        """
+        pass
+
     def poutput(self, *args, **kwargs) -> None:
         """Print to stdout.
 
@@ -178,11 +185,7 @@ class ReplBase:
         print(*args, file=sys.stderr, **kwargs)
 
     async def exec_cmd(self, prompt: str) -> None:
-        """Parse a prompt and execute the corresponding command.
-
-        This method may be overridden to simulate post and pre command hooks. It may
-        also be called to execute an arbitrary command by its prompt.
-        """
+        """Parse a prompt and execute the corresponding command."""
         prompt = prompt.strip()
         first_space: int = prompt.find(" ")
         if first_space < 0:
@@ -252,6 +255,7 @@ class ReplBase:
         """Run the application in a loop."""
         while True:
             try:
+                await self.pre_prompt()
                 await self.prompt()
             except CmdLoopContinue:
                 continue

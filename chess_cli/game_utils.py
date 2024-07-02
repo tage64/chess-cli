@@ -47,9 +47,7 @@ class GameUtils(Base):
                         return False
                 except ValueError:
                     return False
-            if move_number is not None and move_number != MoveNumber.last(node):
-                return False
-            return True
+            return not (move_number is not None and move_number != MoveNumber.last(node))
 
         if isinstance(self.game_node, chess.pgn.ChildNode):
             current_node: chess.pgn.ChildNode = self.game_node

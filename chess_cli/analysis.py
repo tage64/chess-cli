@@ -44,8 +44,8 @@ class Analysis(Engine):
 
     # Update auto analysis for every new prompt.
     @override
-    async def exec_cmd(self, *args, **kwargs) -> None:
-        await super().exec_cmd(*args, **kwargs)
+    async def pre_prompt(self) -> None:
+        await super().pre_prompt()
         await self.update_auto_analysis()
 
     @property
