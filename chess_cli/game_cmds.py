@@ -472,7 +472,7 @@ class GameCmds(GameUtils):
         help="Set the turn to play. " "Note that this will reset the current game.",
     )
 
-    @argparse_command(turn_argparser, alias="t")
+    @argparse_command(turn_argparser, alias="tu")
     async def do_turn(self, args) -> None:
         """Get or set the turn to play."""
         if args.set_color is None:

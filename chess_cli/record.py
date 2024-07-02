@@ -501,9 +501,8 @@ class Record(Base):
         override_output_file: bool = False,
         no_cleanup: bool = False,
         timeout: float | None = None,
-        ) -> None:
-        """Stop and save the recording.
-        """
+    ) -> None:
+        """Stop and save the recording."""
         assert self.recording is not None
         if not override_output_file and output_file.exists():
             print(f"The file {output_file} already exists.")

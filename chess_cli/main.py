@@ -6,6 +6,7 @@ import spdx_license_list
 from . import __author__, __metadata__, __version__
 from .analysis_cmds import AnalysisCmds
 from .base import InitArgs
+from .clock_cmds import ClockCmds
 from .curr_move_cmds import CurrMoveCmds
 from .engine_cmds import EngineCmds
 from .game_cmds import GameCmds
@@ -15,7 +16,14 @@ from .record_cmds import RecordCmds
 
 
 class Main(
-    AnalysisCmds, CurrMoveCmds, EngineCmds, GameCmds, LichessCmds, GameShortcuts, RecordCmds
+    AnalysisCmds,
+    ClockCmds,
+    CurrMoveCmds,
+    EngineCmds,
+    GameCmds,
+    GameShortcuts,
+    LichessCmds,
+    RecordCmds,
 ):
     """Main class for the chess-cli app."""
 

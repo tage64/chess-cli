@@ -1,5 +1,7 @@
 import math
 import re
+from contextlib import suppress
+from datetime import datetime, timedelta
 from typing import NamedTuple
 
 import chess.engine
@@ -175,25 +177,71 @@ def score_str(score: Score) -> str:
     return f"{cp / 100} pawns"
 
 
-def show_time(secs: float, decimals: int = 1) -> str:
+def show_time(
+    time: float | timedelta,
+    decimals: int | None = 1,
+    short: bool = False,
+    trailing_zeros: bool = False,
+) -> str:
     """Make a human friendly string representation of a timestamp."""
+    secs = time.total_seconds() if isinstance(time, timedelta) else time
+    if secs < 0:
+        negative = True
+        secs = -secs
+    else:
+        negative = False
     hours: int = math.floor(secs / 3600)
     secs %= 3600
     minutes: int = math.floor(secs / 60)
     secs %= 60
+    secs_str: str
+    if trailing_zeros:
+        if decimals is not None:
+            secs_str = f"{secs:.{decimals}f}"
+        else:
+            raise ValueError(
+                "Both trailing_zeros and decimals=None cannot be set at the same time."
+            )
+    else:
+        secs_str = f"{round(secs, decimals):g}" if decimals is not None else f"{secs:g}"
+
     res = ""
-    if hours != 0:
-        res += f"{hours} hour"
-        if hours != 1:
-            res += "s"
-        res += " and " if minutes == 0 else ", "
-    if minutes != 0:
-        res += f"{minutes} minute"
-        if minutes != 1:
-            res += "s"
-        res += " and "
-    res += f"{secs:.{decimals}f} seconds"
+    if short:
+        if negative:
+            res += "-"
+        if hours != 0:
+            res += f"{hours:02d}:"
+        if minutes != 0 or hours != 0:
+            res += f"{minutes:02d}:"
+        res += secs_str
+    else:
+        if negative:
+            res += "minus "
+        if hours != 0:
+            res += f"{hours} hour"
+            if hours != 1:
+                res += "s"
+            res += " and " if minutes == 0 else ", "
+        if minutes != 0:
+            res += f"{minutes} minute"
+            if minutes != 1:
+                res += "s"
+            res += " and "
+        res += secs_str + " seconds"
     return res
+
+
+def parse_time(time_str: str) -> timedelta:
+    formats = ["%H:%M:%S", "%M:%S", "%S"]
+    for fmt in formats:
+        try:
+            dt: datetime = datetime.strptime(time_str, fmt)
+            return dt - datetime.strptime("0", "%S")
+        except ValueError:
+            pass
+    with suppress(ValueError):
+        return timedelta(seconds=float(time_str))
+    raise ValueError(f"Failed to parse {time_str} by any of the formats: {formats}")
 
 
 def piece_name(piece: chess.Piece) -> str:

@@ -346,20 +346,21 @@ class CurrMoveCmds(Base):
             case _:
                 raise AssertionError("Unknown subcommand.")
 
-    clock_argparser = ArgumentParser()
-    clock_subcmds = clock_argparser.add_subparsers(dest="subcmd")
-    clock_subcmds.add_parser(
+    pgn_clock_argparser = ArgumentParser()
+    pgn_clock_subcmds = pgn_clock_argparser.add_subparsers(dest="subcmd")
+    pgn_clock_subcmds.add_parser(
         "show", help="Show the remaining time for the player making this move."
     )
-    clock_subcmds.add_parser("rm", help="Remove the clock information at this move.")
-    clock_set_argparser = clock_subcmds.add_parser(
+    pgn_clock_subcmds.add_parser("rm", help="Remove the clock information at this move.")
+    pgn_clock_set_argparser = pgn_clock_subcmds.add_parser(
         "set", help="Set the remaining time for the player making this move."
     )
-    clock_set_argparser.add_argument("time", help="Remaining time.")
+    pgn_clock_set_argparser.add_argument("time", help="Remaining time.")
 
-    @argparse_command(clock_argparser, alias=["cl"])
-    def do_clock(self, args) -> None:
-        """Show, edit or remove clock information at the current move."""
+    @argparse_command(pgn_clock_argparser, alias="pgnclk")
+    def do_pgn_clock(self, args) -> None:
+        """Show, edit or remove clock information in [%clk ...] annotations
+        in the PGN comment at the current move."""
         match args.subcmd:
             case "show":
                 text = self.show_clock()
