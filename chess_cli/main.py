@@ -12,6 +12,7 @@ from .engine_cmds import EngineCmds
 from .game_cmds import GameCmds
 from .game_shortcuts import GameShortcuts
 from .lichess_cmds import LichessCmds
+from .match_cmds import MatchCmds
 from .record_cmds import RecordCmds
 
 
@@ -23,6 +24,7 @@ class Main(
     GameCmds,
     GameShortcuts,
     LichessCmds,
+    MatchCmds,
     RecordCmds,
 ):
     """Main class for the chess-cli app."""

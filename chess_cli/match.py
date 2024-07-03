@@ -42,7 +42,7 @@ class PlayerError(Exception):
     """Something went wrong with a player."""
 
 
-class Play(Clock):
+class Match(Clock):
     """An extention to chess-cli to play against an opponent."""
 
     # All players currently playing, together with the game node where they are
