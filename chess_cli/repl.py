@@ -171,7 +171,7 @@ class ReplBase:
     def add_task(self, task: asyncio.Task) -> None:
         """Add a task which will be run concurrently with the prompt.
 
-        It may through exceptions such as CmdLoopContinue.
+        It may throw exceptions such as CmdLoopContinue.
         """
         self._custom_tasks.add(task)
 

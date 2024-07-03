@@ -4,6 +4,7 @@ from time import perf_counter
 from typing import override
 
 import chess.pgn
+import pydantic
 
 from .base import Base, InitArgs
 from .utils import show_time
@@ -15,17 +16,14 @@ class ChessClock(ABC):
     @abstractmethod
     def show(self) -> str:
         """A short string describing the time control."""
-        ...
 
     @abstractmethod
     def my_time(self) -> timedelta:
         """The currently thinking players remaining time."""
-        ...
 
     @abstractmethod
     def opponents_time(self) -> timedelta:
         """The player which is currently not to move's remaining time."""
-        ...
 
     def is_timeout(self) -> bool:
         return self.my_time() <= timedelta(0) or self.opponents_time() <= timedelta(0)
@@ -33,32 +31,26 @@ class ChessClock(ABC):
     @abstractmethod
     def start(self) -> None:
         """Start the clock. By default, it should not be started after running the constructor."""
-        ...
 
     @abstractmethod
     def stop(self) -> None:
         """Pause the clock without resetting the time."""
-        ...
 
     @abstractmethod
     def is_started(self) -> bool:
         """Return True iff the clock has been started."""
-        ...
 
     @abstractmethod
     def move(self) -> None:
         """Make a move so the clock flips."""
-        ...
 
     @abstractmethod
     def set_my_time(self, time: timedelta) -> None:
         """Set the currently thinking players time."""
-        ...
 
     @abstractmethod
     def set_opponents_time(self, time: timedelta) -> None:
         """Set player not to move's time."""
-        ...
 
 
 class SimpleClock(ChessClock):
@@ -175,6 +167,15 @@ class IncrementalClock(ChessClock):
         return f"{self.base_clock.show()}; {show_time(self.increment)} increment"
 
 
+class RemainingTime(pydantic.BaseModel):
+    """The remaining time for an incremental clock."""
+
+    white_clock: timedelta
+    black_clock: timedelta
+    white_inc: timedelta | None
+    black_inc: timedelta | None
+
+
 class Clock(Base):
     """An extention to chess-cli to add a chess clock."""
 
@@ -200,6 +201,20 @@ class Clock(Base):
     @clock_node.setter
     def clock_node(self, node: chess.pgn.GameNode) -> None:
         self.clock_nodes[node.game()] = node
+
+    def remaining_time(self) -> RemainingTime | None:
+        if (clock := self.clock) is not None and self.clock_node is not None:
+            if self.clock_node.turn() == chess.WHITE:
+                white_clock, black_clock = clock.my_time(), clock.opponents_time()
+            else:
+                black_clock, white_clock = clock.my_time(), clock.opponents_time()
+            increment = clock.increment if isinstance(clock, IncrementalClock) else None
+            return RemainingTime(
+                white_clock=white_clock,
+                black_clock=black_clock,
+                white_inc=increment,
+                black_inc=increment,
+            )
 
     def set_clock(self, time: timedelta, increment: timedelta | None) -> None:
         clock = SimpleClock(time)

@@ -13,7 +13,7 @@ import chess.svg
 from . import nags
 from .base import Base
 from .repl import argparse_command
-from .utils import MoveNumber, comment_text, score_str, update_comment_text
+from .utils import MoveNumber, add_to_comment_text, comment_text, score_str, update_comment_text
 
 
 class CurrMoveCmds(Base):
@@ -149,8 +149,6 @@ class CurrMoveCmds(Base):
         comment = comment if args.raw else comment_text(comment)
 
         def set_comment(new_comment: str) -> None:
-            new_comment = new_comment if args.raw else update_comment_text(comment, new_comment)
-            new_comment = new_comment.strip()
             if args.starting_comment:
                 self.game_node.starting_comment = new_comment
             else:
@@ -162,9 +160,12 @@ class CurrMoveCmds(Base):
             case "rm":
                 set_comment("")
             case "set":
-                set_comment(args.comment)
+                new_comment = (
+                    args.comment if args.raw else update_comment_text(comment, args.comment)
+                )
+                set_comment(new_comment)
             case "append":
-                set_comment(comment + " " + args.comment)
+                set_comment(add_to_comment_text(comment, args.comment))
             case "edit":
                 fd, file_name = tempfile.mkstemp(suffix=".txt", text=True)
                 try:
@@ -176,6 +177,8 @@ class CurrMoveCmds(Base):
                     with open(file_name) as file:
                         file.seek(0)
                         new_comment: str = file.read().strip()
+                        if not args.raw:
+                            new_comment = update_comment_text(comment, new_comment)
                         set_comment(new_comment)
                         self.poutput("Successfully updated comment.")
                 finally:

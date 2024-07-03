@@ -36,7 +36,16 @@ def comment_text(raw_comment: str) -> str:
 def update_comment_text(original_comment: str, new_text: str) -> str:
     """Return a new comment with the same embedded commands but with the text
     replaced."""
-    return f"{commands_in_comment(original_comment)}\n{new_text}"
+    if cmds := commands_in_comment(original_comment):
+        return cmds + "\n" + new_text
+    return new_text
+
+
+def add_to_comment_text(original_comment: str, add_text: str) -> str:
+    """Add some text to a comment without touching existing text or commands."""
+    if text := comment_text(original_comment):
+        return update_comment_text(original_comment, text + "\n" + add_text)
+    return update_comment_text(original_comment, add_text)
 
 
 MOVE_NUMBER_REGEX: re.Pattern[str] = re.compile(r"(\d+)((\.{3})|\.?)")
