@@ -2,7 +2,7 @@ import math
 import re
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import NamedTuple
+from typing import NamedTuple, assert_never
 
 import chess.engine
 import chess.pgn
@@ -188,7 +188,7 @@ def score_str(score: Score) -> str:
 
 def show_time(
     time: float | timedelta,
-    decimals: int | None = 1,
+    decimals: int | None = None,
     short: bool = False,
     trailing_zeros: bool = False,
 ) -> str:
@@ -240,6 +240,15 @@ def show_time(
     return res
 
 
+def show_rounded_time(
+    time: float | timedelta,
+    decimals: int | None = 1,
+    short: bool = False,
+    trailing_zeros: bool = True,
+) -> str:
+    return show_time(time=time, decimals=decimals, short=short, trailing_zeros=trailing_zeros)
+
+
 def parse_time(time_str: str) -> timedelta:
     formats = ["%H:%M:%S", "%M:%S", "%S"]
     for fmt in formats:
@@ -253,8 +262,58 @@ def parse_time(time_str: str) -> timedelta:
     raise ValueError(f"Failed to parse {time_str} by any of the formats: {formats}")
 
 
+def parse_time_control(text: str) -> tuple[timedelta, timedelta]:
+    """Parse a string on the form time+increment, where time is minutes and increment is seconds."""
+    parts = text.split("+")
+    time = timedelta(minutes=float(parts[0]))
+    if len(parts) == 2:
+        inc = timedelta(seconds=float(parts[1]))
+    elif len(parts) > 2:
+        raise ValueError("The time control should be on the form time+increment.")
+    else:
+        inc = timedelta(0)
+    return time, inc
+
+
 def piece_name(piece: chess.Piece) -> str:
     """Return a full name (like "white king" or "black pawn") for a piece."""
     color_name: str = "white" if piece.color == chess.WHITE else "black"
     piece_name: str = chess.piece_name(piece.piece_type)
     return f"{color_name} {piece_name}"
+
+
+def show_outcome(outcome: chess.Outcome) -> str:
+    """A human friendly representation of an outcome."""
+    res: str
+    match outcome.termination:
+        case chess.Termination.CHECKMATE:
+            res = "Checkmate"
+        case chess.Termination.STALEMATE:
+            res = "Stalemate"
+        case chess.Termination.INSUFFICIENT_MATERIAL:
+            res = "Insufficient material"
+        case chess.Termination.SEVENTYFIVE_MOVES:
+            res = "Seventyfive moves"
+        case chess.Termination.FIFTY_MOVES:
+            res = "Fifty moves"
+        case chess.Termination.FIVEFOLD_REPETITION:
+            res = "Fivefold repetition"
+        case chess.Termination.THREEFOLD_REPETITION:
+            res = "Threefold repetition"
+        case chess.Termination.VARIANT_WIN:
+            res = "Variant specific win"
+        case chess.Termination.VARIANT_DRAW:
+            res = "Variant specific draw"
+        case chess.Termination.VARIANT_LOSS:
+            res = "Variant specific loss"
+        case x:
+            assert_never(x)
+    res += ": "
+    match outcome.winner:
+        case chess.WHITE:
+            res += "White wins!"
+        case chess.BLACK:
+            res += "Black wins!"
+        case None:
+            res += "It's a draw"
+    return res

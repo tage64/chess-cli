@@ -22,7 +22,7 @@ import more_itertools
 import pyaudio
 
 from .base import Base, CommandFailure, InitArgs
-from .utils import move_str, show_time
+from .utils import move_str, show_rounded_time
 
 SAMPLE_FORMAT = pyaudio.paInt16
 SAMPLE_SIZE: int = pyaudio.get_sample_size(SAMPLE_FORMAT)
@@ -343,7 +343,7 @@ class Recording:
             if marks_file is not None:
                 with open(marks_file, "w") as f:
                     for i, comment in self.marks:
-                        timestamp: str = show_time(self.timestamps[i])
+                        timestamp: str = show_rounded_time(self.timestamps[i])
                         move: str = move_str(self.boards[i])
                         print(f"- {move}: {timestamp}", file=f)
                         if comment is not None:
@@ -520,7 +520,7 @@ class Record(Base):
         self.recording.cleanup(dry_run=no_cleanup)
         self.recording = None
         print(f"Recording successfully saved to {output_file}")
-        print(f"It was {show_time(duration)} long.")
+        print(f"It was {show_rounded_time(duration)} long.")
 
     async def delete_recording(self) -> None:
         assert self.recording is not None

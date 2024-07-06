@@ -4,7 +4,7 @@ from typing import assert_never
 
 from .record import Record
 from .repl import CommandFailure, argparse_command
-from .utils import show_time
+from .utils import show_rounded_time
 
 
 class RecordCmds(Record):
@@ -71,7 +71,7 @@ class RecordCmds(Record):
                 else:
                     self.recording.pause()
                     time: float = self.recording.stream_info.elapsed_time()
-                    print(f"Paused recording at {show_time(time)}")
+                    print(f"Paused recording at {show_rounded_time(time)}")
             case "resume" | "r":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
@@ -80,7 +80,7 @@ class RecordCmds(Record):
                 else:
                     time: float = self.recording.stream_info.elapsed_time()
                     self.recording.resume()
-                    print(f"Resumed recording at {show_time(time)}")
+                    print(f"Resumed recording at {show_rounded_time(time)}")
             case "save":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
