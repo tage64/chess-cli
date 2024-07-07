@@ -8,6 +8,7 @@ import sys
 import traceback
 from argparse import ArgumentParser
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Never, Self
 
@@ -249,19 +250,22 @@ class ReplBase:
         with patch_stdout():
             try:
                 while True:
-                    done, pending = await asyncio.wait(
+                    done_tasks, pending = await asyncio.wait(
                         (kb_exc_task, prompt_task, *self._custom_tasks),
                         return_when=asyncio.FIRST_COMPLETED,
                     )
-                    assert len(done) == 1
                     assert self._kb_exceptions.empty()
-                    [done] = done
-                    if done is prompt_task:
-                        return prompt_task.result()
-                    else:
-                        if done is not kb_exc_task:
-                            self._custom_tasks.remove(done)
-                        done.result()
+                    prompt_input: str | None = None
+                    for done in done_tasks:
+                        if done is prompt_task:
+                            prompt_input = prompt_task.result()
+                        else:
+                            if done is not kb_exc_task:
+                                self._custom_tasks.remove(done)
+                            with suppress(asyncio.CancelledError):
+                                done.result()
+                    if prompt_input is not None:
+                        return prompt_input
             finally:
                 kb_exc_task.cancel()
                 if self.prompt_session.app.is_running:
@@ -282,8 +286,9 @@ class ReplBase:
                 self.perror(f"Error: {e}")
             except _CommandException as ex:
                 traceback.print_exception(ex.inner_exc)
-            except asyncio.exceptions.CancelledError:
-                self.perror("CancelledException thrown!")
+            except asyncio.CancelledError as ex:
+                traceback.print_exception(ex)
+                self.perror("CancelledException thrown in cmd loop!")
 
 
 def _get_cmd_name(func: Callable) -> str:

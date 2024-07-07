@@ -52,7 +52,7 @@ class ChessClock(Player):
 
     def remaining_time(self) -> timedelta:
         self._update_last_known_time()
-        return timedelta(max(self.last_known_time, 0))
+        return timedelta(seconds=max(self.last_known_time, 0))
 
     @override
     async def play(self, _) -> PlayResult:
@@ -65,12 +65,15 @@ class ChessClock(Player):
             self._stop_timer()
             self._update_last_known_time()
             self.reference_time = None
-            self.last_known_time += self.increment.total_seconds()
         return "timeout"
 
+    @override
+    def next_move(self) -> None:
+        self.last_known_time += self.increment.total_seconds()
     def set_time(self, time: timedelta) -> None:
         self._stop_timer()
         self._update_last_known_time()
+        self.init_time += time - self.remaining_time()
         self.last_known_time = time.total_seconds()
         self._start_timer()
 

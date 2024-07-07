@@ -22,10 +22,10 @@ class MatchCmds(EnginePlayer, Match):
             return
         res: str = ""
         if white_clock is not None:
-            res += show_rounded_time(white_clock.remaining_time())
+            res += show_rounded_time(white_clock.remaining_time(), trailing_zeros=False)
         res += " -- "
         if black_clock is not None:
-            res += show_rounded_time(black_clock.remaining_time())
+            res += show_rounded_time(black_clock.remaining_time(), trailing_zeros=False)
         print(res)
 
     clock_argparser = argparse.ArgumentParser()
@@ -118,7 +118,7 @@ class MatchCmds(EnginePlayer, Match):
     player_add_argparser = player_subcmds.add_parser("add", aliases=["a"], help="Add a player.")
     player_add_argparser.add_argument("engine", help="Name of the chess engine.")
     player_add_argparser.add_argument(
-        "color", choices=["white", "black"], help="The color for the machine to play."
+        "color", choices=["white", "w", "black", "b"], help="The color for the machine to play."
     )
     player_add_limit_group = player_add_argparser.add_mutually_exclusive_group()
     player_add_limit_group.add_argument(
@@ -138,10 +138,19 @@ class MatchCmds(EnginePlayer, Match):
             case "ls" | "list" | None:
                 self._list_players()
             case "add" | "a":
+                if not args.engine in self.loaded_engines:
+                    raise CommandFailure(f"The engine {args.engine} is not loaded.")
                 player = self.mk_engine_player(
                     args.engine, time=args.time, depth=args.depth, nodes=args.nodes
                 )
-                color = chess.WHITE if args.color == "white" else chess.BLACK
+                color: chess.Color
+                match args.color:
+                    case "white" | "w":
+                        color = chess.WHITE
+                    case "black" | "b":
+                        color = chess.BLACK
+                    case x:
+                        assert_never(x)
                 self.add_player(player, color)
             case x:
                 assert_never(x)
@@ -169,7 +178,7 @@ class MatchCmds(EnginePlayer, Match):
     match_subcmds.add_parser("reset", help="Remove all players and clocks.")
 
     @argparse_command(match_argparser, alias="ma")
-    def do_match(self, args) -> None:
+    async def do_match(self, args) -> None:
         """Start a chess match against a player or between two players."""
         match args.subcmd:
             case "show" | "sh" | None:
@@ -189,33 +198,33 @@ class MatchCmds(EnginePlayer, Match):
                 elif self.match_result is not None:
                     print(f"The match is finished with result {self.match_result}")
                 else:
-                    raise ValueError((self.match_started(), self.match_paused, self.match_result))
+                    print("The match is currently in progress.")
             case "start" | "s":
                 if self.match_started():
                     raise CommandFailure(
                         "A match is already started.  "
                         "You can delete it with the `match reset` command."
                     )
-                self.start_match()
+                await self.start_match()
             case "pause" | "p":
                 if not self.match_ongoing():
                     print("The match is not in progress.")
                 else:
-                    self.pause_match()
+                    await self.pause_match()
                     print("The match has been paused.")
             case "resume" | "r":
                 if self.match_paused:
-                    self.resume_match()
+                    await self.resume_match()
                     print("The match has been resumed.")
                 else:
                     raise CommandFailure("The match is not paused.")
             case "reset":
                 if self.match_ongoing():
                     print("The match is currently in progress.")
-                    ans = self.yes_no_dialog("Do you want to reset anyway?")
+                    ans: bool = await self.yes_no_dialog("Do you want to reset anyway?")
                     if not ans:
                         print("Nothing has been reset.")
                         return
-                self.delete_match()
+                await self.delete_match()
             case x:
                 assert_never(x)

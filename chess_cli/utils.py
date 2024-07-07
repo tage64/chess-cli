@@ -230,13 +230,18 @@ def show_time(
             res += f"{hours} hour"
             if hours != 1:
                 res += "s"
-            res += " and " if minutes == 0 else ", "
+            if minutes != 0 and (secs != 0 or trailing_zeros):
+                res += ", "
+            elif minutes != 0 or secs != 0 or trailing_zeros:
+                res += " and "
         if minutes != 0:
             res += f"{minutes} minute"
             if minutes != 1:
                 res += "s"
-            res += " and "
-        res += secs_str + " seconds"
+            if secs != 0 or trailing_zeros:
+                res += " and "
+        if secs != 0 or trailing_zeros or (hours == 0 and minutes == 0):
+            res += secs_str + " seconds"
     return res
 
 

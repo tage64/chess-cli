@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Hashable
 from typing import Literal, override
@@ -30,10 +31,16 @@ class Player(ABC, Hashable):
         The returned awaitable must be cancellable.
 
         :param pos: A game node for the position where the player should make a move.
-            It is **important** that `pos.move` is the last move played by the opponent,
-            and that `pos.parent` is the position after this player's last move.
-            Or if it was cancelled last time, it should be the same pos at the previous call.
+            If `next_move()` was not called since the last call to `play()`, `pos` should be
+            same as in the previous call to `play()`.
         """
+
+    def next_move(self) -> None:
+        """Called for every played full move.
+
+        So for a chess clock this would add the increment.
+        """
+        pass
 
     def __hash__(self) -> int:
         """All players must be hashable."""
@@ -80,12 +87,12 @@ class Match(Base):
         assert not self.match_started(), "Can't add players when a match is already started."
         self.players[player] = color
 
-    def start_match(self) -> None:
+    async def start_match(self) -> None:
         """Start a match with all added players at the current move."""
         assert not self.match_started(), "Can't start a match when a match is already started."
         assert not self.match_paused and self.match_result is None
         self.match_node = self.game_node
-        self._start_thinking_players()
+        await self._start_thinking_players()
 
     @override
     async def pre_prompt(self) -> None:
@@ -93,16 +100,19 @@ class Match(Base):
         if self.match_ongoing() and self.match_node == self.game_node.parent:
             # A new move has been played in the match.
             self.match_node = self.game_node
-            self._cancel_thinking_players()
-            self._start_thinking_players()
+            await self._cancel_thinking_players()
+            for player, color in self.players.items():
+                if color != self.match_node.turn():
+                    player.next_move()
+            await self._start_thinking_players()
 
-    def pause_match(self) -> None:
+    async def pause_match(self) -> None:
         """Pause an ongoing match."""
         assert self.match_ongoing()
-        self._cancel_thinking_players()
+        await self._cancel_thinking_players()
         self.match_paused = True
 
-    def resume_match(self) -> None:
+    async def resume_match(self) -> None:
         """Resume a paused match.
 
         `self.match_paused` and `self.match_started()` must both be True.
@@ -110,40 +120,43 @@ class Match(Base):
         assert self.match_started(), "No match is started."
         assert self.match_paused, "The match is not paused."
         self.match_paused = False
-        self._start_thinking_players()
+        await self._start_thinking_players()
 
-    def delete_match(self) -> None:
+    async def delete_match(self) -> None:
         """Delete all players in the current match. If the match is ongoing it will be cancelled."""
-        self._cancel_thinking_players()
+        await self._cancel_thinking_players()
         self.match_node = None
         self.match_paused = False
         self.match_finished = None
         self.players.clear()
 
-    def _start_thinking_players(self) -> None:
+    async def _start_thinking_players(self) -> None:
         assert self.match_ongoing()
         assert self.match_node is not None
         for player, color in self.players.items():
             if self.match_node.turn() == color:
-                self._wait_for_player(player)
+                await self._wait_for_player(player)
 
-    def _cancel_thinking_players(self) -> None:
+    async def _cancel_thinking_players(self) -> None:
         for player, think_task in self.thinking_players.items():
             try:
                 think_task.cancel()
-                think_task.result()
+                await think_task
+            except asyncio.CancelledError:
+                pass
             except Exception as ex:
+                traceback.print_exception(ex)
                 print(f"Error: {player.name()} failed with exception: {ex}")
                 del self.players[player]
-                print(f"{player.name} has been nocked out from the game.")
+                print(f"{player.name()} has been nocked out from the game.")
         self.thinking_players.clear()
 
-    def _wait_for_player(self, player: Player) -> None:
+    async def _wait_for_player(self, player: Player) -> None:
         """Set player to think on self.match_node."""
         match_node = self.match_node
         assert match_node is not None
         if (outcome := match_node.board().outcome()) is not None:
-            self._game_finished(player, outcome.result(), show_outcome(outcome))
+            await self._game_finished(player, outcome.result(), show_outcome(outcome))
             return
 
         result_awaitable = player.play(match_node)
@@ -155,31 +168,31 @@ class Match(Base):
             if result == "resigned":
                 result_str = "0-1" if match_node.turn() == chess.WHITE else "1-0"
                 comment = f"{player.name()} resigned: {result_str}"
-                self._game_finished(player, result_str, comment)
+                await self._game_finished(player, result_str, comment)
             elif result == "timeout":
                 result_str = "0-1" if match_node.turn() == chess.WHITE else "1-0"
                 color_str = "White" if match_node.turn() == chess.WHITE else "Black"
                 comment = f"{color_str} lost on time: {result_str}"
-                self._game_finished(player, result_str, comment)
+                await self._game_finished(player, result_str, comment)
             else:
                 assert isinstance(result, chess.Move)
                 move = result
                 if not match_node.board().is_legal(move):
                     del self.players[player]
                     raise PlayerError(
-                        f"Gaah! {player.name} played an illegal move: {move}."
+                        f"Gaah! {player.name()} played an illegal move: {move}."
                         f"He/She/it has been nocked out from the game."
                     )
                 self.game_node = match_node.add_variation(move)
                 if (outcome := self.game_node.board().outcome()) is not None:
-                    self._game_finished(player, outcome.result(), show_outcome(outcome))
+                    await self._game_finished(player, outcome.result(), show_outcome(outcome))
             raise CmdLoopContinue
 
         wait_for_player_task = asyncio.create_task(wait_for_player())
         self.thinking_players[player] = wait_for_player_task
         self.add_task(wait_for_player_task)
 
-    def _game_finished(self, player: Player, result: str, comment: str) -> None:
+    async def _game_finished(self, player: Player, result: str, comment: str) -> None:
         """Called when the game has finished."""
         assert self.match_ongoing()
         assert self.match_node is not None
@@ -189,5 +202,5 @@ class Match(Base):
         if self.match_node.is_mainline():
             # Set the result of the game.
             self.match_node.game().headers["Result"] = result
-        self._cancel_thinking_players()
+        await self._cancel_thinking_players()
         self.match_result = result
