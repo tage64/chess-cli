@@ -70,6 +70,7 @@ class ChessClock(Player):
     @override
     def next_move(self) -> None:
         self.last_known_time += self.increment.total_seconds()
+
     def set_time(self, time: timedelta) -> None:
         self._stop_timer()
         self._update_last_known_time()

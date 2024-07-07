@@ -138,7 +138,7 @@ class MatchCmds(EnginePlayer, Match):
             case "ls" | "list" | None:
                 self._list_players()
             case "add" | "a":
-                if not args.engine in self.loaded_engines:
+                if args.engine not in self.loaded_engines:
                     raise CommandFailure(f"The engine {args.engine} is not loaded.")
                 player = self.mk_engine_player(
                     args.engine, time=args.time, depth=args.depth, nodes=args.nodes

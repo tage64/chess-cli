@@ -5,10 +5,10 @@ import spdx_license_list
 
 from . import __author__, __metadata__, __version__
 from .analysis_cmds import AnalysisCmds
-from .fast_move_input import FastMoveInput
 from .base import InitArgs
 from .curr_move_cmds import CurrMoveCmds
 from .engine_cmds import EngineCmds
+from .fast_move_input import FastMoveInput
 from .game_cmds import GameCmds
 from .game_shortcuts import GameShortcuts
 from .lichess_cmds import LichessCmds

@@ -13,8 +13,8 @@ from dataclasses import dataclass
 from typing import Never, Self
 
 import more_itertools
-from prompt_toolkit import PromptSession
 import prompt_toolkit.document
+from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -244,7 +244,9 @@ class ReplBase:
         async def prompt_wrapper() -> str:
             """Issue the prompt and handle KeyboardInterrupt exception."""
             try:
-                return await self.prompt_session.prompt_async(self.prompt_str(), default=current_input)
+                return await self.prompt_session.prompt_async(
+                    self.prompt_str(), default=current_input
+                )
             except KeyboardInterrupt as ex:
                 raise CmdLoopContinue() from ex
             except EOFError as ex:

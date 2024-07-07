@@ -43,11 +43,7 @@ class FastMoveInput(Base):
                 else:
                     move = board.parse_san(prompt)
             elif match := CASTLE_REGEX.fullmatch(prompt):
-                if match[1]:
-                    # Long castle.
-                    move = board.parse_san("O-O-O")
-                else:
-                    move = board.parse_san("O-O")
+                move = board.parse_san("O-O-O" if match[1] else "O-O")
         except (chess.IllegalMoveError, chess.AmbiguousMoveError) as e:
             self.perror(f"Invalid move {prompt}: {e}")
             return
