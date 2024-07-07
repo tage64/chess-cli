@@ -14,6 +14,7 @@ from typing import Never, Self
 
 import more_itertools
 from prompt_toolkit import PromptSession
+import prompt_toolkit.document
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -129,6 +130,7 @@ class ReplBase:
     _kb_exception_event: asyncio.Event
     _custom_tasks: set[asyncio.Task]
     prompt_session: PromptSession
+    _current_input: prompt_toolkit.document.Document | None = None
 
     def __init__(self) -> None:
         self._cmds = {}
@@ -236,10 +238,13 @@ class ReplBase:
             self._kb_exception_event.clear()
             raise self._kb_exceptions.get_nowait()
 
+        current_input = self._current_input or ""
+        self._current_input = None
+
         async def prompt_wrapper() -> str:
             """Issue the prompt and handle KeyboardInterrupt exception."""
             try:
-                return await self.prompt_session.prompt_async(self.prompt_str())
+                return await self.prompt_session.prompt_async(self.prompt_str(), default=current_input)
             except KeyboardInterrupt as ex:
                 raise CmdLoopContinue() from ex
             except EOFError as ex:
@@ -269,6 +274,7 @@ class ReplBase:
             finally:
                 kb_exc_task.cancel()
                 if self.prompt_session.app.is_running:
+                    self._current_input = self.prompt_session.app.current_buffer.document
                     self.prompt_session.app.exit()
                 await prompt_task
 
