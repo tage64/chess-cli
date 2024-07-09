@@ -202,6 +202,8 @@ Paused recording at 8.8 seconds
 Resumed recording at 8.8 seconds
 ```
 
+You can as well use the shortcuts CTRL+P and CTRL+R to pause and resume the recording.
+
 #### `record mark`
 
 Sometimes when recording a lengthy video it is hard to find certain positions or variations within
@@ -212,7 +214,8 @@ To put a mark on the current position (while recording), simply type:
 ```
 1... e5: record mark [<COMMENT>]
 ```
-where `[<COMMENT>]` is an **optional** comment at the mark. When saving the video, you will also need to specify a TXT file where to save the marks.
+where `[<COMMENT>]` is an **optional** comment at the mark. You can also use the shortcut CTRL+K to
+put a mark at the current position.
 
 #### `record delete`
 
