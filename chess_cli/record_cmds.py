@@ -2,8 +2,10 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import assert_never
 
+from prompt_toolkit.keys import Keys
+
 from .record import Record
-from .repl import CommandFailure, argparse_command
+from .repl import CmdLoopContinue, CommandFailure, argparse_command, key_binding
 from .utils import show_rounded_time
 
 
@@ -12,22 +14,14 @@ class RecordCmds(Record):
 
     record_argparser = ArgumentParser()
     record_subcmds = record_argparser.add_subparsers(dest="subcmd")
-    record_start_argparser = record_subcmds.add_parser("start", help="Start a recording.")
-    record_pause_argparser = record_subcmds.add_parser(
+    record_subcmds.add_parser("start", help="Start a recording.")
+    record_subcmds.add_parser(
         "pause", aliases=["p", "stop"], help="Pause/stop an ongoing recording."
     )
-    record_resume_argparser = record_subcmds.add_parser(
-        "resume", aliases=["r"], help="Resume a paused recording."
-    )
+    record_subcmds.add_parser("resume", aliases=["r"], help="Resume a paused recording.")
     record_save_argparser = record_subcmds.add_parser("save", help="Finish and save a recording.")
     record_save_argparser.add_argument(
         "output_file", type=Path, help="The name of the output file."
-    )
-    record_save_argparser.add_argument(
-        "marks_file",
-        type=Path,
-        nargs="?",
-        help="Save marks taken by `record mark` to this .txt file.",
     )
     record_save_argparser.add_argument(
         "-y",
@@ -84,15 +78,13 @@ class RecordCmds(Record):
             case "save":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
-                if self.recording.marks and args.marks_file is None:
-                    print("You have not specified a file where to save the marked timestamps.")
-                    ans: bool = await self.yes_no_dialog("Do you want to discard the marks?")
-                    if not ans:
-                        print("Nothing was saved. Please call the save method again.")
-                        return
+                if self.recording.marks:
+                    marks_file = args.output_file.with_name(args.output_file.stem + "_marks")
+                else:
+                    marks_file = None
                 await self.save_recording(
                     output_file=args.output_file,
-                    marks_file=args.marks_file,
+                    marks_file=marks_file,
                     override_output_file=args.override,
                     no_cleanup=args.no_cleanup,
                     timeout=args.timeout,
@@ -108,3 +100,37 @@ class RecordCmds(Record):
                 self.recording.set_mark(args.comment)
             case x:
                 assert_never(x)
+
+    @key_binding(Keys.ControlP)
+    def kb_record_pause(self, _) -> None:
+        """Pause an ongoing recording."""
+        if self.recording is None:
+            self.perror("No recording in progress.")
+        elif self.recording.is_paused():
+            self.perror("The recording is already paused.")
+        else:
+            self.recording.pause()
+            time: float = self.recording.stream_info.elapsed_time()
+            print(f"Paused recording at {show_rounded_time(time)}")
+        raise CmdLoopContinue
+
+    @key_binding(Keys.ControlR)
+    def kb_record_resume(self, _) -> None:
+        """Resume a paused recording."""
+        if self.recording is None:
+            self.perror("No recording in progress.")
+        elif not self.recording.is_paused():
+            self.perror("The recording is not paused.")
+        else:
+            time: float = self.recording.stream_info.elapsed_time()
+            self.recording.resume()
+            print(f"Resumed recording at {show_rounded_time(time)}")
+
+    @key_binding(Keys.ControlK)
+    def kb_record_mark(self, _) -> None:
+        """Mark the current position so that its timestamp can be remembered."""
+        if self.recording is None:
+            self.perror("No recording in progress.")
+        else:
+            self.recording.set_mark()
+        raise CmdLoopContinue
