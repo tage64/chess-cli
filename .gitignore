@@ -130,3 +130,6 @@ dmypy.json
 
 # pgn files for testing
 *.pgn
+
+*.dist
+/chess-cli.exe

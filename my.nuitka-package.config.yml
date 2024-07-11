@@ -1,0 +1,11 @@
+- module-name: 'chess_cli'
+  dlls:
+    - from_filenames:
+        relative_path: 'dlls'
+        prefixes:
+          - '*'
+        suffixes:
+          - 'dll'
+          - 'exe'
+        executable: 'yes'
+      when: 'win32'

@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Never, Self
+from typing import Any, Never
 
 import more_itertools
 import prompt_toolkit.document
@@ -20,11 +20,13 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.patch_stdout import patch_stdout
 
 type ParsedArgs = argparse.Namespace
-type CmdAsyncFunc[T] = Callable[[T, str], Awaitable[None]]
-type CmdFunc[T] = Callable[[T, str], None | Awaitable[None]]
-type ArgparseCmdAsyncFunc[T] = Callable[[T, ParsedArgs], Awaitable[None]]
-type ArgparseCmdFunc[T] = Callable[[T, ParsedArgs], None | Awaitable[None]]
-type KeyBindingFunc[T] = Callable[[T, KeyPressEvent], None]
+# We would like to replayce `Any` with `"ReplBase"` in the following type aliases,
+# but Pyright complains for some unknown reason.
+type CmdAsyncFunc = Callable[[Any, str], Awaitable[None]]
+type CmdFunc = Callable[[Any, str], None | Awaitable[None]]
+type ArgparseCmdAsyncFunc = Callable[[Any, ParsedArgs], Awaitable[None]]
+type ArgparseCmdFunc = Callable[[Any, ParsedArgs], None | Awaitable[None]]
+type KeyBindingFunc = Callable[[Any, KeyPressEvent], None]
 
 CMD_FUNC_PREFIX: str = "do_"
 KEY_BINDING_FUNC_PREFIX: str = "kb_"
@@ -34,19 +36,19 @@ DOC_STRING_REGEX: re.Pattern = re.compile(
 
 
 @dataclass
-class Command[T]:
+class Command:
     """A cmd in the REPL."""
 
     name: str  # The name of the command.
     aliases: list[str]  # A list of aliases for the command.
-    func: CmdAsyncFunc[T]  # A function to execute for the command.
+    func: CmdAsyncFunc  # A function to execute for the command.
     summary: str | None  # A short summary for the command.
     long_help: str | None  # A longer description of the command.
 
-    async def __call__(self, self_: T, prompt: str) -> None:
+    async def __call__(self, self_: "ReplBase", prompt: str) -> None:
         return await self.func(self_, prompt)
 
-    async def call_wrap_exception(self, self_: T, prompt: str) -> None:
+    async def call_wrap_exception(self, self_: "ReplBase", prompt: str) -> None:
         try:
             return await self.func(self_, prompt)
         except ReplException as ex:  # Reraise
@@ -56,18 +58,18 @@ class Command[T]:
 
 
 @dataclass
-class KeyBinding[T: "ReplBase"]:
+class KeyBinding:
     """A key binding and corresponding method in a REPL."""
 
     keys: list[Keys]
     ptk_kwargs: dict  # Keyword arguments to prompt_toolkit.key_binding.KeyBindings.add().
-    func: KeyBindingFunc[T]  # A function to execute for the key binding.
+    func: KeyBindingFunc  # A function to execute for the key binding.
     summary: str | None  # A short summary for the key binding.
 
-    def __call__(self, repl: T, event: KeyPressEvent) -> None:
+    def __call__(self, repl: "ReplBase", event: KeyPressEvent) -> None:
         self.func(repl, event)
 
-    def call_catch_exception(self, repl: T, event: KeyPressEvent) -> None:
+    def call_catch_exception(self, repl: "ReplBase", event: KeyPressEvent) -> None:
         try:
             try:
                 self.func(repl, event)
@@ -121,7 +123,7 @@ class ReplBase:
 
     # All commands stored in a dict with names/aliases as keys. Note that a command
     # may occur multiple times if it has multiple names/aliases.
-    _cmds: dict[str, Command[Self]]
+    _cmds: dict[str, Command]
     _key_bindings: list[KeyBinding]  # All registered key bindings.
     _kb_manager: KeyBindings  # The prompt_toolkit's key bindings manager.
     # If an exception is thrown in a key binding handler it will be put on this queue.
@@ -163,7 +165,7 @@ class ReplBase:
             key_bindings=self._kb_manager, enable_system_prompt=True, enable_open_in_editor=True
         )
 
-    def add_cmd(self, cmd: Command[Self]) -> None:
+    def add_cmd(self, cmd: Command) -> None:
         for name in more_itertools.prepend(cmd.name, cmd.aliases):
             assert name not in self._cmds, (
                 f"Error when adding cmd {cmd.name}: {name} is already bound to the"
@@ -254,49 +256,50 @@ class ReplBase:
 
         kb_exc_task: asyncio.Task = asyncio.create_task(kb_exc())
         prompt_task: asyncio.Task = asyncio.create_task(prompt_wrapper())
-        with patch_stdout():
-            try:
-                while True:
-                    done_tasks, pending = await asyncio.wait(
-                        (kb_exc_task, prompt_task, *self._custom_tasks),
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    assert self._kb_exceptions.empty()
-                    prompt_input: str | None = None
-                    for done in done_tasks:
-                        if done is prompt_task:
-                            prompt_input = prompt_task.result()
-                        else:
-                            if done is not kb_exc_task:
-                                self._custom_tasks.remove(done)
-                            with suppress(asyncio.CancelledError):
-                                done.result()
-                    if prompt_input is not None:
-                        return prompt_input
-            finally:
-                kb_exc_task.cancel()
-                if self.prompt_session.app.is_running:
-                    self._current_input = self.prompt_session.app.current_buffer.document
-                    self.prompt_session.app.exit()
-                await prompt_task
+
+        try:
+            while True:
+                done_tasks, pending = await asyncio.wait(
+                    (kb_exc_task, prompt_task, *self._custom_tasks),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                assert self._kb_exceptions.empty()
+                prompt_input: str | None = None
+                for done in done_tasks:
+                    if done is prompt_task:
+                        prompt_input = prompt_task.result()
+                    else:
+                        if done is not kb_exc_task:
+                            self._custom_tasks.remove(done)
+                        with suppress(asyncio.CancelledError):
+                            done.result()
+                if prompt_input is not None:
+                    return prompt_input
+        finally:
+            kb_exc_task.cancel()
+            if self.prompt_session.app.is_running:
+                self._current_input = self.prompt_session.app.current_buffer.document
+                self.prompt_session.app.exit()
+            await prompt_task
 
     async def cmd_loop(self) -> None:
         """Run the application in a loop."""
-        while True:
-            try:
-                await self.pre_prompt()
-                await self.prompt()
-            except CmdLoopContinue:
-                continue
-            except QuitRepl:
-                break
-            except CommandFailure as e:
-                self.perror(f"Error: {e}")
-            except _CommandException as ex:
-                traceback.print_exception(ex.inner_exc)
-            except asyncio.CancelledError as ex:
-                traceback.print_exception(ex)
-                self.perror("CancelledException thrown in cmd loop!")
+        with patch_stdout():
+            while True:
+                try:
+                    await self.pre_prompt()
+                    await self.prompt()
+                except CmdLoopContinue:
+                    continue
+                except QuitRepl:
+                    break
+                except CommandFailure as e:
+                    self.perror(f"Error: {e}")
+                except _CommandException as ex:
+                    traceback.print_exception(ex.inner_exc)
+                except asyncio.CancelledError as ex:
+                    traceback.print_exception(ex)
+                    self.perror("CancelledException thrown in cmd loop!")
 
 
 def _get_cmd_name(func: Callable) -> str:
@@ -315,12 +318,12 @@ def command[T: ReplBase](
     alias: list[str] | str | None = None,
     summary: str | None = None,
     long_help: str | None = None,
-) -> Callable[[CmdFunc[T]], Command[T]]:
+) -> Callable[[CmdFunc], Command]:
     """A decorator for methods of `Repl` to add them as commands."""
 
     aliases: list[str] = [alias] if isinstance(alias, str) else (alias or [])
 
-    def decorator(func: CmdFunc[T]) -> Command[T]:
+    def decorator(func: CmdFunc) -> Command:
         nonlocal summary
         nonlocal long_help
         if summary is None and func.__doc__:
@@ -330,7 +333,7 @@ def command[T: ReplBase](
             long_help = func.__doc__.strip() if func.__doc__ else None
         name: str = _get_cmd_name(func)
         if asyncio.iscoroutinefunction(func):
-            cmd: Command[T] = Command(
+            cmd: Command = Command(
                 name=name, aliases=aliases, func=func, summary=summary, long_help=long_help
             )
         else:
@@ -348,19 +351,19 @@ def command[T: ReplBase](
     return decorator
 
 
-def argparse_command[T: ReplBase](
+def argparse_command(
     argparser: ArgumentParser, alias: list[str] | str | None = None
-) -> Callable[[ArgparseCmdFunc[T]], Command[T]]:
+) -> Callable[[ArgparseCmdFunc], Command]:
     """Returns a decorator for methods of `Repl` to add them as commands with an
     argparser."""
 
-    def decorator(func: ArgparseCmdFunc[T]) -> Command[T]:
+    def decorator(func: ArgparseCmdFunc) -> Command:
         argparser.prog = _get_cmd_name(func)
         if not argparser.description:
             argparser.description = func.__doc__
 
         @functools.wraps(func)
-        async def cmd_func(repl: T, prompt: str) -> None:
+        async def cmd_func(repl: ReplBase, prompt: str) -> None:
             args = shlex.split(prompt)
             try:
                 parsed_args: ParsedArgs = argparser.parse_args(args)
@@ -382,7 +385,7 @@ def argparse_command[T: ReplBase](
 
 def key_binding[T: ReplBase](
     keys: Keys | str | list[Keys | str], summary: str | None = None, **ptk_kwargs
-) -> Callable[[KeyBindingFunc[T]], KeyBinding[T]]:
+) -> Callable[[KeyBindingFunc], KeyBinding]:
     """A decorator for methods of `Repl` to add them as key bindings.
 
     :param keys: one or more key bindings to trigger the method
@@ -395,7 +398,7 @@ def key_binding[T: ReplBase](
     keys_: list[Keys | str] = keys if isinstance(keys, list) else [keys]
     keys__: list[Keys] = [Keys(k) for k in keys_]
 
-    def decorator(func: KeyBindingFunc[T]) -> KeyBinding[T]:
+    def decorator(func: KeyBindingFunc) -> KeyBinding:
         nonlocal summary
         if summary is None and func.__doc__:
             summary_match = DOC_STRING_REGEX.match(func.__doc__)
@@ -404,9 +407,7 @@ def key_binding[T: ReplBase](
             f"The name of a key binding function must start with {KEY_BINDING_FUNC_PREFIX}, "
             f"which is not the case with {func.__qualname__}."
         )
-        kb: KeyBinding[T] = KeyBinding(
-            keys=keys__, ptk_kwargs=ptk_kwargs, func=func, summary=summary
-        )
+        kb: KeyBinding = KeyBinding(keys=keys__, ptk_kwargs=ptk_kwargs, func=func, summary=summary)
         functools.update_wrapper(kb, func)
         return kb
 

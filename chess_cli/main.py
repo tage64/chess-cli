@@ -1,9 +1,7 @@
 import asyncio
 from argparse import ArgumentParser
 
-import spdx_license_list
-
-from . import __author__, __metadata__, __version__
+from . import __version__
 from .analysis_cmds import AnalysisCmds
 from .base import InitArgs
 from .curr_move_cmds import CurrMoveCmds
@@ -31,8 +29,8 @@ class Main(
 
     def __init__(self, args: InitArgs) -> None:
         print(f"Welcome to Chess-CLI v{__version__}")
-        print(f"Author: {__author__} <{__metadata__["author-email"]}>")
-        print(f"Licensed under {spdx_license_list.LICENSES[__metadata__["license"]].name}")
+        # print(f"Author: {__author__} <{__metadata__["author-email"]}>")
+        # print(f"Licensed under {spdx_license_list.LICENSES[__metadata__["license"]].name}")
         print(
             "Read the documentation at https://github.com/tage64/chess-cli/blob/main/doc/manual.md"
         )
