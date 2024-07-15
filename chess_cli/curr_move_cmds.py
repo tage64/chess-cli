@@ -4,6 +4,7 @@ import re
 import tempfile
 from argparse import ArgumentParser
 from collections.abc import Iterable
+from typing import assert_never
 
 import chess
 import chess.engine
@@ -297,9 +298,9 @@ class CurrMoveCmds(Base):
                 raise AssertionError("Unknown subcommand.")
 
     arrow_argparser = ArgumentParser()
-    arrow_subcmds = arrow_argparser.add_subparsers(dest="subcmds")
-    arrow_subcmds.add_parser("show", help="Show all arrows on the board.")
-    arrow_subcmds.add_parser("clear", help="Clear all arrows on the board.")
+    arrow_subcmds = arrow_argparser.add_subparsers(dest="subcmd")
+    arrow_subcmds.add_parser("show", aliases=["s", "sh"], help="Show all arrows on the board.")
+    arrow_subcmds.add_parser("clear", aliases=["c", "cl"], help="Clear all arrows on the board.")
     arrow_rm_argparser = arrow_subcmds.add_parser(
         "rm", help="Remove all arrows between two squares."
     )
@@ -309,7 +310,9 @@ class CurrMoveCmds(Base):
     arrow_rm_argparser.add_argument(
         "to", type=chess.parse_square, help="The square which the arrow is pointing to."
     )
-    arrow_add_argparser = arrow_subcmds.add_parser("add", help="Draw an arrow on the board.")
+    arrow_add_argparser = arrow_subcmds.add_parser(
+        "add", aliases=["a"], help="Draw an arrow on the board."
+    )
     arrow_add_argparser.add_argument(
         "_from", type=chess.parse_square, help="The square from which the arrow is drawn."
     )
@@ -330,11 +333,11 @@ class CurrMoveCmds(Base):
         color_abbreviations: dict[str, str] = {"g": "green", "y": "yellow", "r": "red", "b": "blue"}
 
         match args.subcmd:
-            case "show":
+            case "show" | "s" | "sh" | None:
                 text = self.show_arrows()
                 if text is not None:
                     self.poutput(text)
-            case "add":
+            case "add" | "a":
                 color = color_abbreviations.get(args.color, args.color)
                 self.game_node.set_arrows([
                     *self.game_node.arrows(),
@@ -346,8 +349,10 @@ class CurrMoveCmds(Base):
                     for arr in self.game_node.arrows()
                     if not (args._from == arr.tail or args.to == arr.head)
                 )
-            case _:
-                raise AssertionError("Unknown subcommand.")
+            case "clear" | "c" | "cl":
+                self.game_node.set_arrows([])
+            case x:
+                assert_never(x)
 
     pgn_clock_argparser = ArgumentParser()
     pgn_clock_subcmds = pgn_clock_argparser.add_subparsers(dest="subcmd")
