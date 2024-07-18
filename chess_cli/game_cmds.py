@@ -388,7 +388,13 @@ class GameCmds(GameUtils):
     setup_argparser = ArgumentParser()
     pos_group = setup_argparser.add_mutually_exclusive_group(required=True)
     pos_group.add_argument("fen", nargs="?", help="The position as an FEN string.")
-    pos_group.add_argument("-e", "--empty", action="store_true", help="Setup an empty board.")
+    pos_group.add_argument(
+        "-e",
+        "--empty",
+        nargs="*",
+        help="Setup an empty board and add pieces by piece-square identifiers "
+        "(see the put command), e.g Kg1 kb8 for a white king at g1 and black king at b8.",
+    )
     pos_group.add_argument(
         "-s", "--start", action="store_true", help="Setup the starting position."
     )
@@ -402,8 +408,9 @@ class GameCmds(GameUtils):
                 board = chess.Board(args.fen)
             except ValueError as e:
                 raise CommandFailure(f"Bad FEN: {e}") from None
-        elif args.empty:
+        elif args.empty is not None:
             board = chess.Board.empty()
+            await self._put_pieces(board, args.empty)
         elif args.start:
             board = chess.Board()
         else:
@@ -445,12 +452,24 @@ class GameCmds(GameUtils):
         help="A piece-squares identifier like Kg1 for white king at g1, "
         "or ra8,e8 for black rooks at a8 and e8.",
     )
+    put_argparser.add_argument(
+        "-p", "--promoted", action="store_true", help="Set the added pieces as promoted pieces."
+    )
 
     @argparse_command(put_argparser)
     async def do_put(self, args) -> None:
         """Put pieces on the chess board."""
         board: chess.Board = self.game_node.board()
-        for piece_squares in args.piece_squares:
+        await self._put_pieces(board, args.piece_squares, args.promoted)
+
+    async def _put_pieces(
+        self, board: chess.Board, pieces_squares: list[str], promoted: bool = False
+    ) -> None:
+        """Put pieces on the board and set the current position.
+
+        The pieces_squares strings are parsed as described by the put command.
+        """
+        for piece_squares in pieces_squares:
             try:
                 piece: chess.Piece = chess.Piece.from_symbol(piece_squares[0])
                 squares: list[chess.Square] = [
@@ -461,7 +480,22 @@ class GameCmds(GameUtils):
             for square in squares:
                 if (p := board.piece_at(square)) is not None:
                     print(f"Replacing {piece_name(p)} at {chess.square_name(square)}")
-                board.set_piece_at(square, piece)
+                if piece.piece_type == chess.KING and not promoted:
+                    if len(squares) > 1:
+                        raise CommandFailure(
+                            "You cannot put multiple kings on the board "
+                            "unless you use the `--promoted` flag."
+                        )
+                    if (
+                        old_king_sq := board.king(piece.color)
+                    ) is not None and old_king_sq != square:
+                        print(
+                            f"Moving king from {chess.square_name(old_king_sq)} "
+                            f"to {chess.square_name(square)}"
+                        )
+                        removed_king = board.remove_piece_at(old_king_sq)
+                        assert removed_king == piece
+                board.set_piece_at(square, piece, promoted)
         await self.set_position(board)
 
     turn_argparser = ArgumentParser()

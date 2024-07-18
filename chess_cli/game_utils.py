@@ -263,8 +263,67 @@ class GameUtils(Base):
     async def set_position(self, board: chess.Board) -> None:
         """Delete the current game and set the starting position."""
         board.fullmove_number = 1
-        if not board.is_valid():
-            raise CommandFailure("The position will become invalid.")
+        status = board.status()
+        if status != chess.STATUS_VALID:
+            print("The position will become invalid:")
+            if status & chess.STATUS_BAD_CASTLING_RIGHTS:
+                # Try if we can remove some castling rights:
+                original_castling_rights = board.castling_rights
+                # Consider all subsets of the current castling rights:
+                castling_subsets: list[chess.SquareSet] = [
+                    chess.SquareSet(bb)
+                    for bb in chess.SquareSet(board.castling_rights).carry_rippler()
+                    if bb != original_castling_rights
+                ]
+                # Sort so that we remove as few castling rights as possible.
+                castling_subsets.sort(key=len, reverse=True)
+                for castling_rights in castling_subsets:
+                    board.castling_rights = castling_rights.mask
+                    if board.is_valid():
+                        print("Position will become valid if ", end="")
+                        diff = chess.SquareSet(original_castling_rights) - castling_rights
+                        if not castling_rights:
+                            print("we clear castling rights.")
+                        elif len(diff) == 1:
+                            print(
+                                f"we remove castling rights for the rook at "
+                                f"{chess.square_name(next(iter(diff)))}"
+                            )
+                        else:
+                            print(
+                                f"we remove castling rights for the rooks at "
+                                f"{" and ".join(map(chess.square_name, diff))}"
+                            )
+                        ans: bool = await self.yes_no_dialog("Do you want to do that?")
+                        if ans:
+                            print("The castling rights has been updated.")
+                            await self.set_position(board)
+                        else:
+                            print("Ok, nothing was changed.")
+                        return
+            status_descriptions: dict[int, str] = {
+                chess.STATUS_NO_WHITE_KING: "No white king",
+                chess.STATUS_NO_BLACK_KING: "No black king",
+                chess.STATUS_TOO_MANY_KINGS: "Too many kings",
+                chess.STATUS_TOO_MANY_WHITE_PAWNS: "Too many white pawns",
+                chess.STATUS_TOO_MANY_BLACK_PAWNS: "Too many black pawns",
+                chess.STATUS_PAWNS_ON_BACKRANK: "Pawns on backrank",
+                chess.STATUS_TOO_MANY_WHITE_PIECES: "Too many white pieces",
+                chess.STATUS_TOO_MANY_BLACK_PIECES: "Too many black pieces",
+                chess.STATUS_BAD_CASTLING_RIGHTS: "Bad castling rights",
+                chess.STATUS_INVALID_EP_SQUARE: "Invalid en-passant square",
+                chess.STATUS_OPPOSITE_CHECK: "Opposite check",
+                chess.STATUS_EMPTY: "The board cannot be empty",
+                chess.STATUS_RACE_CHECK: "Racing kings: A king is in check which is not allowed",
+                chess.STATUS_RACE_OVER: "Racing kings: Race is over",
+                chess.STATUS_RACE_MATERIAL: "Racing kings: Invalid material",
+                chess.STATUS_TOO_MANY_CHECKERS: "Too many checkers",
+                chess.STATUS_IMPOSSIBLE_CHECK: "Impossible check",
+            }
+            for status_code, description in status_descriptions.items():
+                if status & status_code:
+                    print(f"- {description}")
+            raise CommandFailure("The position is not changed.")
         if self.game_node.parent is not None:
             ans: bool = await self.yes_no_dialog(
                 "Changing the position will delete the entire game "
