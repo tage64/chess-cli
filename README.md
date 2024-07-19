@@ -5,7 +5,7 @@ See [manual here][3].
 
 ## Building
 
-## Prerequisites
+### Prerequisites
 
 You need [Python 3.12 or later][1] and [Poetry][2].
 You can install the latter with:
@@ -13,7 +13,8 @@ You can install the latter with:
 $ pip install poetry
 ```
 
-You also need ffmpeg and portaudio installed.
+On GNU/Linux, you also need ffmpeg and portaudio installed, on Windows, these things are bundeled
+with the source files.
 
 ### Running in Development Environment
 
@@ -27,7 +28,7 @@ And run it with:
 $ poetry run chess-cli
 ```
 
-### Building
+### Building Python Package
 
 Just run:
 ```Bash
@@ -36,14 +37,18 @@ $ poetry build
 $ pip install dist/*.whl
 ```
 
-### Building a Windows executable
+### Building a Windows Installer
 
 Inside Powershell, run:
 ```
-$ .\pyinstaller_windows.bat
+$ poetry run nuitka chess-cli.py
 ```
 
-The resulting (standalone) executable should be dist/chess-cli.exe.
+The resulting executable should be `chess-cli.dist/chess-cli.exe`.
+
+To build the installer, you need to install [NSIS][4]. Then, right click `windows_setup.nsi` in
+Windowrs Explorer and choose "Compile NSIS Script". The resulting installation file is called
+`Chess-CLI-setup.exe`.
 
 ## Usage
 
@@ -59,3 +64,4 @@ See a more complete manual [here][3].
 [1]: https://www.python.org/downloads/
 [2]: https://python-poetry.org
 [3]: doc/manual.md
+[4]: https://nsis.sourceforge.io/Download
