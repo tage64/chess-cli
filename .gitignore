@@ -133,3 +133,4 @@ dmypy.json
 
 *.dist
 /chess-cli.exe
+/Chess-CLI-setup.exe
