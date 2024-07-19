@@ -10,7 +10,7 @@
 ; General
   Name "${NAME}"
   OutFile "${NAME}-setup.exe"
-  InstallDir "$PROGRAMDATA\${NAME}"
+  InstallDir "$PROGRAMFILES\${NAME}"
   InstallDirRegKey HKCU "Software\${NAME}" ""
   RequestExecutionLevel admin
 ; UI
