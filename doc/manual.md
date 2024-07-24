@@ -9,9 +9,10 @@ This manual though, includes some helpful notes for NVDA-users, if those are not
 
 ### Windows
 
-Windows users can just download [this standalone executable][4] and put it on some easily accessible place in the file system.
-Just run the exe-file to start Chess-CLI.
-You will perhaps need to accept the risc of running an executable from an unknown publisher, click on "More Info" and then "Run Anyway" and it should work.
+Windows users can just download and run [this installation program][4]. You will perhaps need to
+accept the risc of running an executable from an unknown publisher, click on "More Info" and then
+"Run Anyway" and it should work. The installer will create desktop and start menu shortcuts for
+chess-cli and add `chess-cli` to the `PATH` environment variable.
 
 ### Linux, Mac and other platforms
 
@@ -19,6 +20,8 @@ Currently, the easiest is just to run it from the development environment.
 See the [Readme][5] for instructions.
 
 ## Navigating the Terminal with NVDA
+
+If you don't use a screen reader you may skip this section.
 
 As aposed to a [graphical user interface][7], Chess-CLI uses a [text terminal][6] to interact with the user.
 So here follows some tips of how to read and navigate the terminal using the [screen reader][2] [NVDA][3]:
@@ -33,17 +36,17 @@ You will also need to know your [NVDA key][10], which is usually insert or capsl
 
 ### Basic shortcuts
 
-A terminal is basicly a 2-dimensional view of the text on the screen.
-The terminal also has a cursor, which marks the current focus.
-To read the next/previous line, press numpad7/numpad9 on desktop or NBDA+upArrow/NVDA+downArrow on laptop.
-To read the current line press numpad8 on desktop or NVDA+shift+. on laptop.
-And to move focus to the cursor, press NVDA+numpadMinus on desktop or NVDA+backspace on laptop.
-Those few shortcuts will be a good start. For reference, see [the NVDA command reference here][11]. Especially [this section][12].
+A terminal is basicly a 2-dimensional view of the text on the screen. The terminal also has a
+cursor, which marks the current focus. To read the next/previous line, press numpad7/numpad9 on
+desktop or NBDA+upArrow/NVDA+downArrow on laptop. To read the current line press numpad8 on desktop
+or NVDA+shift+. on laptop. And to move focus to the cursor, press NVDA+numpadMinus on desktop or
+NVDA+backspace on laptop. Those few shortcuts will be a good start. For a complete list of
+shortcuts, see [the NVDA command reference here][11]. Especially [this section][12].
 
 ### Correct Review Mode
 
-If the above commands doesn't work, make sure that object review is selected by pressing NVDA+numpad1 a few times.
-More information about different review modes can be found [here][13].
+If the above commands doesn't work, make sure that object review is selected by pressing
+NVDA+numpad1 a few times. More information about different review modes can be found [here][13].
 
 ### Command-line Interface in a Nutshell
 
@@ -85,28 +88,55 @@ The command "quit" exits the program and all unsaved moves are lost. No recovery
 
 The "help" command prints out a short list of all availlable commands.
 
+#### Keyboard shortcuts
+
+Chess-CLI has some builtin keyboard shortcuts. To get a list of them, type `key-bindings` or `kb`.
+
 ### Edit the Game
 
-#### Play
+#### Make Moves
 
-The command "play" followed by a list of moves, will try to play those moves from the current position.
-For example:
+The easiest way to insert moves in the game is to just type them in [standard algebraic
+notation][14]:
 
 ```
-start: play e4 e5 f4 exf4
-```
-And add a sideline, add the flag "-s":
-```
-2... exf4: play -s d5 exd5 e4
+start: e4
+1. e4: e5
+1... e5: f4
+2. f4:
 ```
 
-Note that the moves must be entered in [standard algebraic notation][14], and that pieces must be entered with capital letters.
-So "Nf3" instead of "nf3".
+If you want to make multiple moves in one command, or want to insert sidelines, you may use the
+"play" (or "p") command:
 
-#### Moves - Show the Moves of the Game
+```
+2. f4: play exf4 Nf3 g5 h4
+```
+To add a sideline, add the flag "-s":
+```
+4. h4: p -s Bc4 g4 O-O
+```
 
-The "moves" command prints all moves in the game.
-Continuing on the previous example:
+You can go back in the game with Shift+UpArrow and add variations in the game. For instance, if you
+press `Shift+UpArrow` until you come to the move "2. f4" (or enter the command "goto 2."), and then
+enter the move "d5", you'll add `d5` as a variation to `exf4`. You can move between different
+variations with `Shift+LeftArrow` and `Shift+RightArrow`, and move forward in the game with
+`Shift+DownArrow`.
+
+To promote a variation, that is move a sideline closer to the mainline, use the "promote" (or "pr")
+command. "demote" (or "de") works in the opposite way. "promote -m" will promote a sideline to the
+mainline immediately.
+
+If a move has multiple continuations already, and you want to add a new move as the mainline, you
+may use the `-m` flag to the `play` command:
+
+```
+2. f4: p -m Nc6
+```
+
+#### Show the Moves of the Game
+
+The "moves" command prints all moves in the game:
 
 ```
 3... e4: moves
@@ -123,18 +153,24 @@ To show the game with all variations, add the "-r" flag:
   3. exd5 e4
 ```
 
+### Navigate in the Game
+
+The shortcuts `Shift+UpArrow` and `Shift+DownArrow` can be used to move to the previous or next move
+in the game following the mainline. `Shift+LeftArrow` and `Shift+RightArrow` can be used to move to
+the previous or next sideline.
+
 #### Goto a Specific Move
 
-The "goto" command is used to go to a specific move in the game.
+The "goto" (or "g") command is used to go to a specific move in the game.
 It takes as argument either a move number or a move.
 The "-r" flag makes it recurse into sidelines.
 For example:
 
 ```
 3... e4: goto f4
-2. f4: goto 2...
-2... exf4>: goto start
-start: goto -r 3...e4
+2. f4: g 2...
+2... exf4>: g start
+start: g -r 3...e4
 ```
 
 ### Saving and Loading Games
@@ -161,7 +197,9 @@ If the current game is not loaded from a file and the game hasn't been saved bef
 
 ### Recording Chess Videos
 
-Chess-CLI has basic capabilities to record chess videos. Specifically, it can record audio and render the current chess board. So the resulting video will only contain your voice and the chess board, there is no functionality to film yourself at the moment.
+Chess-CLI has basic capabilities to record chess videos. Specifically, it can record audio and
+render the current chess board. So the resulting video will only contain your voice and the chess
+board, there is no functionality to film yourself at the moment.
 
 #### `record start`
 
@@ -210,7 +248,7 @@ Sometimes when recording a lengthy video it is hard to find certain positions or
 the video. Therefor we have developed a system to mark certain key positions while recording, and
 then export the timestamps for those positions within the video to a text file.
 
-To put a mark on the current position (while recording), simply type:
+To put a mark on the current position (while recording), press `CTRL+K`, or type:
 ```
 1... e5: record mark [<COMMENT>]
 ```
@@ -234,7 +272,7 @@ It was 3 minutes and 7.2 seconds long.
 [1]: https://en.wikipedia.org/wiki/Command-line_interface
 [2]: https://en.wikipedia.org/wiki/Screen_reader
 [3]: https://www.nvaccess.org
-[4]: https://github.com/tage64/chess-cli/releases/latest/download/chess-cli.exe
+[4]: https://github.com/tage64/chess-cli/releases/latest/download/Chess-CLI-setup.exe
 [5]: https://github.com/tage64/chess-cli#readme
 [6]: https://en.wikipedia.org/wiki/Computer_terminal#Text_terminals
 [7]: https://en.wikipedia.org/wiki/Graphical_user_interface
