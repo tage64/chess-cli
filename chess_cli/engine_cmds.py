@@ -30,7 +30,9 @@ class EngineCmds(Engine):
     engine_ls_argparser.add_argument(
         "-l", "--loaded", action="store_true", help="List only loaded engines."
     )
-    engine_load_argparser = engine_subcmds.add_parser("load", help="Load a chess engine.")
+    engine_load_argparser = engine_subcmds.add_parser(
+        "load", aliases=["l", "lo"], help="Load a chess engine."
+    )
     engine_load_argparser.add_argument(
         "name", help="Name of the engine. List availlable engines with the command `engine ls`"
     )
@@ -42,7 +44,9 @@ class EngineCmds(Engine):
             " of an engine running at the same time."
         ),
     )
-    engine_import_argparser = engine_subcmds.add_parser("import", help="Import a chess engine.")
+    engine_import_argparser = engine_subcmds.add_parser(
+        "import", aliases=["i", "im"], help="Import a chess engine."
+    )
     engine_import_argparser.add_argument("path", help="Path to engine executable.")
     engine_import_argparser.add_argument(
         "name", help="A short name for the engine, (PRO TIP: avoid spaces in the name)."
@@ -65,9 +69,12 @@ class EngineCmds(Engine):
     engine_install_argparser.add_argument(
         "engine", choices=["stockfish", "lc0"], help="Which engine to install."
     )
-    engine_quit_argparser = engine_subcmds.add_parser("quit", help="Quit all selected engines.")
+    engine_quit_argparser = engine_subcmds.add_parser(
+        "quit", aliases=["q"], help="Quit all selected engines."
+    )
     engine_select_argparser = engine_subcmds.add_parser(
         "select",
+        aliases=["s", "sel"],
         help=(
             "Select a loaded engine. The selected engine will be used for commands like `analysis"
             " start` or `engine config`."
@@ -76,12 +83,12 @@ class EngineCmds(Engine):
     engine_select_argparser.add_argument("engine", help="Engine to select.")
     engine_config_argparser = engine_subcmds.add_parser(
         "config",
-        aliases=["conf", "configure"],
+        aliases=["c", "conf", "configure"],
         help="Set values for or get current values of different engine specific parameters.",
     )
     engine_config_subcmds = engine_config_argparser.add_subparsers(dest="config_subcmd")
     engine_config_get_argparser = engine_config_subcmds.add_parser(
-        "get", help="Get the value of an option for the selected engine."
+        "get", aliases=["g"], help="Get the value of an option for the selected engine."
     )
     engine_config_get_argparser.add_argument("name", help="Name of the option.")
     engine_config_ls_argparser = engine_config_subcmds.add_parser(
@@ -123,7 +130,7 @@ class EngineCmds(Engine):
     )
     engine_config_subcmds.add_parser("reset", help="Reset all configured options for an engine.")
     engine_config_set_argparser = engine_config_subcmds.add_parser(
-        "set", help="Set a value of an option for the selected engine."
+        "set", aliases=["s"], help="Set a value of an option for the selected engine."
     )
     engine_config_set_argparser.add_argument("name", help="Name of the option to set.")
     engine_config_set_argparser.add_argument(
@@ -144,6 +151,7 @@ class EngineCmds(Engine):
     )
     engine_config_unset_argparser = engine_config_subcmds.add_parser(
         "unset",
+        aliases=["u"],
         help="Change an option back to its default value and remove it from the configuration.",
     )
     engine_config_unset_argparser.add_argument("name", help="Name of the option to unset.")
@@ -154,7 +162,7 @@ class EngineCmds(Engine):
         help="Unset the value in the running engine but keep it in the engine's configuration.",
     )
     engine_config_trigger_argparser = engine_config_subcmds.add_parser(
-        "trigger", help="Trigger an option of type button."
+        "trigger", aliases=["t"], help="Trigger an option of type button."
     )
     engine_config_trigger_argparser.add_argument("name", help="Name of the option to trigger.")
     engine_log_argparser = engine_subcmds.add_parser(
@@ -173,21 +181,21 @@ class EngineCmds(Engine):
         match args.subcmd:
             case "ls":
                 self.engine_ls(args)
-            case "import":
+            case "import" | "i" | "im":
                 await self.engine_import(args)
-            case "load":
+            case "load" | "l" | "lo":
                 await self.engine_load(args.name, args.load_as or args.name)
             case "rm" | "remove":
                 self.engine_rm(args)
             case "install":
                 await self.engine_install(args)
-            case "select":
+            case "select" | "s" | "sel":
                 self.engine_select(args)
             case "log":
                 self.engine_log(args)
-            case "conf" | "config" | "configure":
+            case "c" | "conf" | "config" | "configure":
                 await self.engine_config(args)
-            case "quit":
+            case "q" | "quit":
                 await self.engine_quit(args)
             case _:
                 raise AssertionError("Unsupported subcommand.")
@@ -403,15 +411,15 @@ class EngineCmds(Engine):
         match args.config_subcmd:
             case "ls":
                 self.engine_config_ls(args)
-            case "get":
+            case "get" | "g":
                 self.engine_config_get(args)
             case "reset":
                 await self.engine_config_reset(args)
-            case "set":
+            case "set" | "s":
                 await self.engine_config_set(args)
-            case "unset":
+            case "unset" | "u":
                 await self.engine_config_unset(args)
-            case "trigger":
+            case "trigger" | "t":
                 await self.engine_config_trigger(args)
             case _:
                 raise AssertionError("Invalid subcommand.")

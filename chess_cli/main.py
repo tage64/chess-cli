@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from argparse import ArgumentParser
 
 from . import __version__
@@ -28,15 +29,16 @@ class Main(
     """Main class for the chess-cli app."""
 
     def __init__(self, args: InitArgs) -> None:
-        print(f"Welcome to Chess-CLI v{__version__}")
-        # print(f"Author: {__author__} <{__metadata__["author-email"]}>")
-        # print(f"Licensed under {spdx_license_list.LICENSES[__metadata__["license"]].name}")
-        print(
-            "Read the documentation at https://github.com/tage64/chess-cli/blob/main/doc/manual.md"
-        )
-        print()
-        print("Type 'help' to get a list of possible commands.")
-        print()
+        if sys.stdin.isatty():
+            print(f"Welcome to Chess-CLI v{__version__}")
+            # print(f"Author: {__author__} <{__metadata__["author-email"]}>")
+            # print(f"Licensed under {spdx_license_list.LICENSES[__metadata__["license"]].name}")
+            print(
+                "Read the documentation at https://github.com/tage64/chess-cli/blob/main/doc/manual.md"
+            )
+            print()
+            print("Type 'help' to get a list of possible commands.")
+            print()
         super().__init__(args)
 
 

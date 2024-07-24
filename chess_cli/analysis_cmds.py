@@ -17,7 +17,7 @@ class AnalysisCmds(Analysis):
     analysis_argparser = ArgumentParser()
     analysis_subcmds = analysis_argparser.add_subparsers(dest="subcmd")
     analysis_start_argparser = analysis_subcmds.add_parser(
-        "start", help="Start to analyse with the selected engine."
+        "start", aliases=["s"], help="Start to analyse with the selected engine."
     )
     analysis_start_argparser.add_argument(
         "-f",
@@ -66,7 +66,7 @@ class AnalysisCmds(Analysis):
         "-s", "--stopped", action="store_true", help="List only stopped analysis."
     )
     analysis_show_argparser = analysis_subcmds.add_parser(
-        "show", help="Show all analysis performed at the current move."
+        "show", aliases=["sh"], help="Show all analysis performed at the current move."
     )
     analysis_show_argparser.add_argument(
         "lines", type=int, nargs="?", help="Maximum number of lines to show."
@@ -100,9 +100,9 @@ class AnalysisCmds(Analysis):
         match args.subcmd:
             case "ls":
                 self.analysis_ls(args)
-            case "show":
+            case "show" | "sh" | None:
                 self.analysis_show(args)
-            case "start":
+            case "start" | "s":
                 await self.analysis_start(args)
             case "stop":
                 self.analysis_stop(args)

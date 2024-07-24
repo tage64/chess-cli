@@ -35,6 +35,43 @@ DOC_STRING_REGEX: re.Pattern = re.compile(
 )
 
 
+class ArgparserAndSubcmds:
+    """An argument parser with all its subcommands."""
+
+    argparser: argparse.ArgumentParser
+    subcmds: list["ArgparserAndSubcmds"]
+
+    def __init__(self, argparser: argparse.ArgumentParser) -> None:
+        self.argparser = argparser
+        if argparser._subparsers is not None:
+            subparsers_action: argparse._SubParsersAction = next(
+                a
+                for a in argparser._subparsers._actions
+                if isinstance(a, argparse._SubParsersAction)
+            )
+            subparsers = set(subparsers_action._name_parser_map.values())
+            self.subcmds = [ArgparserAndSubcmds(p) for p in subparsers]
+        else:
+            self.subcmds = []
+
+    def set_prog(self, prog: str) -> None:
+        """Replace the prog this argparser and all subparsers."""
+        old_prog: str = self.argparser.prog
+        self.argparser.prog = prog
+        for subcmd in self.subcmds:
+            if subcmd.argparser.prog.startswith(old_prog):
+                subcmd.set_prog(prog + subcmd.argparser.prog[len(old_prog) :])
+
+    def print_all_help(self) -> None:
+        """Print the help for `self.argparser` and all subcmds."""
+        self.argparser.print_help()
+        if self.subcmds:
+            print(f"\nSubcmds for {self.argparser.prog}:")
+            for subcmd in self.subcmds:
+                print(f"\n{subcmd.argparser.prog}:\n")
+                subcmd.print_all_help()
+
+
 @dataclass
 class Command:
     """A cmd in the REPL."""
@@ -44,6 +81,7 @@ class Command:
     func: CmdAsyncFunc  # A function to execute for the command.
     summary: str | None  # A short summary for the command.
     long_help: str | None  # A longer description of the command.
+    argparser: ArgparserAndSubcmds | None = None
 
     async def __call__(self, self_: "ReplBase", prompt: str) -> None:
         return await self.func(self_, prompt)
@@ -226,7 +264,10 @@ class ReplBase:
         if sys.stdin.isatty():
             input_str = await self._interactive_prompt()
         else:
-            input_str = input()
+            try:
+                input_str = input()
+            except EOFError as e:
+                raise QuitRepl() from e
             if input_str == "":
                 raise QuitRepl()
         return await self.exec_cmd(input_str)
@@ -358,7 +399,8 @@ def argparse_command(
     argparser."""
 
     def decorator(func: ArgparseCmdFunc) -> Command:
-        argparser.prog = _get_cmd_name(func)
+        argparser_and_subcmds = ArgparserAndSubcmds(argparser)
+        argparser_and_subcmds.set_prog(_get_cmd_name(func))
         if not argparser.description:
             argparser.description = func.__doc__
 
@@ -374,11 +416,13 @@ def argparse_command(
             else:
                 func(repl, parsed_args)
 
-        return command(
+        cmd = command(
             alias=alias,
             summary=argparser.description if not func.__doc__ else None,
             long_help=argparser.format_help(),
         )(cmd_func)
+        cmd.argparser = argparser_and_subcmds
+        return cmd
 
     return decorator
 
@@ -435,11 +479,16 @@ class Repl(ReplBase):
         raise QuitRepl()
 
     help_argparser = ArgumentParser()
-    help_argparser.add_argument("command", nargs="?", help="Get help for this specific command.")
+    help_arggroup = help_argparser.add_mutually_exclusive_group()
+    help_arggroup.add_argument("command", nargs="?", help="Get help for this specific command.")
+    help_arggroup.add_argument(
+        "-a", "--all", action="store_true", help="Get the extended help for all commands."
+    )
 
     @argparse_command(help_argparser, alias="h")
     def do_help(self, args: ParsedArgs) -> None:
         """Get a list of all possible commands or get help for a specific command."""
+
         if args.command is not None:
             if args.command not in self._cmds:
                 raise CommandFailure(f"The command {args.command} does not exist")
@@ -452,8 +501,20 @@ class Repl(ReplBase):
                 if command.aliases:
                     for alias in command.aliases:
                         line += f", {alias}"
-                line += f"  --  {command.summary}"
-                self.poutput(line)
+                if not args.all:
+                    line += f"  --  {command.summary}"
+                    self.poutput(line)
+                else:
+                    self.poutput(line + "\n")
+                    if argparser := command.argparser:
+                        argparser.print_all_help()
+                    elif command.long_help:
+                        print(command.long_help)
+                    elif command.summary:
+                        print(command.summary)
+                    else:
+                        print("No help provided for this command.")
+                    print("\n")
 
     @command()
     def do_py(self, expr: str) -> None:
