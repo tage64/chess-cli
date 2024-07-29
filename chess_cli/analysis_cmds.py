@@ -73,7 +73,7 @@ class AnalysisCmds(Analysis):
     )
     analysis_rm_argparser = analysis_subcmds.add_parser(
         "rm",
-        aliases="remove",
+        aliases=["remove"],
         help=(
             "Remove analysis made by the selected engine at this move. Useful if you want to rerun"
             " the analysis."
@@ -100,8 +100,10 @@ class AnalysisCmds(Analysis):
         match args.subcmd:
             case "ls":
                 self.analysis_ls(args)
-            case "show" | "sh" | None:
-                self.analysis_show(args)
+            case "show" | "sh":
+                self.analysis_show(args.lines)
+            case None:
+                self.analysis_show()
             case "start" | "s":
                 await self.analysis_start(args)
             case "stop":
@@ -128,8 +130,9 @@ class AnalysisCmds(Analysis):
                 " before you can restart it."
             )
             return
+        limit = chess.engine.Limit(time=args.time, depth=args.depth, nodes=args.nodes, mate=args.mate)
         if args.fixed:
-            await self.start_analysis(engine, args.number_of_moves, args.limit)
+            await self.start_analysis(engine, args.number_of_moves, limit)
         else:
             await self.start_auto_analysis(engine, args.number_of_moves)
         self.poutput(f"{engine} is now analysing.")
@@ -217,13 +220,13 @@ class AnalysisCmds(Analysis):
                 continue
             self.show_analysis(analysis, verbose=args.verbose, max_lines=args.lines)
 
-    def analysis_show(self, args) -> None:
+    def analysis_show(self, lines: int|None=None) -> None:
         if not self.analysis_by_node[self.game_node]:
             self.poutput("No analysis at this move.")
             return
         for engine, analysis in self.analysis_by_node[self.game_node].items():
             self.poutput(f"({engine}): ", end="")
-            self.show_analysis(analysis, verbose=True, max_lines=args.lines)
+            self.show_analysis(analysis, verbose=True, max_lines=lines)
 
     def analysis_rm(self, args) -> None:
         if args.all:

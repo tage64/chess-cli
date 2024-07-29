@@ -23,7 +23,7 @@ class EngineCmds(Engine):
 
     engine_argparser = ArgumentParser()
     engine_subcmds = engine_argparser.add_subparsers(dest="subcmd", required=True)
-    engine_ls_argparser = engine_subcmds.add_parser("ls", help="List loaded chess engines.")
+    engine_ls_argparser = engine_subcmds.add_parser("ls", help="List chess engines.")
     engine_ls_argparser.add_argument(
         "-v", "--verbose", action="store_true", help="Display more information about the engines."
     )
@@ -102,7 +102,7 @@ class EngineCmds(Engine):
     engine_config_ls_argparser.add_argument(
         "-t",
         "--type",
-        choices=["checkbox", "comboboxinteger", "text", "button"],
+        choices=["checkbox", "combobox", "integer", "text", "button"],
         nargs="+",
         help="Filter options by the given type.",
     )
@@ -240,9 +240,9 @@ class EngineCmds(Engine):
                 )
                 return
             await self.load_engine(name, load_as)
-            self.select_engine(name)
-            self.show_engine(name, verbose=True)
-            self.poutput(f"Successfully loaded and selected {name}.")
+            self.select_engine(load_as)
+            self.show_engine(load_as, verbose=True)
+            self.poutput(f"Successfully loaded and selected {name} as {load_as}.")
         except OSError:
             self.poutput(
                 "Perhaps the executable has been moved or deleted, or you might be in a different"
