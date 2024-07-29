@@ -269,6 +269,122 @@ Recording successfully saved to danish_gambit.mp4
 It was 3 minutes and 7.2 seconds long.
 ```
 
+### Chess Engines
+
+Chess-CLI can communicate with chess engines supporting any of the [UCI][16] or [XBoard][17]
+protocols. Before using a chess engine for the first time, it must be imported or installed. If you
+just want to install [Stockfish][18], you may simply use the `engine install` command:
+
+```
+start: engine install stockfish
+```
+This will install Stockfish with some sane defaults based on your computers hardware.
+
+To import a costum engine, download the executable and put it on some known place of your file
+system. Then, run the `engine import` command with the name of the executable and a name for the
+engine:
+```
+start: engine import <PATH/TO/ENGINE_EXECUTABLE.exe> <NAME>
+```
+
+Note that it is possible to import the same engine with different names. This is useful if you want
+different configurations for different purposes.
+
+#### Load, Quit and Select Engines
+
+You will have to load an imported engine before using it. Do this with the `engine load` command and
+the name you gave it when importing:
+```
+start: engine load stockfish
+```
+It is possible to load an engine under a different name, useful if you want to load multiple
+instances of the same engine:
+```
+start: engine load stockfish --as sf1
+start: engine load stockfish --as sf2
+```
+List the loaded engines with the `engine ls --loaded` (or `engine ls -l`) command:
+```
+start: engine ls -l
+>sf1: Stockfish 16.1, (loaded), (selected)
+ sf2: Stockfish 16.1, (loaded)
+```
+
+All engines will be quit when exiting Chess-CLI. If you for some reason want to quit an engine
+before that, you may use the `engine quit` command:
+```
+start: engine quit stockfish
+```
+
+If you load multiple engines, the last of them will be "selected". The currently selected engine is
+the engine used for analysis and other engine related commands. To switch between loaded engines,
+use the `engine select` command:
+```
+start: engine select sf1
+```
+
+#### List Engines
+
+List all imported engines with:
+```
+start: engine ls
+```
+Or all loaded engines:
+```
+start: engine ls -l
+```
+
+#### Remove Engines
+
+You can remove an imported engine with the `engine rm` command:
+```
+start: engine rm stockfish
+```
+
+#### Chess Engine Configuration
+
+It is important to be able to configure a chess engine to adapt it to a specific use case. You
+should consult the manual for your chess engine for recommendations, for Stockfish you can take a
+look at [this page][19].
+
+The `engine config` command is used to alter the parameters of the currently selected engine. You
+can list all options with the `engine config ls` command:
+```
+start: engine config ls
+...
+```
+To only list configured options add the `-c` flag:
+```
+start: engine config ls -c
+Threads = 7: Default: 1, Min: 1, Max: 1024, Type: integer, (Configured)
+Hash = 4096: Default: 16, Min: 1, Max: 33554432, Type: integer, (Configured)
+```
+
+To set the value of an option use the `engine config set` command with the name and value:
+```
+start: engine config set hash 6144
+start: engine config get hash
+Hash = 6144: Default: 16, Min: 1, Max: 33554432, Type: integer, (Configured)
+```
+
+For more configuration options, type `engine config --help`.
+
+### Analysis
+
+To begin analysing with the currently selected engine, simply type `analysis start`. The analysis
+will follow when you enter new moves. If this is not desired, add the `--fixed` option.
+
+If you want to limit the analysis, you may add options to the `analysis start` command. (For a
+complete reference, type `analysis start --help`.) For instance, if you want to analyse for one hour
+on a specific move, type:
+```
+1. e4: analysis start --fixed --time 3600
+```
+
+To show the analysis, type `analysis show` (or simply `a` for `analysis`).
+
+The analysis can be stopped with `analysis stop`.
+
 [1]: https://en.wikipedia.org/wiki/Command-line_interface
 [2]: https://en.wikipedia.org/wiki/Screen_reader
 [3]: https://www.nvaccess.org
@@ -284,3 +400,7 @@ It was 3 minutes and 7.2 seconds long.
 [13]: https://www.nvaccess.org/files/nvda/documentation/userGuide.html#ReviewModes
 [14]: https://en.wikipedia.org/wiki/Algebraic_notation_(chess)
 [15]: https://en.wikipedia.org/wiki/Portable_Game_Notation
+[16]: https://en.wikipedia.org/wiki/Universal_Chess_Interface
+[17]: https://www.chessprogramming.org/Chess_Engine_Communication_Protocol
+[18]: https://stockfishchess.org
+[19]: https://disservin.github.io/stockfish-docs/stockfish-wiki/Stockfish-FAQ.html#optimal-settings
