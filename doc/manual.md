@@ -385,6 +385,80 @@ To show the analysis, type `analysis show` (or simply `a` for `analysis`).
 
 The analysis can be stopped with `analysis stop`.
 
+### Creat a Chess Match
+
+It is possible to create chess matches, both you against the machine and two machines against each
+other.
+
+#### Add Players
+
+You will first have to add the machines that should act as players. You can do this with the `player
+add` command.
+
+First load an engine (as described above), for instance "stockfish" and type:
+```
+start: player add stockfish white
+```
+This means that stockfish will be set to play white.
+
+If you want Stockfish to play against an other engine, for instance Leela Chess Zero, and suppose
+that Leela is loaded as "lc0", you can type:
+```
+start: player add lc0 b
+```
+("w" and "b" can be shorthands for "white and "black" respectively.)
+
+To list the players, type `player ls`.
+
+#### Set a Time Control
+
+To set the clock, use the `clock set` command:
+```
+start: clock set 3+2
+```
+This will set the clock to 3 minutes plus 2 seconds increment per move.
+
+If you want to change the time for one player, you can again use the `clock set` command:
+```
+start: clock set --bt 20:00 -bi 30
+```
+This will set Black's time to 20 minutes and 30 seconds increment.
+```
+start: clock show
+3+2 -- 20+30
+```
+
+#### Start the Match
+
+To check that everything is configured correctly, type `match show`:
+```
+start: match show
+Players:
+  White: stockfish
+  White clock: 3+2
+  Black clock: 20+30
+The match is not started.
+```
+
+Start the match with the `match start` command. If it is white to play, the engine will begin think
+immediately and make the move when done. Then, if you have set another engine to play black, that
+engine will make its move, otherwise you can type a move.
+
+#### During the Match
+
+Under the match, you can check the current time with the `time` or (`t`) command:
+```
+1. d4: t
+2 minutes and 55.2 seconds -- 19 minutes and 48 seconds
+```
+
+The match can be paused with the `match pause` (or `ma p`) and `match resume` (`ma r`) commands.
+
+#### After the Match
+
+After the match, you may use the `match show` command to display the result and the `match reset`
+command to reset the clock and the players.
+
 [1]: https://en.wikipedia.org/wiki/Command-line_interface
 [2]: https://en.wikipedia.org/wiki/Screen_reader
 [3]: https://www.nvaccess.org
