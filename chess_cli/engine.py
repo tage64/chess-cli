@@ -225,7 +225,7 @@ class Engine(Base):
             show_str += ", (loaded)"
         else:
             show_str += ", (not loaded)"
-        if name == self.selected_engine.loaded_name:
+        if self.selected_engine is not None and name == self.selected_engine.loaded_name:
             show_str += ", (selected)"
         self.poutput(show_str)
         if verbose:

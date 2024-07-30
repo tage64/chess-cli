@@ -130,7 +130,9 @@ class AnalysisCmds(Analysis):
                 " before you can restart it."
             )
             return
-        limit = chess.engine.Limit(time=args.time, depth=args.depth, nodes=args.nodes, mate=args.mate)
+        limit = chess.engine.Limit(
+            time=args.time, depth=args.depth, nodes=args.nodes, mate=args.mate
+        )
         if args.fixed:
             await self.start_analysis(engine, args.number_of_moves, limit)
         else:
@@ -220,7 +222,7 @@ class AnalysisCmds(Analysis):
                 continue
             self.show_analysis(analysis, verbose=args.verbose, max_lines=args.lines)
 
-    def analysis_show(self, lines: int|None=None) -> None:
+    def analysis_show(self, lines: int | None = None) -> None:
         if not self.analysis_by_node[self.game_node]:
             self.poutput("No analysis at this move.")
             return

@@ -4,12 +4,14 @@ import code
 import functools
 import re
 import shlex
+import shutil
 import sys
 import traceback
 from argparse import ArgumentParser
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from textwrap import TextWrapper
 from typing import Any, Never
 
 import more_itertools
@@ -354,6 +356,31 @@ def _get_cmd_name(func: Callable) -> str:
     return name.replace("_", "-")
 
 
+_LEADING_WHITESPACE_RE = re.compile("^[ \t]*")
+_WHITESPACE_ONLY_RE = re.compile("^[ \t]+$")
+
+
+def _dedent(lines: list[str]) -> list[str]:
+    """Like textwrap.dedent but works on a list of lines.
+
+    All whitespace lines will be stripped.
+    """
+    # Strip whitespace only lines.
+    lines = [_WHITESPACE_ONLY_RE.sub("", line) for line in lines]
+
+    indent: int | None = 0
+    for line in lines:
+        if line:
+            indent_match = _LEADING_WHITESPACE_RE.match(line)
+            assert indent_match is not None
+            this_indent: int = indent_match.end()
+            if indent is None or indent < this_indent:
+                indent = this_indent
+    if indent:
+        return [line[indent:] for line in lines]
+    return lines
+
+
 def command[T: ReplBase](
     name: str | None = None,
     alias: list[str] | str | None = None,
@@ -367,11 +394,18 @@ def command[T: ReplBase](
     def decorator(func: CmdFunc) -> Command:
         nonlocal summary
         nonlocal long_help
-        if summary is None and func.__doc__:
-            summary_match = DOC_STRING_REGEX.match(func.__doc__)
-            summary = summary_match.group("summary").strip() if summary_match is not None else None
-        if long_help is None:
-            long_help = func.__doc__.strip() if func.__doc__ else None
+        if (summary is None or long_help is None) and func.__doc__:
+            doc_lines = func.__doc__.strip().splitlines()
+            doc_lines[1:] = _dedent(doc_lines[1:])
+            if long_help is None:
+                long_help = "\n".join(doc_lines)
+            if summary is None:
+                try:
+                    no_summary_lines = doc_lines.index("")
+                except ValueError:
+                    no_summary_lines = len(doc_lines)
+                summary_lines = doc_lines[:no_summary_lines]
+                summary = "\n".join(summary_lines)
         name: str = _get_cmd_name(func)
         if asyncio.iscoroutinefunction(func):
             cmd: Command = Command(
@@ -461,6 +495,17 @@ def key_binding[T: ReplBase](
 class Repl(ReplBase):
     """Base class for a REPL with helpful commands like help or quit."""
 
+    _help_textwrapper: TextWrapper
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._help_textwrapper = TextWrapper(
+            expand_tabs=False,
+            replace_whitespace=True,
+            fix_sentence_endings=True,
+            subsequent_indent=" " * 8,
+        )
+
     async def yes_no_dialog(self, question: str) -> bool:
         """Show a yes/no dialog to the user and return True iff the answer was yes."""
         while True:
@@ -488,11 +533,17 @@ class Repl(ReplBase):
     @argparse_command(help_argparser, alias="h")
     def do_help(self, args: ParsedArgs) -> None:
         """Get a list of all possible commands or get help for a specific command."""
+        self._help_textwrapper.width = shutil.get_terminal_size().columns
 
         if args.command is not None:
             if args.command not in self._cmds:
                 raise CommandFailure(f"The command {args.command} does not exist")
-            print(self._cmds[args.command].long_help)
+            command = self._cmds[args.command]
+            print(
+                self._help_textwrapper.fill(
+                    command.long_help or command.summary or "No help text provided."
+                )
+            )
         else:
             # Deduplicate commands by their id, that is if they are the same object.
             unique_commands: dict[int, Command] = {id(c): c for c in self._cmds.values()}
@@ -503,9 +554,10 @@ class Repl(ReplBase):
                         line += f", {alias}"
                 if not args.all:
                     line += f"  --  {command.summary}"
-                    self.poutput(line)
+                    print(self._help_textwrapper.fill(line))
                 else:
-                    self.poutput(line + "\n")
+                    print(self._help_textwrapper.fill(line))
+                    print()
                     if argparser := command.argparser:
                         argparser.print_all_help()
                     elif command.long_help:
