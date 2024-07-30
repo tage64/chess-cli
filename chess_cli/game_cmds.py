@@ -392,8 +392,8 @@ class GameCmds(GameUtils):
         "-e",
         "--empty",
         nargs="*",
-        help="Setup an empty board and add pieces by piece-square identifiers "
-        "(see the put command), e.g Kg1 kb8 for a white king at g1 and black king at b8.",
+        help="Setup an empty board and add pieces by piece-square identifiers (see the put "
+        "command), e.g 'setup -e Kg1 kb8' for a white king at g1 and black king at b8.",
     )
     pos_group.add_argument(
         "-s", "--start", action="store_true", help="Setup the starting position."

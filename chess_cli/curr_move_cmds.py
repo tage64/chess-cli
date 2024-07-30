@@ -37,17 +37,38 @@ class CurrMoveCmds(Base):
             yield f"  {nags.ascii_glyph(nag)}  {nags.description(nag)}"
 
     def show_board(self) -> str:
+        board = self.game_node.board()
         text: str = "  a b c d e f g h  \n"
         for row in range(7, -1, -1):
             text += f"{row + 1} "
             for col in range(0, 8):
                 try:
-                    square_content: str = str(self.game_node.board().piece_map()[8 * row + col])
+                    square_content: str = str(board.piece_map()[8 * row + col])
                 except KeyError:
                     square_content = "+" if (row + col) % 2 == 0 else "-"
                 text += f"{square_content} "
             text += f"{row + 1}\n"
         text += "  a b c d e f g h  \n"
+        for color in [chess.WHITE, chess.BLACK]:
+            for piece_type in [
+                chess.KING,
+                chess.QUEEN,
+                chess.ROOK,
+                chess.BISHOP,
+                chess.KNIGHT,
+                chess.PAWN,
+            ]:
+                piece = chess.Piece(piece_type, color)
+                squares = board.pieces(piece_type, color)
+                if squares:
+                    text += piece.symbol()
+                    text += ",".join(chess.SQUARE_NAMES[sq] for sq in squares)
+                    text += " "
+            if text[-1] == " ":
+                text = text[:-1]
+            text += "; "
+        text += "\n"
+
         return text
 
     def show_arrows(self) -> str | None:
