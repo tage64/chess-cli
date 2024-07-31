@@ -195,78 +195,113 @@ start: load foo.pgn
 The "save" command saves the current game.
 If the current game is not loaded from a file and the game hasn't been saved before, a file name is required as argument.
 
-### Recording Chess Videos
+### Setup Position
 
-Chess-CLI has basic capabilities to record chess videos. Specifically, it can record audio and
-render the current chess board. So the resulting video will only contain your voice and the chess
-board, there is no functionality to film yourself at the moment.
+It is possible to setup a custom starting position for a game.
 
-#### `record start`
+#### View the Current Position
 
-The `record start` command starts the recording of audio with your default microphone. There is no
-way to select microphone at the moment.
-
-Once the recording is started, the current chess board will be rendered in the video. So if you now
-make moves or move to another position in the game, the chess board in the video will be updated.
-For example:
-
+You may view the current position by typing the `board` (or `b`) command. It'll both print an ASCII
+representation of the board, where white and black pieces are represented by upper and lower case
+letters respectively and empty black and white squares are represented by plusses (`+`) and dashes
+(`-`) respectively. Then, a list of all pieces for white and black are printed as well.
 ```
-start: record start
-Recording started successfully.
-<<Talk about the starting position>>
-<<Say that we should look at the Danish gambit>>
-start: play e4 e5 d4 exd4
-2... exd4:
-<<The position in the video is now updated>>
-<<We can go back to the move e5>>
-2... exd4: goto e5
-1... e5:
-<<The chess board in the video will now show the position after 1. e4 e5>>
+start: b
+  a b c d e f g h
+8 r n b q k b n r 8
+7 p p p p p p p p 7
+6 - + - + - + - + 6
+5 + - + - + - + - 5
+4 - + - + - + - + 4
+3 + - + - + - + - 3
+2 P P P P P P P P 2
+1 R N B Q K B N R 1
+  a b c d e f g h
+White: Ke1 Qd1 Ra1,h1 Bc1,f1 Nb1,g1 Pa2,b2,c2,d2,e2,f2,g2,h2
+Black: ke8 qd8 ra8,h8 bc8,f8 nb8,g8 pa7,b7,c7,d7,e7,f7,g7,h7
+```
+ 
+#### Setup a Custom Position
+
+A position can be setup by the `setup` command. It can either be the string "start" ("or "s"), a
+FEN, or a list of piece-square identifiers like Kg1 or bb8.
+
+- `setup start` sets up the starting position.
+- `setup 4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0`
+   sets up a position by a FEN string.
+- `setup Kg1 Pa2,b2,c2 ke8 qd8`
+   sets a position by piece square identifiers, (see the put command for more details)
+
+#### Put Indivudal Pieces
+
+Use the `put` command to put individual pieces on the board. White pieces are denoted with capital
+letters. Here are some examples:
+```
+put Rc6 pc2,b3
+```
+Puts a white rook on c6 and black pawns on c2 and b3.
+```
+put Ke3 Qd1 bb2,b3
+```
+Puts the white king on e3, a white queen on d1, and black bishops on b2 and b3.
+
+#### Clear Squares
+
+Clear a square with the clear command:
+```
+clear c3
+```
+Clears the c3 square.
+
+#### Get and Set Turn to Play
+
+To get the player to move in the current position, use the `turn command:
+```
+start: turn
+white
 ```
 
-If you are about to show a chess game or a complex analysis it might be advisable to prepair the
-game first and only move around in the game with the arrow keys or the `goto` command. Remember that
-you can use the shift-key plus any arrow key to quickly navigate in the game.
-
-#### `record pause` and `record resume`
-
-Pause/resume the recording:
-
+Change the turn with:
 ```
-1... e5: record pause
-Paused recording at 8.8 seconds
-<<You can say what you want, the recording is paused. >>
-1... e5: record resume
-Resumed recording at 8.8 seconds
+start: turn black
+It is now black to play.
+start: turn
+black
 ```
 
-You can as well use the shortcuts CTRL+P and CTRL+R to pause and resume the recording.
+#### Get and Set Castling Rights
 
-#### `record mark`
-
-Sometimes when recording a lengthy video it is hard to find certain positions or variations within
-the video. Therefor we have developed a system to mark certain key positions while recording, and
-then export the timestamps for those positions within the video to a text file.
-
-To put a mark on the current position (while recording), press `CTRL+K`, or type:
+Get the castling rights with the `castling` (or `csl`) command:
 ```
-1... e5: record mark [<COMMENT>]
+start: csl
+White and black can castle on both sides
 ```
-where `[<COMMENT>]` is an **optional** comment at the mark. You can also use the shortcut CTRL+K to
-put a mark at the current position.
 
-#### `record delete`
-
-If you want to discard the recording you can use the `record delete` command.
-
-#### `record save`
-
-Save the recording with the `record save <FILE>.mp4` command. If you have taken marks, you should
-also specify a TXT file for the marks.
+Set castling rights by a short string which is either 'clear' or a combination of the letters 'K', 'k', 'Q' or 'q' where each letter denotes
+king- or queenside castling for white or black respectively:
 ```
-1... e5: record save danish_gambit.mp4 marks.txt
-Recording successfully saved to danish_gambit.mp4
-It was 3 minutes and 7.2 seconds long.
+start: csl Kq
+White can castle kingside and black can castle queenside.
+start: csl clear
+Neither white nor black is allowed to castle.
+```
+
+#### Get and Set En-Passant Rights
+
+En-passant rights can be set with the `ep` command. In the following example, we move the white pawn
+from e2 to e5 and the black pawn from d7 to d5 and then alter the en-passant rights:
+```
+start: clear e2 d7
+start: put Pe5 pd5
+Putting:
+- White pawn at e5
+- Black pawn at d5
+start: ep
+En passant is not possible in this position.
+start: ep d6
+En passant is possible at d6.
+start: ep clear
+En passant is not possible in this position.
 ```
 
 ### Chess Engines
@@ -459,6 +494,80 @@ The match can be paused with the `match pause` (or `ma p`) and `match resume` (`
 After the match, you may use the `match show` command to display the result and the `match reset`
 command to reset the clock and the players.
 
+### Recording Chess Videos
+
+Chess-CLI has basic capabilities to record chess videos. Specifically, it can record audio and
+render the current chess board. So the resulting video will only contain your voice and the chess
+board, there is no functionality to film yourself at the moment.
+
+#### `record start`
+
+The `record start` command starts the recording of audio with your default microphone. There is no
+way to select microphone at the moment.
+
+Once the recording is started, the current chess board will be rendered in the video. So if you now
+make moves or move to another position in the game, the chess board in the video will be updated.
+For example:
+
+```
+start: record start
+Recording started successfully.
+<<Talk about the starting position>>
+<<Say that we should look at the Danish gambit>>
+start: play e4 e5 d4 exd4
+2... exd4:
+<<The position in the video is now updated>>
+<<We can go back to the move e5>>
+2... exd4: goto e5
+1... e5:
+<<The chess board in the video will now show the position after 1. e4 e5>>
+```
+
+If you are about to show a chess game or a complex analysis it might be advisable to prepair the
+game first and only move around in the game with the arrow keys or the `goto` command. Remember that
+you can use the shift-key plus any arrow key to quickly navigate in the game.
+
+#### `record pause` and `record resume`
+
+Pause/resume the recording:
+
+```
+1... e5: record pause
+Paused recording at 8.8 seconds
+<<You can say what you want, the recording is paused. >>
+1... e5: record resume
+Resumed recording at 8.8 seconds
+```
+
+You can as well use the shortcuts CTRL+P and CTRL+R to pause and resume the recording.
+
+#### `record mark`
+
+Sometimes when recording a lengthy video it is hard to find certain positions or variations within
+the video. Therefor we have developed a system to mark certain key positions while recording, and
+then export the timestamps for those positions within the video to a text file.
+
+To put a mark on the current position (while recording), press `CTRL+K`, or type:
+```
+1... e5: record mark [<COMMENT>]
+```
+where `[<COMMENT>]` is an **optional** comment at the mark. You can also use the shortcut CTRL+K to
+put a mark at the current position.
+
+#### `record delete`
+
+If you want to discard the recording you can use the `record delete` command.
+
+#### `record save`
+
+Save the recording with the `record save <FILE>.mp4` command. If you have taken marks, you should
+also specify a TXT file for the marks.
+```
+1... e5: record save danish_gambit.mp4 marks.txt
+Recording successfully saved to danish_gambit.mp4
+It was 3 minutes and 7.2 seconds long.
+```
+
 [1]: https://en.wikipedia.org/wiki/Command-line_interface
 [2]: https://en.wikipedia.org/wiki/Screen_reader
 [3]: https://www.nvaccess.org
@@ -478,3 +587,4 @@ command to reset the clock and the players.
 [17]: https://www.chessprogramming.org/Chess_Engine_Communication_Protocol
 [18]: https://stockfishchess.org
 [19]: https://disservin.github.io/stockfish-docs/stockfish-wiki/Stockfish-FAQ.html#optimal-settings
+[20]: https://en.wikipedia.org/wiki/Forsyth–Edwards_Notation
