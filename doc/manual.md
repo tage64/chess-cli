@@ -203,8 +203,10 @@ It is possible to setup a custom starting position for a game.
 
 You may view the current position by typing the `board` (or `b`) command. It'll both print an ASCII
 representation of the board, where white and black pieces are represented by upper and lower case
-letters respectively and empty black and white squares are represented by plusses (`+`) and dashes
-(`-`) respectively. Then, a list of all pieces for white and black are printed as well.
+letters and empty black and white squares are represented by plusses (`+`) and dashes
+(`-`) respectively. Then, the castling rights and a list of all pieces for white and black are
+printed as well.
+
 ```
 start: b
   a b c d e f g h
@@ -217,6 +219,8 @@ start: b
 2 P P P P P P P P 2
 1 R N B Q K B N R 1
   a b c d e f g h
+
+White and Black can castle on both sides
 White: Ke1 Qd1 Ra1,h1 Bc1,f1 Nb1,g1 Pa2,b2,c2,d2,e2,f2,g2,h2
 Black: ke8 qd8 ra8,h8 bc8,f8 nb8,g8 pa7,b7,c7,d7,e7,f7,g7,h7
 ```
@@ -232,10 +236,11 @@ FEN, or a list of piece-square identifiers like Kg1 or bb8.
 - `setup Kg1 Pa2,b2,c2 ke8 qd8`
    sets a position by piece square identifiers, (see the put command for more details)
 
-#### Put Indivudal Pieces
+#### Put Individual Pieces
 
 Use the `put` command to put individual pieces on the board. White pieces are denoted with capital
 letters. Here are some examples:
+
 ```
 put Rc6 pc2,b3
 ```
@@ -247,11 +252,11 @@ Puts the white king on e3, a white queen on d1, and black bishops on b2 and b3.
 
 #### Clear Squares
 
-Clear a square with the clear command:
+Clear squares with the clear command:
 ```
-clear c3
+clear c3 d2
 ```
-Clears the c3 square.
+Clears the `c3` and `d2` squares.
 
 #### Get and Set Turn to Play
 

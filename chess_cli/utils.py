@@ -326,3 +326,26 @@ def show_outcome(outcome: chess.Outcome) -> str:
         case None:
             res += "It's a draw"
     return res
+
+
+def castling_descr(board: chess.Board) -> str:
+    """Return a human readable string for the castling rights on the board."""
+
+    def for_color(color: chess.Color) -> str:
+        if board.has_kingside_castling_rights(color):
+            if board.has_queenside_castling_rights(color):
+                return "can castle on both sides"
+            return "can castle kingside"
+        if board.has_queenside_castling_rights(color):
+            return "can castle queenside"
+        return "is not allowed to castle"
+
+    white_descr = for_color(chess.WHITE)
+    black_descr = for_color(chess.BLACK)
+    if white_descr == black_descr:
+        if white_descr == "is not allowed to castle":
+            return "Neither White nor Black is allowed to castle."
+        else:
+            return f"White and Black {white_descr}"
+    else:
+        return f"White {white_descr} and Black {black_descr}."

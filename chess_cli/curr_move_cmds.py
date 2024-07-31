@@ -14,7 +14,14 @@ import chess.svg
 from . import nags
 from .base import Base
 from .repl import argparse_command
-from .utils import MoveNumber, add_to_comment_text, comment_text, score_str, update_comment_text
+from .utils import (
+    MoveNumber,
+    add_to_comment_text,
+    castling_descr,
+    comment_text,
+    score_str,
+    update_comment_text,
+)
 
 
 class CurrMoveCmds(Base):
@@ -48,7 +55,10 @@ class CurrMoveCmds(Base):
                     square_content = "+" if (row + col) % 2 == 0 else "-"
                 text += f"{square_content} "
             text += f"{row + 1}\n"
-        text += "  a b c d e f g h  \n"
+        text += "  a b c d e f g h  \n\n"
+        if board.ep_square is not None:
+            text += f"En-passant is possible at {chess.square_name(board.ep_square)}\n"
+        text += castling_descr(board) + "\n"
         for color in [chess.WHITE, chess.BLACK]:
             text += "White" if color == chess.WHITE else "Black"
             text += ": "

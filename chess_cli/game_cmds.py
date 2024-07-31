@@ -11,7 +11,7 @@ import chess.pgn
 from .base import CommandFailure
 from .game_utils import GameUtils
 from .repl import argparse_command, command
-from .utils import MoveNumber, piece_name
+from .utils import MoveNumber, piece_name, castling_descr
 
 
 class GameCmds(GameUtils):
@@ -573,25 +573,8 @@ class GameCmds(GameUtils):
             except ValueError as e:
                 raise CommandFailure(str(e)) from e
             await self.set_position(board)
+        print(castling_descr(board))
 
-        def castling_descr(color: chess.Color) -> str:
-            if board.has_kingside_castling_rights(color):
-                if board.has_queenside_castling_rights(color):
-                    return "can castle on both sides"
-                return "can castle kingside"
-            if board.has_queenside_castling_rights(color):
-                return "can castle queenside"
-            return "is not allowed to castle"
-
-        white_descr = castling_descr(chess.WHITE)
-        black_descr = castling_descr(chess.BLACK)
-        if white_descr == black_descr:
-            if white_descr == "is not allowed to castle":
-                print("Neither white nor black is allowed to castle.")
-            else:
-                print(f"White and black {white_descr}")
-        else:
-            print(f"White {white_descr} and black {black_descr}.")
 
     en_passant_argparser = ArgumentParser()
     en_passant_argparser.add_argument(
