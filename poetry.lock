@@ -1138,14 +1138,12 @@ files = [
 
 [[package]]
 name = "typeguard"
-version = "4.3.0"
+version = "4.3.0.post1"
 description = "Run-time type checker for Python"
 optional = false
 python-versions = ">=3.8"
-files = [
-    {file = "typeguard-4.3.0-py3-none-any.whl", hash = "sha256:4d24c5b39a117f8a895b9da7a9b3114f04eb63bade45a4492de49b175b6f7dfa"},
-    {file = "typeguard-4.3.0.tar.gz", hash = "sha256:92ee6a0aec9135181eae6067ebd617fd9de8d75d714fb548728a4933b1dea651"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 typing-extensions = ">=4.10.0"
@@ -1153,6 +1151,12 @@ typing-extensions = ">=4.10.0"
 [package.extras]
 doc = ["Sphinx (>=7)", "packaging", "sphinx-autodoc-typehints (>=1.2.0)", "sphinx-rtd-theme (>=1.3.0)"]
 test = ["coverage[toml] (>=7)", "mypy (>=1.2.0)", "pytest (>=7)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/tage64/typeguard"
+reference = "HEAD"
+resolved_reference = "4056b98d548b8baf2fe5fd61c5d27c893e6efd88"
 
 [[package]]
 name = "types-requests"
@@ -1412,4 +1416,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "4d8438e3ee4f4ffc644724443d330c39a617ae0f4f5cac75582426d358053804"
+content-hash = "6523a79bc55df6900ade581bb201775babd627536c0b87dc21cb7388c62610fa"
