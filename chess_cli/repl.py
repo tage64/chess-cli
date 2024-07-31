@@ -37,7 +37,6 @@ _LEADING_WHITESPACE_RE = re.compile("^[ \t]*")
 _WHITESPACE_ONLY_RE = re.compile("^[ \t]+$")
 
 
-
 class ArgparserAndSubcmds:
     """An argument parser with all its subcommands."""
 
@@ -499,6 +498,7 @@ class Repl(ReplBase):
     """Base class for a REPL with helpful commands like help or quit."""
 
     _summary_textwrapper: TextWrapper
+
     def __init__(self) -> None:
         super().__init__()
         self._summary_textwrapper = TextWrapper(

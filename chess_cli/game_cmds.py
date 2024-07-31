@@ -386,30 +386,28 @@ class GameCmds(GameUtils):
             self.show_variations(self.game_node.parent)
 
     @command(alias="st")
-    async def do_setup(self, args) -> None:
-        """Setup a starting position.
+    async def do_setup(self, args: str) -> None:
+        """Setup a starting position for the game.
 
-        The position can either be the string "start" ("or "s"), a FEN, or a list of piece-square identifiers like Kg1 or bb8.
+        The position can either be the string "start" ("or "s"), a FEN,
+        or a list of piece-square identifiers like Kg1 or bb8.
         - `setup start` sets up the starting position.
-        - `setup 4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0
+        - `setup 4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0`
            sets up a position by a FEN string.
         - `setup Kg1 Pa2,b2,c2 ke8 qd8`
            sets a position by piece square identifiers, (see the put command for more details)
-        To set the turn, castling rights, or en passant, see the "turn", "castling", or "en-passant" commands respectively.
+        To set the turn, castling rights, or en passant,
+        see the "turn", "castling", or "en-passant" commands respectively.
         """
         board: chess.Board
-        if args.fen:
-            try:
-                board = chess.Board(args.fen)
-            except ValueError as e:
-                raise CommandFailure(f"Bad FEN: {e}") from None
-        elif args.empty is not None:
-            board = chess.Board.empty()
-            await self._put_pieces(board, args.empty)
-        elif args.start:
+        board: chess.Board
+        if args in ["start", "s"]:
             board = chess.Board()
-        else:
-            assert_never(args)
+        try:
+            board = chess.Board(args)
+        except ValueError:
+            board = chess.Board.empty()
+            await self._put_pieces(board, args.split())
         await self.set_position(board)
 
     clear_argparser = ArgumentParser()
