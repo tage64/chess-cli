@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 
 from .lichess_api import LichessApi
 from .repl import argparse_command
+from .utils import parse_time_control
 
 
 class LichessVariant(enum.StrEnum):
@@ -24,10 +25,9 @@ class LichessCmds(LichessApi):
 
     challenge_argparser = ArgumentParser()
     challenge_argparser.add_argument(
-        "-t", "--time", type=int, help="Time limit for the game in seconds."
-    )
-    challenge_argparser.add_argument(
-        "-i", "--increment", "--inc", type=int, help="Increment (in seconds) per move."
+        "time_control",
+        type=parse_time_control,
+        help="A time control like 3+2 for 3 minutes and 2 seconds increment.",
     )
     challenge_argparser.add_argument(
         "--not-rated", action="store_true", help="The game should not be rated."
@@ -45,21 +45,20 @@ class LichessCmds(LichessApi):
     @argparse_command(challenge_argparser)
     def do_challenge(self, args) -> None:
         """Create a challenge from the current position on Lichess."""
-        challenge_data: dict = self.client.challenges.create_open(
-            clock_limit=args.time,
-            clock_increment=args.increment,
+        time, inc = args.time_control
+        challenge: dict = self.client.challenges.create_open(
+            clock_limit=int(time.total_seconds()),
+            clock_increment=int(inc.total_seconds()),
             rated=not args.not_rated,
             name=args.name,
             variant=args.variant,
             position=self.game_node.board().fen(),
         )
-        challenge: dict = challenge_data["challenge"]
-        self.poutput(challenge)
         self.poutput(
             f"Created {challenge["variant"]["name"]} game -- "
             f"{"rated" if challenge["rated"] else "not rated"} {challenge["speed"]} "
             f"{challenge["timeControl"].get("show", "")}"
         )
         self.poutput(f"URL:\n  {challenge["url"]}")
-        self.poutput(f"White URL:\n  {challenge_data["urlWhite"]}")
-        self.poutput(f"Black URL:\n  {challenge_data["urlBlack"]}")
+        self.poutput(f"White URL:\n  {challenge["urlWhite"]}")
+        self.poutput(f"Black URL:\n  {challenge["urlBlack"]}")

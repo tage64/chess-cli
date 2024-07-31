@@ -60,8 +60,6 @@ class LichessApi(Base):
         self.config["lichess-api"]["access-token"] = self._access_token
         super().save_config()
 
-    authorize_argparser = ArgumentParser()
-
     def init_auth_client(self) -> None:
         """Initialize the Lichess client.
 
@@ -71,6 +69,8 @@ class LichessApi(Base):
         session = requests.Session()
         session.headers.update({"Authorization": f"Bearer {self._access_token}"})
         self.auth_client = berserk.Client(session=session)
+
+    authorize_argparser = ArgumentParser()
 
     @argparse_command(authorize_argparser)
     def do_authorize(self, args) -> None:
