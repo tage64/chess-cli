@@ -499,6 +499,16 @@ The match can be paused with the `match pause` (or `ma p`) and `match resume` (`
 After the match, you may use the `match show` command to display the result and the `match reset`
 command to reset the clock and the players.
 
+### Create Lichess Challenge
+
+It is possible to create an open challenge on [Lichess][21] from the current position with the
+`challenge` command. You have to provide a time control and optionally a name:
+```
+challenge 3+2 --name "Interesting game"
+```
+
+The command will output one general URL and one specific URL for White and Black.
+
 ### Recording Chess Videos
 
 Chess-CLI has basic capabilities to record chess videos. Specifically, it can record audio and
@@ -593,3 +603,4 @@ It was 3 minutes and 7.2 seconds long.
 [18]: https://stockfishchess.org
 [19]: https://disservin.github.io/stockfish-docs/stockfish-wiki/Stockfish-FAQ.html#optimal-settings
 [20]: https://en.wikipedia.org/wiki/Forsyth–Edwards_Notation
+[21]: https://lichess.org
