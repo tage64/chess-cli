@@ -260,11 +260,26 @@ class GameUtils(Base):
                         self.game_node = parent
                     parent.variations = parent.variations[:i] + parent.variations[i + 1 :]
 
-    async def set_position(self, board: chess.Board) -> None:
-        """Delete the current game and set the starting position."""
+    async def set_position(self, board: chess.Board, may_remove_ep: bool = False) -> None:
+        """Delete the current game and set the starting position.
+
+        :param may_remove_ep: Remove en-passant square if that's what's needed
+                              to make the position valid.
+        """
+        if board == self.game_node.board():
+            return
         board.fullmove_number = 1
         status = board.status()
         if status != chess.STATUS_VALID:
+            if (
+                may_remove_ep
+                and status & chess.STATUS_INVALID_EP_SQUARE
+                and board.ep_square is not None
+            ):
+                print(f"Clearing en-passant square at {chess.square_name(board.ep_square)}")
+                board.ep_square = None
+                await self.set_position(board)
+                return
             print("The position will become invalid:")
             if status & chess.STATUS_BAD_CASTLING_RIGHTS:
                 # Try if we can remove some castling rights:

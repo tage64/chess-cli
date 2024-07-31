@@ -280,11 +280,15 @@ def parse_time_control(text: str) -> tuple[timedelta, timedelta]:
     return time, inc
 
 
-def piece_name(piece: chess.Piece) -> str:
+def piece_name(piece: chess.Piece, capital: bool = False) -> str:
     """Return a full name (like "white king" or "black pawn") for a piece."""
-    color_name: str = "white" if piece.color == chess.WHITE else "black"
+    color_str: str
+    if capital:
+        color_str = "White" if piece.color == chess.WHITE else "Black"
+    else:
+        color_str = "white" if piece.color == chess.WHITE else "black"
     piece_name: str = chess.piece_name(piece.piece_type)
-    return f"{color_name} {piece_name}"
+    return f"{color_str} {piece_name}"
 
 
 def show_outcome(outcome: chess.Outcome) -> str:

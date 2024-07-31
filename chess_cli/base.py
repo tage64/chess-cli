@@ -8,6 +8,7 @@ from typing import IO, override
 import appdirs  # type: ignore
 import chess
 import chess.pgn
+import inflect
 import toml  # type: ignore
 
 from .repl import CommandFailure, Repl
@@ -58,9 +59,13 @@ class Base(Repl):
     _games: list[_GameHandle]  # A list of all currentlyopen games.
     _pgn_file: IO[str] | None  # The currently open PGN file.
     _game_idx: int  # The index of the currently selected game.
+    # Inflect engine for plural forms.
+    p: inflect.engine
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__()
+
+        self.p = inflect.engine()
 
         self.config = defaultdict(dict)
         self._config_file = args.config_file

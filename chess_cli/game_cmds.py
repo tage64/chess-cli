@@ -2,8 +2,8 @@ import argparse
 import os
 import textwrap
 from argparse import ArgumentParser
+from collections import defaultdict
 from collections.abc import Iterable
-from typing import assert_never
 
 import chess
 import chess.pgn
@@ -403,29 +403,41 @@ class GameCmds(GameUtils):
         board: chess.Board
         if args in ["start", "s"]:
             board = chess.Board()
-        try:
-            board = chess.Board(args)
-        except ValueError:
-            board = chess.Board.empty()
-            await self._put_pieces(board, args.split())
+        else:
+            try:
+                board = chess.Board(args)
+            except ValueError:
+                board = chess.Board.empty()
+                await self._put_pieces(board, args.split())
         await self.set_position(board)
 
     clear_argparser = ArgumentParser()
-    clear_argparser.add_argument("square", type=chess.parse_square, help="The square to clear.")
+    clear_argparser.add_argument(
+        "squares", type=chess.parse_square, nargs="+", help="The squares to clear."
+    )
 
     @argparse_command(clear_argparser)
     async def do_clear(self, args) -> None:
-        """Clear a square on the chess board."""
-        square_name: str = chess.square_name(args.square)
+        """Clear squares on the chess board."""
         board: chess.Board = self.game_node.board()
-        removed: chess.Piece | None = board.remove_piece_at(args.square)
-        if removed is None:
-            print(f"There is no piece at {square_name}")
-            return
-        print(f"Removed {piece_name(removed)} at {square_name}")
-        if self.game_node.parent is not None:
-            print("Setting this as the starting position of the game.")
-        await self.set_position(board)
+        removed: dict[chess.Piece, list[chess.Square]] = defaultdict(list)
+        for square in args.squares:
+            square_name: str = chess.square_name(square)
+            piece: chess.Piece | None = board.remove_piece_at(square)
+            if piece is None:
+                print(f"There is no piece at {square_name}")
+            else:
+                removed[piece].append(square)
+        if removed:
+            print("Removing:")
+            for piece, squares in removed.items():
+                piece_name_ = piece_name(piece, capital=True)
+                print(
+                    f"- {self.p.plural_noun(piece_name_, len(squares))} "  # type: ignore
+                    f"at {self.p.join([chess.square_name(sq) for sq in squares])}"  # type: ignore
+                )
+
+        await self.set_position(board, may_remove_ep=True)
 
     put_argparser = ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -462,6 +474,10 @@ class GameCmds(GameUtils):
 
         The pieces_squares strings are parsed as described by the put command.
         """
+        # The following two dicts are each others inverse.
+        squares_of: dict[chess.Piece, list[chess.Square]] = defaultdict(list)
+        piece_at: dict[chess.Square, chess.Piece] = {}
+
         for piece_squares in pieces_squares:
             try:
                 piece: chess.Piece = chess.Piece.from_symbol(piece_squares[0])
@@ -471,24 +487,41 @@ class GameCmds(GameUtils):
             except (IndexError, ValueError) as e:
                 raise CommandFailure(f"Bad piece-squares expression: {piece_squares}") from e
             for square in squares:
-                if (p := board.piece_at(square)) is not None:
-                    print(f"Replacing {piece_name(p)} at {chess.square_name(square)}")
-                if piece.piece_type == chess.KING and not promoted:
-                    if len(squares) > 1:
-                        raise CommandFailure(
-                            "You cannot put multiple kings on the board "
-                            "unless you use the `--promoted` flag."
-                        )
-                    if (
-                        old_king_sq := board.king(piece.color)
-                    ) is not None and old_king_sq != square:
-                        print(
-                            f"Moving king from {chess.square_name(old_king_sq)} "
-                            f"to {chess.square_name(square)}"
-                        )
-                        removed_king = board.remove_piece_at(old_king_sq)
-                        assert removed_king == piece
-                board.set_piece_at(square, piece, promoted)
+                if square in piece_at:
+                    raise CommandFailure(
+                        f"You cannot put multiple pieces on {chess.square_name(square)}"
+                    )
+                squares_of[piece].append(square)
+                piece_at[square] = piece
+        for color in (chess.WHITE, chess.BLACK):
+            king = chess.Piece(chess.KING, color)
+            if not promoted and (king_squares := squares_of[king]):
+                if len(king_squares) > 1:
+                    raise CommandFailure(
+                        "You cannot put multiple kings on the board "
+                        "unless you use the `--promoted` flag."
+                    )
+                [king_square] = king_squares
+                if (old_king_sq := board.king(color)) is not None and old_king_sq != king_square:
+                    print(
+                        f"Moving king from {chess.square_name(old_king_sq)} "
+                        f"to {chess.square_name(king_square)}"
+                    )
+                    removed_king = board.remove_piece_at(old_king_sq)
+                    assert removed_king == king
+        for square, piece in piece_at.items():
+            if (p := board.piece_at(square)) is not None:
+                print(f"Replacing {piece_name(p)} at {chess.square_name(square)}")
+            board.set_piece_at(square, piece, promoted)
+        print("Putting:")
+        for piece, squares in squares_of.items():
+            if not squares:
+                continue
+            piece_name_ = piece_name(piece, capital=True)
+            print(
+                f"- {self.p.plural_noun(piece_name_, len(squares))} "  # type: ignore
+                f"at {self.p.join([chess.square_name(sq) for sq in squares])}"  # type: ignore
+            )
         await self.set_position(board)
 
     turn_argparser = ArgumentParser()
@@ -561,42 +594,32 @@ class GameCmds(GameUtils):
             print(f"White {white_descr} and black {black_descr}.")
 
     en_passant_argparser = ArgumentParser()
-    en_passant_subcmds = en_passant_argparser.add_subparsers(dest="subcmd")
-    en_passant_subcmds.add_parser(
-        "get",
-        help="Get the possible en passant square if any. "
-        "(This is the default if no arguments are supplied.)",
-    )
-    en_passant_set_argparser = en_passant_subcmds.add_parser(
-        "set", help="Set a valid en passant square."
-    )
-    en_passant_set_argparser.add_argument(
-        "square",
-        type=chess.parse_square,
-        help="The square to which the capturing pawn will move, I.E. on the 6th or 3rd rank.",
-    )
-    en_passant_subcmds.add_parser(
-        "clear", help="Remove en passant possibilities in the current position."
+    en_passant_argparser.add_argument(
+        "set",
+        nargs="?",
+        help='Either clear en-passant rights with "clear" (or "c"), or set en-passant possibility '
+        "by providing the target square for the capturing pawn, that is on the 3rd or 6th rank.",
     )
 
     @argparse_command(en_passant_argparser, alias="ep")
     async def do_en_passant(self, args) -> None:
         """Get, set or clear en passant square in the current position."""
         board: chess.Board = self.game_node.board()
-        match args.subcmd:
-            case "get" | None:
-                pass  # It will be printed in any case.
-            case "set":
-                ep_rank_idx: int = 5 if board.turn == chess.WHITE else 2
-                if not chess.square_rank(args.square) == ep_rank_idx:
-                    raise CommandFailure("The en passant square must be on the 3rd/6th rank.")
-                board.ep_square = args.square
-                await self.set_position(board)
-            case "clear":
+        if args.set is not None:
+            if args.set in ["clear", "c"]:
                 board.ep_square = None
-                await self.set_position(board)
-            case x:
-                assert_never(x)
+            else:
+                try:
+                    square = chess.parse_square(args.set)
+                except ValueError as e:
+                    raise CommandFailure(
+                        f'{args.set}: Must be "clear", "c", or a chess square like "d6".'
+                    ) from e
+                ep_rank_idx: int = 5 if board.turn == chess.WHITE else 2
+                if not chess.square_rank(square) == ep_rank_idx:
+                    raise CommandFailure("The en passant square must be on the 3rd/6th rank.")
+                board.ep_square = square
+            await self.set_position(board)
         if board.ep_square is not None:
             print(f"En passant is possible at {chess.square_name(board.ep_square)}.")
         else:
