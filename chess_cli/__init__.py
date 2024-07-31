@@ -6,7 +6,7 @@ from pathlib import Path
 # __metadata__ = importlib.metadata.metadata("chess-cli")
 # __version__ = __metadata__["version"]
 # __author__ = __metadata__["author"]
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 __author__ = "Tage Johansson"
 __package__ = "chess_cli"
 

@@ -1,7 +1,7 @@
 [project]
 name = "chess-cli"
 requires-python = ">=3.12, <3.13"
-version = "0.3.2"
+version = "0.3.3"
 license = "GPL-3.0-or-later"
 
 [project.urls]
@@ -10,7 +10,7 @@ documentation = "https://github.com/tage64/chess-cli/blob/main/doc/manual.md"
 
 [tool.poetry]
 name = "chess-cli"
-version = "0.3.2"
+version = "0.3.3"
 description = "A repl to edit and analyse chess games."
 authors = ["Tage Johansson <tajo9185@student.uu.se>"]
 license = "GPL-3.0-or-later"
