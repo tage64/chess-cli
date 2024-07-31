@@ -385,23 +385,18 @@ class GameCmds(GameUtils):
         if self.game_node.parent is not None:
             self.show_variations(self.game_node.parent)
 
-    setup_argparser = ArgumentParser()
-    pos_group = setup_argparser.add_mutually_exclusive_group(required=True)
-    pos_group.add_argument("fen", nargs="?", help="The position as an FEN string.")
-    pos_group.add_argument(
-        "-e",
-        "--empty",
-        nargs="*",
-        help="Setup an empty board and add pieces by piece-square identifiers (see the put "
-        "command), e.g 'setup -e Kg1 kb8' for a white king at g1 and black king at b8.",
-    )
-    pos_group.add_argument(
-        "-s", "--start", action="store_true", help="Setup the starting position."
-    )
-
-    @argparse_command(setup_argparser, alias="st")
+    @command(alias="st")
     async def do_setup(self, args) -> None:
-        """Setup a starting position."""
+        """Setup a starting position.
+
+        The position can either be the string "start" ("or "s"), a FEN, or a list of piece-square identifiers like Kg1 or bb8.
+        - `setup start` sets up the starting position.
+        - `setup 4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w KQkq - 0
+           sets up a position by a FEN string.
+        - `setup Kg1 Pa2,b2,c2 ke8 qd8`
+           sets a position by piece square identifiers, (see the put command for more details)
+        To set the turn, castling rights, or en passant, see the "turn", "castling", or "en-passant" commands respectively.
+        """
         board: chess.Board
         if args.fen:
             try:

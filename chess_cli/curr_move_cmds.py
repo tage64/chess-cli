@@ -50,6 +50,8 @@ class CurrMoveCmds(Base):
             text += f"{row + 1}\n"
         text += "  a b c d e f g h  \n"
         for color in [chess.WHITE, chess.BLACK]:
+            text += "White" if color == chess.WHITE else "Black"
+            text += ": "
             for piece_type in [
                 chess.KING,
                 chess.QUEEN,
@@ -64,10 +66,7 @@ class CurrMoveCmds(Base):
                     text += piece.symbol()
                     text += ",".join(chess.SQUARE_NAMES[sq] for sq in squares)
                     text += " "
-            if text[-1] == " ":
-                text = text[:-1]
-            text += "; "
-        text += "\n"
+            text += "\n"
 
         return text
 

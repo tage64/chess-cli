@@ -16,6 +16,7 @@ from typing import Any, Never
 
 import more_itertools
 import prompt_toolkit.document
+import punwrap
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.keys import Keys
@@ -32,9 +33,9 @@ type KeyBindingFunc = Callable[[Any, KeyPressEvent], None]
 
 CMD_FUNC_PREFIX: str = "do_"
 KEY_BINDING_FUNC_PREFIX: str = "kb_"
-DOC_STRING_REGEX: re.Pattern = re.compile(
-    r"(?P<summary>([^\S\n]*\S.*\n?)+)(\s*\Z|\n\s*\n)", re.MULTILINE
-)
+_LEADING_WHITESPACE_RE = re.compile("^[ \t]*")
+_WHITESPACE_ONLY_RE = re.compile("^[ \t]+$")
+
 
 
 class ArgparserAndSubcmds:
@@ -356,10 +357,6 @@ def _get_cmd_name(func: Callable) -> str:
     return name.replace("_", "-")
 
 
-_LEADING_WHITESPACE_RE = re.compile("^[ \t]*")
-_WHITESPACE_ONLY_RE = re.compile("^[ \t]+$")
-
-
 def _dedent(lines: list[str]) -> list[str]:
     """Like textwrap.dedent but works on a list of lines.
 
@@ -368,13 +365,13 @@ def _dedent(lines: list[str]) -> list[str]:
     # Strip whitespace only lines.
     lines = [_WHITESPACE_ONLY_RE.sub("", line) for line in lines]
 
-    indent: int | None = 0
+    indent: int | None = None
     for line in lines:
         if line:
             indent_match = _LEADING_WHITESPACE_RE.match(line)
             assert indent_match is not None
             this_indent: int = indent_match.end()
-            if indent is None or indent < this_indent:
+            if indent is None or this_indent < indent:
                 indent = this_indent
     if indent:
         return [line[indent:] for line in lines]
@@ -479,8 +476,14 @@ def key_binding[T: ReplBase](
     def decorator(func: KeyBindingFunc) -> KeyBinding:
         nonlocal summary
         if summary is None and func.__doc__:
-            summary_match = DOC_STRING_REGEX.match(func.__doc__)
-            summary = summary_match.group("summary").strip() if summary_match is not None else None
+            doc_lines = func.__doc__.strip().splitlines()
+            doc_lines[1:] = _dedent(doc_lines[1:])
+            try:
+                no_summary_lines = doc_lines.index("")
+            except ValueError:
+                no_summary_lines = len(doc_lines)
+            summary_lines = doc_lines[:no_summary_lines]
+            summary = "\n".join(summary_lines)
         assert func.__name__.startswith(KEY_BINDING_FUNC_PREFIX), (
             f"The name of a key binding function must start with {KEY_BINDING_FUNC_PREFIX}, "
             f"which is not the case with {func.__qualname__}."
@@ -495,11 +498,10 @@ def key_binding[T: ReplBase](
 class Repl(ReplBase):
     """Base class for a REPL with helpful commands like help or quit."""
 
-    _help_textwrapper: TextWrapper
-
+    _summary_textwrapper: TextWrapper
     def __init__(self) -> None:
         super().__init__()
-        self._help_textwrapper = TextWrapper(
+        self._summary_textwrapper = TextWrapper(
             expand_tabs=False,
             replace_whitespace=True,
             fix_sentence_endings=True,
@@ -523,6 +525,11 @@ class Repl(ReplBase):
         """Exit the REPL."""
         raise QuitRepl()
 
+    def print_wrapped_markdown(self, markdown: str) -> None:
+        """Print markdown wrapped to the width of the terminal."""
+        width: int = shutil.get_terminal_size().columns
+        print(punwrap.wrap(markdown, width))  # type: ignore
+
     help_argparser = ArgumentParser()
     help_arggroup = help_argparser.add_mutually_exclusive_group()
     help_arggroup.add_argument("command", nargs="?", help="Get help for this specific command.")
@@ -533,16 +540,13 @@ class Repl(ReplBase):
     @argparse_command(help_argparser, alias="h")
     def do_help(self, args: ParsedArgs) -> None:
         """Get a list of all possible commands or get help for a specific command."""
-        self._help_textwrapper.width = shutil.get_terminal_size().columns
-
+        self._summary_textwrapper.width = shutil.get_terminal_size().columns
         if args.command is not None:
             if args.command not in self._cmds:
                 raise CommandFailure(f"The command {args.command} does not exist")
             command = self._cmds[args.command]
-            print(
-                self._help_textwrapper.fill(
-                    command.long_help or command.summary or "No help text provided."
-                )
+            self.print_wrapped_markdown(
+                command.long_help or command.summary or "No help text provided."
             )
         else:
             # Deduplicate commands by their id, that is if they are the same object.
@@ -554,9 +558,9 @@ class Repl(ReplBase):
                         line += f", {alias}"
                 if not args.all:
                     line += f"  --  {command.summary}"
-                    print(self._help_textwrapper.fill(line))
+                    print(self._summary_textwrapper.fill(line))
                 else:
-                    print(self._help_textwrapper.fill(line))
+                    print(self._summary_textwrapper.fill(line))
                     print()
                     if argparser := command.argparser:
                         argparser.print_all_help()

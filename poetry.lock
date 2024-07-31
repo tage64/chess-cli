@@ -742,6 +742,21 @@ files = [
 test = ["enum34", "ipaddress", "mock", "pywin32", "wmi"]
 
 [[package]]
+name = "punwrap"
+version = "0.2.4"
+description = "Python bindings for runwrap"
+optional = false
+python-versions = "*"
+files = []
+develop = false
+
+[package.source]
+type = "git"
+url = "https://github.com/tage64/punwrap"
+reference = "HEAD"
+resolved_reference = "d65ce7dae42005fde16980a6db2857a0c971a587"
+
+[[package]]
 name = "pyaudio"
 version = "0.2.14"
 description = "Cross-platform audio I/O with PortAudio"
@@ -1360,4 +1375,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "ba0560064319271eedefe90fa805a6abcaa810e84dd0d3adba65cc2486d2559f"
+content-hash = "ad879eafad47bf19807a8261ee292dfcd339d9e611282d68c19ef47a45fd2672"

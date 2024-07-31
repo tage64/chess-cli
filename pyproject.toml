@@ -33,6 +33,7 @@ pyaudio = "^0.2.14"
 cairosvg = "^2.7.1"
 pydantic = "^2.6.4"
 spdx-license-list = "^3.23"
+punwrap = {git = "https://github.com/tage64/punwrap"}
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"
