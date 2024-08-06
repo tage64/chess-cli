@@ -433,7 +433,12 @@ If you want to limit the analysis, you may add options to the `analysis start` c
 complete reference, type `analysis start --help`.) For instance, if you want to analyse for one hour
 on a specific move, type:
 ```
-1. e4: analysis start --fixed --time 3600
+1. e4: analysis start --fixed -t 3600
+```
+
+Or if you want to analyse 80 bilion nodes on every move you visit:
+```
+analysis start --nodes 80000000
 ```
 
 To show the analysis, type `analysis show` (or simply `a` for `analysis`).

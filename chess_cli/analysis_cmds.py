@@ -29,19 +29,22 @@ class AnalysisCmds(Analysis):
         ),
     )
     analysis_start_argparser.add_argument(
-        "-n", "--number-of-moves", type=int, default=5, help="Show the n best moves."
+        "-n", "--number-of-moves", type=int, default=3, help="Show the n best moves."
     )
     analysis_start_argparser.add_argument(
-        "--time", type=float, help="Analyse only the given number of seconds."
+        "-t", "--time", type=float, help="Analyse only the given number of seconds."
     )
     analysis_start_argparser.add_argument(
-        "--depth", type=int, help="Analyse until the given depth is reached."
+        "-d", "--depth", type=int, help="Analyse until the given depth is reached."
     )
     analysis_start_argparser.add_argument(
         "--nodes", type=int, help="Search only the given number of nodes."
     )
     analysis_start_argparser.add_argument(
-        "--mate", type=int, help="Search for a mate in the given number of moves and stop then."
+        "-m",
+        "--mate",
+        type=int,
+        help="Search for a mate in the given number of moves and stop then.",
     )
     analysis_stop_argparser = analysis_subcmds.add_parser("stop", help="Stop analysing.")
     analysis_stop_argparser.add_argument(
@@ -136,7 +139,7 @@ class AnalysisCmds(Analysis):
         if args.fixed:
             await self.start_analysis(engine, args.number_of_moves, limit)
         else:
-            await self.start_auto_analysis(engine, args.number_of_moves)
+            await self.start_auto_analysis(engine, args.number_of_moves, limit)
         self.poutput(f"{engine} is now analysing.")
 
     def analysis_stop(self, args) -> None:

@@ -32,6 +32,7 @@ class Analysis(Engine):
     _running_analyses: dict[str, AnalysisInfo]
     _auto_analysis_engines: set[str]  # All currently auto-analysing engines.
     _auto_analysis_number_of_moves: int  # Number of moves to analyse for auto analysis.
+    _auto_analysis_limit: chess.engine.Limit | None = None
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
@@ -104,12 +105,17 @@ class Analysis(Engine):
                 and self._running_analyses[engine].board != self.game_node.board()
             ):
                 self.stop_analysis(engine, remove_auto=False)
-            await self.start_analysis(engine, self._auto_analysis_number_of_moves)
+            await self.start_analysis(
+                engine, self._auto_analysis_number_of_moves, self._auto_analysis_limit
+            )
 
-    async def start_auto_analysis(self, engine: str, number_of_moves: int) -> None:
+    async def start_auto_analysis(
+        self, engine: str, number_of_moves: int, limit: chess.engine.Limit | None = None
+    ) -> None:
         """Start auto analysis on the current position."""
         self._auto_analysis_engines.add(engine)
         self._auto_analysis_number_of_moves = number_of_moves
+        self._auto_analysis_limit = limit
         await self.update_auto_analysis()
 
     def rm_analysis(self, engine: str, node: chess.pgn.GameNode) -> None:
