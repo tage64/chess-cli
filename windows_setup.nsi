@@ -5,7 +5,7 @@
 ; Custom defines
   !define NAME "Chess-CLI"
   !define APPFILE "chess-cli.exe"
-  !define VERSION "0.3.3"
+  !define VERSION "0.4.0"
   !define SLUG "${NAME} v${VERSION}"
 ; General
   Name "${NAME}"
