@@ -79,7 +79,7 @@ class MatchCmds(EnginePlayer, Match):
                     print("No clocks set.")
             case "set" | "s":
                 white_clock, black_clock = self.get_clocks()
-                if args.time_control:
+                if args.time_control is not None:
                     if self.match_started():
                         raise CommandFailure("A match is already started.")
                     if white_clock is not None or black_clock is not None:
@@ -89,23 +89,23 @@ class MatchCmds(EnginePlayer, Match):
                     self.add_clock(white_clock, chess.WHITE)
                     black_clock = ChessClock(time, inc)
                     self.add_clock(black_clock, chess.BLACK)
-                if args.white_time:
+                if args.white_time is not None:
                     if white_clock is None:
                         white_clock = ChessClock(args.white_time)
                         self.add_clock(white_clock, chess.WHITE)
                     else:
                         white_clock.set_time(args.white_time)
-                if args.black_time:
+                if args.black_time is not None:
                     if black_clock is None:
                         black_clock = ChessClock(args.black_time)
                         self.add_clock(black_clock, chess.BLACK)
                     else:
                         black_clock.set_time(args.black_time)
-                if args.white_inc:
+                if args.white_inc is not None:
                     if white_clock is None:
                         raise CommandFailure("There is no clock set for White.")
                     white_clock.increment = args.white_inc
-                if args.black_inc:
+                if args.black_inc is not None:
                     if black_clock is None:
                         raise CommandFailure("There is no clock set for Black.")
                     black_clock.increment = args.black_inc
