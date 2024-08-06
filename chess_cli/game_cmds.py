@@ -1,5 +1,5 @@
 import argparse
-import os
+import io
 import textwrap
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -7,11 +7,12 @@ from collections.abc import Iterable
 
 import chess
 import chess.pgn
+import pyperclip
 
 from .base import CommandFailure
 from .game_utils import GameUtils
 from .repl import argparse_command, command
-from .utils import MoveNumber, piece_name, castling_descr
+from .utils import MoveNumber, castling_descr, piece_name
 
 
 class GameCmds(GameUtils):
@@ -293,8 +294,12 @@ class GameCmds(GameUtils):
                 raise AssertionError("Unknown subcommand.")
 
     save_argparser = ArgumentParser()
-    save_argparser.add_argument(
-        "file", nargs="?", help="File to save to. Defaults to the loaded file."
+    save_arggroup = save_argparser.add_mutually_exclusive_group()
+    save_arggroup.add_argument(
+        "-f", "--file", nargs="?", help="File to save to. Defaults to the loaded file."
+    )
+    save_arggroup.add_argument(
+        "-c", "--clipboard", action="store_true", help="Copy the games to the clipboard."
     )
     save_argparser.add_argument(
         "-t",
@@ -306,27 +311,51 @@ class GameCmds(GameUtils):
     @argparse_command(save_argparser, alias="sv")
     def do_save(self, args) -> None:
         """Save the games to a PGN file."""
-        if args.file is None:
+        games: Iterable[int] = [self.game_idx] if args.this else range(len(self.games))
+        if args.clipboard:
+            pgn_io = io.StringIO()
+            self.write_games(pgn_io, games)
+            pyperclip.copy(pgn_io.getvalue())
+        elif args.file is None:
             if self.pgn_file_name is None:
                 self.poutput("Error: No file selected.")
                 return
-            self.save_games(args.file)
+            self.save_games(args.file, games)
         else:
-            if self.pgn_file_name is not None and os.path.samefile(args.file, self.pgn_file_name):
-                self.save_games(args.file)
-            else:
-                self.save_games_to_file(args.file)
+            self.save_games(args.file, games)
 
     load_argparser = ArgumentParser()
-    load_argparser.add_argument("file", help="PGN file to read.")
+    load_arggroup = load_argparser.add_mutually_exclusive_group(required=True)
+    load_arggroup.add_argument("-f", "--file", help="Path to a PGN file.")
+    load_arggroup.add_argument(
+        "-c",
+        "--clipboard",
+        action="store_true",
+        help="Load a PGN or FEN from the clipboard. The file argument will be ignored.",
+    )
 
     @argparse_command(load_argparser, alias="ld")
-    def do_load(self, args) -> None:
+    async def do_load(self, args) -> None:
         """Load games from a PGN file.
 
         Note that the current game will be lost.
         """
-        self.load_games(args.file)
+        if args.file:
+            self.load_games_from_file(args.file)
+        if args.clipboard:
+            clip: str = pyperclip.paste()
+            if not clip:
+                raise CommandFailure("The clipboard is empty.")
+            try:
+                # Try to parse as FEN:
+                board = chess.Board(clip)
+            except ValueError:
+                print("Reading clipboard as PGN.")
+                self.load_games_from_pgn_str(clip)
+            else:
+                print("Successfully read clipboard as FEN, which is set to the starting position.")
+                self.add_new_game()
+                await self.set_position(board)
 
     promote_argparser = ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()
@@ -574,7 +603,6 @@ class GameCmds(GameUtils):
                 raise CommandFailure(str(e)) from e
             await self.set_position(board)
         print(castling_descr(board))
-
 
     en_passant_argparser = ArgumentParser()
     en_passant_argparser.add_argument(

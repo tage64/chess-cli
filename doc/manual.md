@@ -177,7 +177,7 @@ start: g -r 3...e4
 
 Chess-CLI can read and write [PGN files][15].
 Note that the paths to files in the following commands are relative to the working directory of Chess-CLI.
-So if you enter "load foo.pgn", Chess-CLI will try to open a file named "foo.pgn" in the same directory as where the Chess-CLI executable was started.
+So if you enter "load -f foo.pgn", Chess-CLI will try to open a file named "foo.pgn" in the same directory as where the Chess-CLI executable was started.
 
 #### Load
 
@@ -187,13 +187,28 @@ WARNING: Your current game will be lost when loading the new one.
 Example:
 
 ```
-start: load foo.pgn
+start: load -f foo.pgn
+```
+
+You can also load a FEN or game from the clipboard with the `-c` flag:
+```
+start: load -c
 ```
 
 #### Save
 
-The "save" command saves the current game.
-If the current game is not loaded from a file and the game hasn't been saved before, a file name is required as argument.
+The "save" command saves the current game. If the current game is not loaded from a file and the
+game hasn't been saved before, a file name must be provided with the `-f` flag. The `-c` flag can
+alternatively be used to copy the game to the clipboard:
+```
+start: save -f foo.pgn
+start: save -c
+```
+
+If you want to copy the current FEN to the clipboard you may use the `fen` command:
+```
+start: fen -c
+```
 
 ### Setup Position
 

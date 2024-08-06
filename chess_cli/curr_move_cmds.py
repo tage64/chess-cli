@@ -10,6 +10,7 @@ import chess
 import chess.engine
 import chess.pgn
 import chess.svg
+import pyperclip
 
 from . import nags
 from .base import Base
@@ -122,11 +123,17 @@ class CurrMoveCmds(Base):
             self.poutput(f"Clock: {clock}")
 
     fen_argparser = ArgumentParser()
+    fen_argparser.add_argument(
+        "-c", "--clipboard", action="store_true", help="Copy the FEN to the clipboard."
+    )
 
     @argparse_command(fen_argparser)
     def do_fen(self, args) -> None:
         """Show the position as FEN (Forsynth-Edwards Notation)."""
-        self.poutput(self.show_fen())
+        if args.clipboard:
+            pyperclip.copy(self.show_fen())
+        else:
+            self.poutput(self.show_fen())
 
     board_argparser = ArgumentParser()
 

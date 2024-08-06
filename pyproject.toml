@@ -36,6 +36,7 @@ spdx-license-list = "^3.23"
 punwrap = {git = "https://github.com/tage64/punwrap"}
 inflect = "^7.3.1"
 typeguard = {git = "https://github.com/tage64/typeguard"}
+pyperclip = "^1.9.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"

@@ -1,7 +1,9 @@
+import io
 import os
 import shutil
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import IO, override
 
@@ -76,7 +78,7 @@ class Base(Repl):
         self._pgn_file = None
         self._game_idx = 0
         if args.pgn_file is not None:
-            self.load_games(args.pgn_file)
+            self.load_games_from_file(args.pgn_file)
         else:
             self.add_new_game()
 
@@ -183,7 +185,7 @@ class Base(Repl):
             else:
                 self.add_new_game()
 
-    def load_games(self, file_name: str) -> None:
+    def load_games_from_file(self, file_name: str) -> None:
         """Load games from a PGN file.
 
         Upon success, all previous games will be discarded.
@@ -211,6 +213,23 @@ class Base(Repl):
         except OSError as ex:
             self.poutput(f"Error: Loading of {file_name} failed: {ex}")
 
+    def load_games_from_pgn_str(self, pgn: str) -> None:
+        """Load games from a PGN string.
+
+        Upon success, all previous games will be discarded.
+        """
+        pgn_io = io.StringIO(pgn)
+        games: list[_GameHandle] = []
+        while game := chess.pgn.read_game(pgn_io):
+            game_handle = _GameHandle(game.headers, game)
+            games.append(game_handle)
+        if not games:
+            raise CommandFailure("Couldn't read any games from the PGN.")
+        self._games = games
+        self._pgn_file = None
+        self.select_game(0)
+        self.poutput(f"Successfully loaded {len(self._games)} game(s).")
+
     def _reload_games(self, file_name: str) -> None:
         """Open and load all games from `file_name`, assuming it contains exactly the
         same games, in same order, as `self.games`.
@@ -228,35 +247,35 @@ class Base(Repl):
                 self.games[i] = _GameHandle(headers, offset)
         self.select_game(current_game)
 
-    def write_games(self, file: IO[str]) -> None:
-        """Print all games to a file or other text stream."""
+    def write_games(self, file: IO[str], games: Iterable[int]) -> None:
+        """Print games to a file or other text stream.
+
+        param file: A stream to write the games to.
+        param games: Indices of the games to print.
+        """
         current_game: int = self.game_idx
-        for i in range(len(self.games)):
+        for i in games:
             self.select_game(i)
             print(self.game_node.game(), file=file)
         self.select_game(current_game)
 
-    def save_games_to_file(self, file_name: str) -> None:
-        """Print all games to a file.
+    def save_games(self, file_name: str | None, games: Iterable[int]) -> None:
+        """Save all games and update the current PGN file to `file_name`.
 
-        `file_name` should not be `self.pgn_file_name` unless you know what you are doing.
+        param file_name: The file to write to. If it is `None`, the current PGN file will be used,
+                if that is also `None`, an assertian will be fired.
+        param games: List of game indices to save.
         """
-        with open(file_name, "w+") as f:
-            self.write_games(f)
-
-    def save_games(self, file_name: str | None) -> None:
-        """Save all games and update the current PGN file to `file_name`." If
-        `file_name` is `None`, the current PGN file will be used, if that is also
-        `None`, an assertian will be fired."""
         file_name = file_name or self.pgn_file_name
         assert file_name is not None
         if self.pgn_file_name is None or not os.path.samefile(file_name, self.pgn_file_name):
-            self.save_games_to_file(file_name)
+            with open(file_name, "w+") as f:
+                self.write_games(f, games)
         else:
             file: IO[str] = tempfile.NamedTemporaryFile(mode="w+", delete=False)
             tempfile_name = file.name
             try:
-                self.write_games(file)
+                self.write_games(file, games)
                 file.close()
             except Exception:
                 file.close()
