@@ -331,14 +331,14 @@ class GameCmds(GameUtils):
         "-c",
         "--clipboard",
         action="store_true",
-        help="Load a PGN or FEN from the clipboard. The file argument will be ignored.",
+        help="Load a PGN or FEN from the clipboard.",
     )
 
     @argparse_command(load_argparser, alias="ld")
     async def do_load(self, args) -> None:
-        """Load games from a PGN file.
+        """Load new games from PGN or FEN.
 
-        Note that the current game will be lost.
+        Note that the current game will be lost if you load a PGN.
         """
         if args.file:
             self.load_games_from_file(args.file)
