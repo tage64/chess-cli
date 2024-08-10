@@ -4,6 +4,7 @@ import textwrap
 from argparse import ArgumentParser
 from collections import defaultdict
 from collections.abc import Iterable
+from typing import assert_never
 
 import chess
 import chess.pgn
@@ -249,10 +250,16 @@ class GameCmds(GameUtils):
     games_rm_argparser = games_subcmds.add_parser(
         "rm", aliases=["remove"], help="Remove the current game."
     )
-    games_rm_subcmds = games_rm_argparser.add_subparsers(dest="subcmd")
-    games_rm_subcmds.add_parser("this", help="Remove the currently selected game.")
-    games_rm_subcmds.add_parser("others", help="Remove all but the currently selected game.")
-    games_rm_subcmds.add_parser("all", help="Remove all games. Including the current game.")
+    games_rm_subcmds = games_rm_argparser.add_subparsers(dest="rm_subcmd")
+    games_rm_subcmds.add_parser(
+        "this", aliases=["t"], help="Remove the currently selected game. (The default.)"
+    )
+    games_rm_subcmds.add_parser(
+        "others", aliases=["o"], help="Remove all but the currently selected game."
+    )
+    games_rm_subcmds.add_parser(
+        "all", aliases=["a"], help="Remove all games. Including the current game."
+    )
     games_select_argparser = games_subcmds.add_parser(
         "select", aliases=["s", "sel"], help="Select another game in the file."
     )
@@ -264,10 +271,13 @@ class GameCmds(GameUtils):
             " particular game."
         ),
     )
-    games_add_argparser = games_subcmds.add_parser("add", help="Add a new game to the file.")
+    games_add_argparser = games_subcmds.add_parser(
+        "add", aliases=["a"], help="Add a new game to the file."
+    )
     games_add_argparser.add_argument(
         "index",
         type=int,
+        nargs="?",
         help="The index where the game should be inserted. Defaults to the end of the game list.",
     )
 
@@ -275,23 +285,42 @@ class GameCmds(GameUtils):
     def do_games(self, args) -> None:
         """List, select, delete or create new games."""
         match args.subcmd:
-            case "ls":
+            case "ls" | None:
                 for i, game in enumerate(self.games):
                     show_str: str = f"{i + 1}. "
-                    if i == self.game_idx:
-                        show_str += "[*] "
-                    show_str += f"{game.headers["White"]} - {game.headers["Black"]}"
+                    show_str += "[*]" if i == self.game_idx else "   "
+                    show_str += f" {game.headers["White"]} - {game.headers["Black"]}"
                     if isinstance(game.game_node, chess.pgn.ChildNode):
                         show_str += f" @ {MoveNumber.last(game.game_node)} {game.game_node.san()}"
                     self.poutput(show_str)
-            case "rm":
-                self.rm_game(self.game_idx)
+            case "rm" | "remove":
+                match args.rm_subcmd:
+                    case "this" | "t" | None:
+                        self.rm_game(self.game_idx)
+                    case "other" | "o":
+                        while self.game_idx > 0:
+                            self.rm_game(0)
+                        while len(self.games) > 1:
+                            self.rm_game(1)
+                    case "all" | "a":
+                        while len(self.games) > 1:
+                            self.rm_game(0)
+                        self.rm_game(0)  # Remove the last game.
             case "s" | "sel" | "select":
-                self.select_game(args.index)
-            case "add":
-                self.add_new_game(args.index)
-            case _:
-                raise AssertionError("Unknown subcommand.")
+                if not 1 <= args.index <= len(self.games):
+                    raise CommandFailure(
+                        f"The game index must be in the range [1, {len(self.games)}]."
+                    )
+                self.select_game(args.index - 1)
+            case "add" | "a":
+                index: int = args.index if args.index is not None else len(self.games) + 1
+                if not 1 <= index <= len(self.games) + 1:
+                    raise CommandFailure(
+                        f"The game index must be in the range [1, {len(self.games) + 1}]."
+                    )
+                self.add_new_game(index - 1)
+            case x:
+                assert_never(x)
 
     save_argparser = ArgumentParser()
     save_arggroup = save_argparser.add_mutually_exclusive_group()
@@ -328,10 +357,7 @@ class GameCmds(GameUtils):
     load_arggroup = load_argparser.add_mutually_exclusive_group(required=True)
     load_arggroup.add_argument("-f", "--file", help="Path to a PGN file.")
     load_arggroup.add_argument(
-        "-c",
-        "--clipboard",
-        action="store_true",
-        help="Load a PGN or FEN from the clipboard.",
+        "-c", "--clipboard", action="store_true", help="Load a PGN or FEN from the clipboard."
     )
 
     @argparse_command(load_argparser, alias="ld")
@@ -556,7 +582,7 @@ class GameCmds(GameUtils):
     turn_argparser = ArgumentParser()
     turn_argparser.add_argument(
         "set_color",
-        choices=["white", "black"],
+        choices=["white", "black", "w", "b"],
         nargs="?",
         help="Set the turn to play. " "Note that this will reset the current game.",
     )
@@ -565,16 +591,23 @@ class GameCmds(GameUtils):
     async def do_turn(self, args) -> None:
         """Get or set the turn to play."""
         if args.set_color is None:
-            print("white" if self.game_node.turn() == chess.WHITE else "black")
+            print("White" if self.game_node.turn() == chess.WHITE else "Black")
             return
         board: chess.Board = self.game_node.board()
-        color: chess.Color = chess.WHITE if args.set_color == "white" else chess.BLACK
+        color: chess.Color
+        match args.set_color:
+            case "white" | "w":
+                color = chess.WHITE
+            case "black" | "b":
+                color = chess.BLACK
+            case x:
+                assert_never(x)
         if board.turn == color:
-            print(f"It is already {args.set_color} to play.")
+            print(f"It is already {"White" if color == chess.WHITE else "Black"} to play.")
             return
         board.turn = color
         await self.set_position(board)
-        print(f"It is now {args.set_color} to play.")
+        print(f"It is now {"White" if color == chess.WHITE else "Black"} to play.")
 
     castling_argparser = ArgumentParser(
         epilog="For example: You can get the current castling rights by entering "

@@ -339,9 +339,9 @@ class GameUtils(Base):
                 if status & status_code:
                     print(f"- {description}")
             raise CommandFailure("The position is not changed.")
-        if self.game_node.parent is not None:
+        if self.game_node.parent is not None or self.game_node.variations:
             ans: bool = await self.yes_no_dialog(
-                "Changing the position will delete the entire game "
+                "Changing the position will delete all moves in the game  "
                 "and set the new position as start. Do you want to continue?"
             )
             if not ans:
