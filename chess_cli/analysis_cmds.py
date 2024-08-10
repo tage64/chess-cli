@@ -171,10 +171,20 @@ class AnalysisCmds(Analysis):
             if "pv" in info:
                 res += f"{analysis.board.san(info["pv"][0])}: "
             if "score" in info:
-                score: chess.engine.Score = info["score"].relative
+                pov_score: chess.engine.PovScore = info["score"]
+                score: chess.engine.Score
+                if self.eval_score_perspective == "relative":
+                    score = pov_score.relative
+                else:
+                    score = pov_score.pov(self.eval_score_perspective)
                 res += score_str(score) + ", "
             if "wdl" in info:
-                wdl: chess.engine.Wdl = info["wdl"].relative
+                pov_wdl: chess.engine.PovWdl = info["wdl"]
+                wdl: chess.engine.Wdl
+                if self.eval_score_perspective == "relative":
+                    wdl = pov_wdl.relative
+                else:
+                    wdl = pov_wdl.pov(self.eval_score_perspective)
                 res += f"{round(wdl.expectation() * 100)} %, "
                 res += f"{round(wdl.wins * 100 / wdl.total())}% win, "
                 res += f"{round(wdl.draws * 100 / wdl.total())}% draw, "
@@ -250,3 +260,36 @@ class AnalysisCmds(Analysis):
                 self.stop_analysis(engine)
             self.rm_analysis(engine, self.game_node)
             self.poutput(f"Removed analysis made by {engine}.")
+
+    eval_score_argparser = ArgumentParser()
+    eval_score_argparser.add_argument(
+        "set",
+        choices=["relative", "r", "white", "w", "black", "b"],
+        nargs="?",
+        help="Set the evaluation score to be relative the current player, White, or Black.",
+    )
+
+    @argparse_command(eval_score_argparser, alias="evsc")
+    def do_eval_score(self, args) -> None:
+        """Set or get the evaluation score perspective.
+
+        By default, the evaluation score is printed from the perspective of the player to move.
+        This can however be changed to always show the score from White's or Black's perspective.
+        """
+        new_perspective = None
+        match args.set:
+            case "relative" | "r":
+                new_perspective = "relative"
+            case "white" | "w":
+                new_perspective = chess.WHITE
+            case "black" | "b":
+                new_perspective = chess.BLACK
+        if new_perspective is not None and new_perspective != self.eval_score_perspective:
+            self.eval_score_perspective = new_perspective
+            self.save_config()
+        match self.eval_score_perspective:
+            case "relative":
+                print("The evaluation score is relative the player to move.")
+            case color:
+                color_str = "White" if color == chess.WHITE else "Black"
+                print(f"The evaluation score perspective is from {color_str}'s point of view.")

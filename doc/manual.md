@@ -445,6 +445,19 @@ To show the analysis, type `analysis show` (or simply `a` for `analysis`).
 
 The analysis can be stopped with `analysis stop`.
 
+#### Evaluation Score Perspective
+
+By default, the evaluation score is printed from the perspective of the current player to move. This
+can be changed with the `eval-score` command.
+```
+start: eval-score
+The evaluation score is relative the player to move.
+start: eval-score white
+The evaluation score perspective is from White's point of view.
+```
+
+The setting will be remembered the next time you start Chess-CLI.
+
 ### Creat a Chess Match
 
 It is possible to create chess matches, both you against the machine and two machines against each

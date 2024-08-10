@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import override
+from typing import Literal, override
 
 import chess
 import chess.engine
@@ -33,6 +33,8 @@ class Analysis(Engine):
     _auto_analysis_engines: set[str]  # All currently auto-analysing engines.
     _auto_analysis_number_of_moves: int  # Number of moves to analyse for auto analysis.
     _auto_analysis_limit: chess.engine.Limit | None = None
+    # The perspective of the evaluation score.
+    eval_score_perspective: Literal["relative"] | chess.Color = "relative"
 
     def __init__(self, args: InitArgs) -> None:
         super().__init__(args)
@@ -48,6 +50,40 @@ class Analysis(Engine):
     async def pre_prompt(self) -> None:
         await super().pre_prompt()
         await self.update_auto_analysis()
+
+    @override
+    def load_config(self) -> None:
+        super().load_config()
+        analysis_conf = self.config["analysis"]
+        assert isinstance(analysis_conf, dict), "Section 'analysis' must be a dict"
+        if (perspective := analysis_conf.get("eval-score-perspective")) is not None:
+            match perspective:
+                case "white":
+                    self.eval_score_perspective = chess.WHITE
+                case "black":
+                    self.eval_score_perspective = chess.BLACK
+                case "relative":
+                    self.eval_score_perspective = perspective
+                case _:
+                    raise AssertionError(
+                        "eval-score-perspective in section analysis must be "
+                        '"white", "black" or "relative"'
+                    )
+
+    @override
+    def save_config(self) -> None:
+        perspective: str
+        match self.eval_score_perspective:
+            case chess.WHITE:
+                perspective = "white"
+            case chess.BLACK:
+                perspective = "black"
+            case "relative" as r:
+                perspective = r
+            case x:
+                raise AssertionError(x)
+        self.config["analysis"] = {"eval-score-perspective": perspective}
+        super().save_config()
 
     @property
     def analyses(self) -> set[AnalysisInfo]:
