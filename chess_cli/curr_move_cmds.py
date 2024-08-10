@@ -46,17 +46,25 @@ class CurrMoveCmds(Base):
 
     def show_board(self) -> str:
         board = self.game_node.board()
-        text: str = "  a b c d e f g h  \n"
-        for row in range(7, -1, -1):
+        cols: str = " ".join(
+            map(
+                chr,
+                range(ord("a"), ord("h") + 1)
+                if board.turn == chess.WHITE
+                else range(ord("h"), ord("a") - 1, -1),
+            )
+        )
+        text: str = "  " + cols + "\n"
+        for row in range(8) if board.turn == chess.BLACK else range(7, -1, -1):
             text += f"{row + 1} "
-            for col in range(0, 8):
+            for col in range(8) if board.turn == chess.WHITE else range(7, -1, -1):
                 try:
                     square_content: str = str(board.piece_map()[8 * row + col])
                 except KeyError:
                     square_content = "+" if (row + col) % 2 == 0 else "-"
                 text += f"{square_content} "
             text += f"{row + 1}\n"
-        text += "  a b c d e f g h  \n\n"
+        text += "  " + cols + "\n\n"
         if board.ep_square is not None:
             text += f"En-passant is possible at {chess.square_name(board.ep_square)}\n"
         text += castling_descr(board) + "\n"
@@ -78,7 +86,7 @@ class CurrMoveCmds(Base):
                     text += ",".join(chess.SQUARE_NAMES[sq] for sq in squares)
                     text += " "
             text += "\n"
-
+        text += ("White" if board.turn == chess.WHITE else "Black") + " to move."
         return text
 
     def show_arrows(self) -> str | None:
