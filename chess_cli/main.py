@@ -52,7 +52,7 @@ def main() -> None:
         version=f"%(prog)s {__version__}",
         help="Show version and exit.",
     )
-    argparser.add_argument("pgn_file", nargs="?", help="Open the given pgn file.")
+    argparser.add_argument("file", nargs="?", help="Open a PGN or FEN file.")
     argparser.add_argument("--config-file", type=str, help="Path to the config file.")
     args = argparser.parse_args()
     init_args: InitArgs = InitArgs(**{

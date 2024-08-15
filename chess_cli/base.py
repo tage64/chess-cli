@@ -16,12 +16,14 @@ import toml  # type: ignore
 from .repl import CommandFailure, Repl
 from .utils import move_str
 
+FEN_WIDTH_UPPER_BOUND: int = 512
+
 
 @dataclass
 class InitArgs:
     """Arguments to the __init__() method of most ChessCli-classes."""
 
-    pgn_file: str | None = None
+    file: str | None = None
     config_file: str = field(
         default_factory=lambda: os.path.join(appdirs.user_config_dir("chess-cli"), "config.toml")
     )
@@ -73,12 +75,12 @@ class Base(Repl):
         self._config_file = args.config_file
         self.load_config()
 
-        ## Read the PGN file or initialize a new game:
+        ## Read the PGN/FEN file or initialize a new game:
         self._games = []
         self._pgn_file = None
         self._game_idx = 0
-        if args.pgn_file is not None:
-            self.load_games_from_file(args.pgn_file)
+        if args.file is not None:
+            self.load_games_from_file(args.file)
         else:
             self.add_new_game()
 
@@ -186,30 +188,49 @@ class Base(Repl):
                 self.add_new_game()
 
     def load_games_from_file(self, file_name: str) -> None:
-        """Load games from a PGN file.
+        """Load games from a PGN file or a starting position from a FEN.
 
-        Upon success, all previous games will be discarded.
+        If loading a PGN file, all games will be discarded.
+        A FEN will discard the current game and set the position as starting position.
         """
         try:
-            with open(file_name) as pgn_file:
-                games: list[_GameHandle] = []
-                while True:
-                    offset: int = pgn_file.tell()
-                    headers = chess.pgn.read_headers(pgn_file)
-                    if headers is None:
-                        break
-                    games.append(_GameHandle(headers, offset))
-                if not games:
-                    self.poutput(f"Error: Couldn't find any game in {file_name}")
-                    raise CommandFailure()
-                # Reset analysis.
-                # TODO:
-                # self.stop_engines()
-                # self.init_analysis()
-                self._games = games
-                self._pgn_file = pgn_file
-                self.select_game(0)
-                self.poutput(f"Successfully loaded {len(self._games)} game(s).")
+            with open(file_name) as file:
+                # Try to read as FEN:
+                content = file.read(FEN_WIDTH_UPPER_BOUND)
+                try:
+                    board = chess.Board(content)
+                    print(
+                        f"Successfully read {file_name} as FEN,"
+                        " which is set to the starting position."
+                    )
+                    self.add_new_game()
+                    self.game_node.game().setup(board)
+                except ValueError:
+                    # Try to parse as PGN.
+                    file.seek(0)
+                    games: list[_GameHandle] = []
+                    while True:
+                        offset: int = file.tell()
+                        headers = chess.pgn.read_headers(file)
+                        if headers is None:
+                            break
+                        games.append(_GameHandle(headers, offset))
+                    if not games:
+                        raise CommandFailure(
+                            f"Failed to parse {file_name} as FEN or PGN."
+                        ) from None
+                    # Reset analysis.
+                    # TODO:
+                    # self.stop_engines()
+                    # self.init_analysis()
+                    self._games = games
+                    self._pgn_file = file
+                    self.select_game(0)
+                    print(
+                        "Successfully loaded",
+                        self.p.no("game", len(self._games)),  # type: ignore
+                        "as PGN.",
+                    )
         except OSError as ex:
             self.poutput(f"Error: Loading of {file_name} failed: {ex}")
 

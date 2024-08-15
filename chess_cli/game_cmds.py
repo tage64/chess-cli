@@ -355,7 +355,7 @@ class GameCmds(GameUtils):
 
     load_argparser = ArgumentParser()
     load_arggroup = load_argparser.add_mutually_exclusive_group(required=True)
-    load_arggroup.add_argument("-f", "--file", help="Path to a PGN file.")
+    load_arggroup.add_argument("-f", "--file", help="Path to a PGN or FEN file.")
     load_arggroup.add_argument(
         "-c", "--clipboard", action="store_true", help="Load a PGN or FEN from the clipboard."
     )
