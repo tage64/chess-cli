@@ -106,7 +106,7 @@ class CurrMoveCmds(Base):
 
     show_argparser = ArgumentParser()
 
-    @argparse_command(show_argparser, alias=["s"])
+    @argparse_command(show_argparser, alias=["sh"])
     def do_show(self, args) -> None:
         """Show position, comments, NAGs and more about the current move."""
         self.poutput(f"FEN: {self.show_fen()}")

@@ -7,6 +7,7 @@ from .analysis_cmds import AnalysisCmds
 from .base import InitArgs
 from .curr_move_cmds import CurrMoveCmds
 from .engine_cmds import EngineCmds
+from .explore_cmds import ExploreCmds
 from .fast_move_input import FastMoveInput
 from .game_cmds import GameCmds
 from .game_shortcuts import GameShortcuts
@@ -19,6 +20,7 @@ class Main(
     AnalysisCmds,
     CurrMoveCmds,
     EngineCmds,
+    ExploreCmds,
     GameCmds,
     GameShortcuts,
     LichessCmds,
