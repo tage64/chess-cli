@@ -1,7 +1,7 @@
 [project]
 name = "chess-cli"
 requires-python = ">=3.12, <3.13"
-version = "0.4.1"
+version = "0.5.0"
 license = "GPL-3.0-or-later"
 
 [project.urls]
