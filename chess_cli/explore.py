@@ -1,11 +1,23 @@
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import override
 
 import chess
 
 from .base import Base
 from .utils import piece_name
+
+PIECE_TYPES: list[chess.PieceType] = [
+    chess.PAWN,
+    chess.KNIGHT,
+    chess.BISHOP,
+    chess.ROOK,
+    chess.QUEEN,
+    chess.KING,
+]
+PIECE_BY_SYMBOL: dict[str, chess.PieceType] = {chess.piece_symbol(p): p for p in PIECE_TYPES}
 
 
 class ExploreValueError(ValueError):
@@ -100,15 +112,66 @@ class LocatePieces(ABC):
     """An abstract class to locate pieces on a chess board."""
 
     @abstractmethod
-    def pieces(self) -> Iterable[chess.Piece]:
-        """The pieces to locate."""
-
-    def squares(self, board: chess.Board) -> Iterable[tuple[chess.Piece, Iterable[chess.Square]]]:
+    def pieces_and_squares(
+        self, board: chess.Board
+    ) -> Iterable[tuple[chess.Piece, chess.SquareSet]]:
         """All squares for the pieces from `self.pieces()`, skipping pieces which does not exist."""
-        for p in self.pieces():
+
+
+class LocatePieceTypes(LocatePieces):
+    """Locate one or more piece types of any color."""
+
+    piece_types: list[chess.PieceType]
+
+    def __init__(self, pattern: str) -> None:
+        """Parse a pattern of piece chars, like 'bnp' for bishop, knight and pawn."""
+        piece_types = []
+        for c in pattern:
+            try:
+                piece_types.append(PIECE_BY_SYMBOL[c])
+            except KeyError as e:
+                raise ValueError(f"Invalid piece symbol '{c}'") from e
+        self.piece_types = piece_types
+
+    def pieces(self, board: chess.Board) -> Iterable[chess.Piece]:
+        """The pieces to locate."""
+        return (
+            chess.Piece(piece_type=p, color=c)
+            for p in self.piece_types
+            for c in (chess.WHITE, chess.BLACK)
+        )
+
+    @override
+    def pieces_and_squares(
+        self, board: chess.Board
+    ) -> Iterable[tuple[chess.Piece, chess.SquareSet]]:
+        for p in self.pieces(board):
             squares = board.pieces(p.piece_type, p.color)
             if squares:
                 yield p, squares
+
+
+@dataclass
+class LocateAttackers(LocatePieces):
+    """Locate all pieces attacking a specific square."""
+
+    square: chess.Square
+
+    @override
+    def pieces_and_squares(
+        self, board: chess.Board
+    ) -> Iterable[tuple[chess.Piece, chess.SquareSet]]:
+        pieces_and_squares: dict[chess.Piece, chess.SquareSet] = defaultdict(chess.SquareSet)
+        for color in (chess.WHITE, chess.BLACK):
+            for square in board.attackers(color, self.square):
+                piece = board.piece_at(square)
+                assert piece is not None
+                pieces_and_squares[piece].add(square)
+        return sorted(
+            pieces_and_squares.items(),
+            key=lambda x: (0 if (p := x[0]).color == board.turn else len(PIECE_TYPES))
+            + p.piece_type,
+        )
 
 
 class ExploreBoard(Base):
@@ -143,3 +206,16 @@ class ExploreBoard(Base):
             print(f"{chess.square_name(sq)}: {piece_name(p, capital=True)}")
         if empty:
             print("Empty")
+
+    def print_locate_pieces(self, locate_pieces: LocatePieces) -> None:
+        """Print a `LocatePieces`."""
+        nothing: bool = True
+        for piece, squares in locate_pieces.pieces_and_squares(self.game_node.board()):
+            nothing = False
+            piece_name_ = piece_name(piece, capital=True)
+            print(
+                f"{self.p.plural_noun(piece_name_, len(squares))}: "  # type: ignore
+                f"{self.p.join([chess.square_name(sq) for sq in squares])}"  # type: ignore
+            )
+        if nothing:
+            print("None")

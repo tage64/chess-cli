@@ -131,7 +131,7 @@ class MatchCmds(EnginePlayer, Match):
         "--nodes", type=int, help="The machine should use exactly this number of nodes per move."
     )
 
-    @argparse_command(player_argparser, alias="pl")
+    @argparse_command(player_argparser, alias="plr")
     def do_player(self, args) -> None:
         """Commands to add or list players to play against, such as chess machines."""
         match args.subcmd:

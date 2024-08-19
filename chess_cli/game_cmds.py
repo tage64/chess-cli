@@ -44,7 +44,7 @@ class GameCmds(GameUtils):
         help="Add this new list of moves as a sideline to the current move.",
     )
 
-    @argparse_command(play_argparser, alias="p")
+    @argparse_command(play_argparser, alias="pl")
     def do_play(self, args) -> None:
         """Play a sequence of moves from the current position."""
         if args.sideline:

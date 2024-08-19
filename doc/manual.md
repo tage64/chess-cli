@@ -107,14 +107,14 @@ start: e4
 ```
 
 If you want to make multiple moves in one command, or want to insert sidelines, you may use the
-"play" (or "p") command:
+"play" (or "pl") command:
 
 ```
 2. f4: play exf4 Nf3 g5 h4
 ```
 To add a sideline, add the flag "-s":
 ```
-4. h4: p -s Bc4 g4 O-O
+4. h4: pl -s Bc4 g4 O-O
 ```
 
 You can go back in the game with Shift+UpArrow and add variations in the game. For instance, if you
@@ -131,7 +131,7 @@ If a move has multiple continuations already, and you want to add a new move as 
 may use the `-m` flag to the `play` command:
 
 ```
-2. f4: p -m Nc6
+2. f4: pl -m Nc6
 ```
 
 #### Show the Moves of the Game
@@ -208,6 +208,63 @@ start: save -c
 If you want to copy the current FEN to the clipboard you may use the `fen` command:
 ```
 start: fen -c
+```
+
+### Explore The Board
+
+Because Chess-CLI doesn't show the current board all the time, it is sometimes convenient to get the
+pieces on a specific row or column, or locate all pieces of a certain type. Chess-CLI has custom
+single letter commands for this.
+
+#### Scan a Rank, File or Diagonal
+
+Use the `s` (or `scan`) command with the file letter or rank number to be scanned:
+```
+start: s e
+e1: White king
+e2: White pawn
+e7: Black pawn
+e8: Black king
+start: s f
+f1: White bishop
+f2: White pawn
+f7: Black pawn
+f8: Black bishop
+```
+One can also scan a diagonal by specifying two squares on it:
+```
+start: s b1c2
+b1: White knight
+c2: White pawn
+h7: Black pawn
+```
+
+#### Locate Pieces
+
+To locate all pieces of a certain type use the `p` (or `pieces`) command with the letter of the
+piece. You may specify multiple letters if you want to locate multiple piece types:
+```
+start: p n
+White knights: b1 and g1
+Black knights: b8 and g8
+start: p qk
+White queen: d1
+Black queen: d8
+White king: e1
+Black king: e8
+```
+
+#### Get Attackers of a Certain Square
+
+To get all pieces attacking a certain square, use the `at` (or `attackers`) command with the square:
+```
+start: play e4 e5 Bc4 Nf6 Nc3 c6
+3... c6: at d5
+White pawn: e4
+White knight: c3
+White bishop: c4
+Black pawn: c6
+Black knight: f6
 ```
 
 ### Setup Position
