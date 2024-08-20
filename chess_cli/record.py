@@ -174,9 +174,9 @@ class Recording:
     ffmpeg_stdin: asyncio.StreamWriter
     boards: list[chess.pgn.GameNode]  # A list of the positions to show in the video.
     timestamps: list[float]  # Timestamps for all boards.
-    # A list of marked positions. The elements are tuples of indices in the `boards` list
-    # and optional comments about the position.
-    marks: list[tuple[int, str | None]]
+    # A dict of marked positions. The keys are indices in the `boards` list
+    # and the values are optional comments about the position.
+    marks: dict[int, str]
     _is_cleaned: bool = False  # Set to true after self.cleanup() is called.
 
     def is_paused(self) -> bool:
@@ -212,7 +212,7 @@ class Recording:
     def set_mark(self, comment: str | None = None) -> None:
         """Mark the current position."""
         assert len(self.boards) > 0
-        self.marks.append((len(self.boards) - 1, comment))
+        self.marks[len(self.boards) - 1] = comment or ""
 
     async def stop(self, timeout: float | None = None) -> float:
         """Stop the recording.
@@ -342,11 +342,11 @@ class Recording:
 
             if marks_file is not None:
                 with open(marks_file, "w") as f:
-                    for i, comment in self.marks:
+                    for i, comment in self.marks.items():
                         timestamp: str = show_rounded_time(self.timestamps[i])
                         move: str = move_str(self.boards[i])
                         print(f"- {move}: {timestamp}", file=f)
-                        if comment is not None:
+                        if comment:
                             print(f"  {comment}", file=f)
         finally:
             if no_cleanup:
@@ -485,7 +485,7 @@ class Record(Base):
             ffmpeg_stdin=ffmpeg_stdin,
             boards=[self.game_node],
             timestamps=[0.0],
-            marks=[],
+            marks={},
         )
 
     @override
@@ -537,6 +537,7 @@ class Record(Base):
             if self.recording is not None and not self.recording.terminate.is_set():
                 print("Warning: Cancelling recording.")
                 await self.delete_recording()
+
     @override
     def prompt_str(self) -> str:
         prompt = super().prompt_str()

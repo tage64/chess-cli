@@ -6,7 +6,7 @@ from prompt_toolkit.keys import Keys
 
 from .record import Record
 from .repl import CmdLoopContinue, CommandFailure, argparse_command, key_binding
-from .utils import show_rounded_time
+from .utils import move_str, show_rounded_time
 
 
 class RecordCmds(Record):
@@ -14,7 +14,7 @@ class RecordCmds(Record):
 
     record_argparser = ArgumentParser()
     record_subcmds = record_argparser.add_subparsers(dest="subcmd")
-    record_subcmds.add_parser("start", help="Start a recording.")
+    record_subcmds.add_parser("start", aliases=["s", "st"], help="Start a recording.")
     record_subcmds.add_parser(
         "pause", aliases=["p", "stop"], help="Pause/stop an ongoing recording."
     )
@@ -37,19 +37,27 @@ class RecordCmds(Record):
     record_save_argparser.add_argument(
         "--timeout", type=float, help="A timeout for stopping ffmpeg."
     )
-    record_subcmds.add_parser("delete", help="Delete the ongoing recording.")
+    record_subcmds.add_parser("delete", aliases=["d", "del"], help="Delete the ongoing recording.")
     record_mark_argparser = record_subcmds.add_parser(
-        "mark", help="Mark the current position so that its timestamp can be remembered."
+        "mark",
+        aliases=["m"],
+        help="Mark the current position so that its timestamp can be remembered.",
     )
     record_mark_argparser.add_argument(
         "comment", nargs="?", help="Put a comment / short description on the mark."
     )
+    record_positions_argparser = record_subcmds.add_parser(
+        "positions",
+        aliases=["pos"],
+        help="List all positions which will be displayed in the recording, "
+        "including a note which positions are specially marked.",
+    )
 
-    @argparse_command(record_argparser)
+    @argparse_command(record_argparser, alias="rec")
     async def do_record(self, args) -> None:
         """Actions related to recording chess videos."""
         match args.subcmd:
-            case "start":
+            case "start" | "s" | "st":
                 if self.recording is not None:
                     raise CommandFailure(
                         "A recording is already in progress. Please save it with 'record save' or"
@@ -89,15 +97,26 @@ class RecordCmds(Record):
                     no_cleanup=args.no_cleanup,
                     timeout=args.timeout,
                 )
-            case "delete":
+            case "delete" | "d" | "del":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
                 await self.delete_recording()
                 print("Recording deleted.")
-            case "mark":
+            case "mark" | "m":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
                 self.recording.set_mark(args.comment)
+            case "positions" | "pos":
+                if self.recording is None:
+                    raise CommandFailure("No recording in progress.")
+                for i, (board, timestamp) in enumerate(
+                    zip(self.recording.boards, self.recording.timestamps, strict=False)
+                ):
+                    mark_check: str = "X" if i in self.recording.marks else " "
+                    print(
+                        f"{mark_check} {move_str(board, include_sideline_arrows=False)} "
+                        f"@ {show_rounded_time(timestamp)}"
+                    )
             case x:
                 assert_never(x)
 
@@ -134,4 +153,4 @@ class RecordCmds(Record):
             self.perror("No recording in progress.")
         else:
             self.recording.set_mark()
-        raise CmdLoopContinue
+            print("Mark set.")

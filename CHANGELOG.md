@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add recording status to the prompt: If a recording is in progress or paused, the string
   `(recording)` or `recording paused)` will be added to the prompt respectively.
+- The subcommand `record positions` to get a list of all recorded positions so far.
+- The `rec` alias for the `record` command.
+- The following aliases for the subcommands of the `record` command:
+  - `s` and `st` for `start`
+  - `m` for `mark`
+  - `d` and `del` for `delete
 
 ## [0.5.0] - 2024-08-19
 
