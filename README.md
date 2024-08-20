@@ -1,7 +1,7 @@
 # Chess-CLI - A repl to read, edit and analyse chess games in the terminal
 
 A REPL for editing and analysing chess games.
-See [manual here][3].
+See [manual here][3] and changelog [here][5].
 
 ## Building
 
@@ -65,3 +65,4 @@ See a more complete manual [here][3].
 [2]: https://python-poetry.org
 [3]: doc/manual.md
 [4]: https://nsis.sourceforge.io/Download
+[5]: CHANGELOG.md
