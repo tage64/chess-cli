@@ -257,8 +257,8 @@ class ReplBase:
         await command.call_wrap_exception(self, rest)
 
     def prompt_str(self) -> str:
-        """Get the string for the prompt, you can override this."""
-        return "> "
+        """Get the string for the prompt without the trailing colon (':'), you can override this."""
+        return ""
 
     async def prompt(self) -> None:
         """Issue a prompt and execute the entered command."""
@@ -290,7 +290,7 @@ class ReplBase:
             """Issue the prompt and handle KeyboardInterrupt exception."""
             try:
                 return await self.prompt_session.prompt_async(
-                    self.prompt_str(), default=current_input
+                    self.prompt_str() + ": ", default=current_input
                 )
             except KeyboardInterrupt as ex:
                 raise CmdLoopContinue() from ex

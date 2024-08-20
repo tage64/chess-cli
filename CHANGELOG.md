@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Add recording status to the prompt: If a recording is in progress or paused, the string
+  `(recording)` or `recording paused)` will be added to the prompt respectively.
 
 ## [0.5.0] - 2024-08-19
 

@@ -537,3 +537,12 @@ class Record(Base):
             if self.recording is not None and not self.recording.terminate.is_set():
                 print("Warning: Cancelling recording.")
                 await self.delete_recording()
+    @override
+    def prompt_str(self) -> str:
+        prompt = super().prompt_str()
+        if self.recording is not None:
+            if self.recording.is_paused():
+                prompt += " (paused recording)"
+            else:
+                prompt += " (recording)"
+        return prompt

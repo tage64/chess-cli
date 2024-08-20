@@ -125,6 +125,7 @@ class RecordCmds(Record):
             time: float = self.recording.stream_info.elapsed_time()
             self.recording.resume()
             print(f"Resumed recording at {show_rounded_time(time)}")
+        raise CmdLoopContinue
 
     @key_binding(Keys.ControlK)
     def kb_record_mark(self, _) -> None:

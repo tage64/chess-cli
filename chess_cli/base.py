@@ -123,7 +123,7 @@ class Base(Repl):
 
     @override
     def prompt_str(self) -> str:
-        return f"{move_str(self.game_node)}: "
+        return move_str(self.game_node)
 
     def save_config(self) -> None:
         """Save the current configuration."""
