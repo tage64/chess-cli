@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `s` and `st` for `start`
   - `m` for `mark`
   - `d` and `del` for `delete
+- Print "Mark set" when using the `record mark` command.
 
 ## [0.5.0] - 2024-08-19
 

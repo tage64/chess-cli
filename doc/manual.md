@@ -659,6 +659,19 @@ To put a mark on the current position (while recording), press `CTRL+K`, or type
 where `[<COMMENT>]` is an **optional** comment at the mark. You can also use the shortcut CTRL+K to
 put a mark at the current position.
 
+#### `record positions`
+
+To get a list of all positions recorded in the video, use the `record positions` (or `rec pos`)
+command:
+```
+1... e5 (recording): rec pos
+  start @ 0.0 seconds
+  2... exd4 @ 6.6 seconds
+X 1... e5 @ 14.0 seconds
+```
+
+The 'X' shows that a mark has been put on that position.
+
 #### `record delete`
 
 If you want to discard the recording you can use the `record delete` command.

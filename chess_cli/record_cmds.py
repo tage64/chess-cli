@@ -106,6 +106,7 @@ class RecordCmds(Record):
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
                 self.recording.set_mark(args.comment)
+                print("Mark set")
             case "positions" | "pos":
                 if self.recording is None:
                     raise CommandFailure("No recording in progress.")
