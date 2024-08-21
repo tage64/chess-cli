@@ -1,9 +1,12 @@
 import argparse
 import io
 import textwrap
+import tkinter
+import tkinter.filedialog
 from argparse import ArgumentParser
 from collections import defaultdict
 from collections.abc import Iterable
+from pathlib import Path
 from typing import assert_never
 
 import chess
@@ -323,14 +326,30 @@ class GameCmds(GameUtils):
                 assert_never(x)
 
     save_argparser = ArgumentParser()
-    save_arggroup = save_argparser.add_mutually_exclusive_group()
-    save_arggroup.add_argument(
-        "-f", "--file", nargs="?", help="File to save to. Defaults to the loaded file."
+    save_argparser.add_argument(
+        "file",
+        nargs="?",
+        type=Path,
+        help='File to save to. Defaults to the loaded file or will open a "Save As dialog".',
     )
+    save_arggroup = save_argparser.add_mutually_exclusive_group()
     save_arggroup.add_argument(
         "-c", "--clipboard", action="store_true", help="Copy the games to the clipboard."
     )
-    save_argparser.add_argument(
+    save_arggroup.add_argument(
+        "-d",
+        "--dialog",
+        action="store_true",
+        help='Open a traditional "save as" dialog to decide where to save the file.',
+    )
+    save_arggroup_2 = save_argparser.add_mutually_exclusive_group()
+    save_arggroup_2.add_argument(
+        "--fen",
+        action="store_true",
+        help="Save the current position as a FEN diagram instead of saving the entire game.  "
+        "(Implicit if you add a .fen extension to the file name.",
+    )
+    save_arggroup_2.add_argument(
         "-t",
         "--this",
         action="store_true",
@@ -339,25 +358,64 @@ class GameCmds(GameUtils):
 
     @argparse_command(save_argparser, alias="sv")
     def do_save(self, args) -> None:
-        """Save the games to a PGN file."""
-        games: Iterable[int] = [self.game_idx] if args.this else range(len(self.games))
-        if args.clipboard:
-            pgn_io = io.StringIO()
-            self.write_games(pgn_io, games)
-            pyperclip.copy(pgn_io.getvalue())
-        elif args.file is None:
-            if self.pgn_file_name is None:
-                self.poutput("Error: No file selected.")
-                return
-            self.save_games(args.file, games)
+        """Save the games to a PGN file or the current position to a FEN file."""
+        file_path: Path | None = None  # None iff args.file is None and args.clipboard
+        if args.file:
+            if args.dialog:
+                raise CommandFailure("You cannot specify both `--dialog` and a file name.")
+            file_path = args.file
+        elif args.dialog or not args.clipboard and (self.pgn_file_path is None or args.fen):
+            print('Opening a "Save As" dialog to select a file.')
+            print(
+                "If it doesn't open automatically, "
+                "press Alt+Tab (or similar) a few times to find it."
+            )
+            print("NVDA may also hang after selecting the file, in that case, just restart NVDA.")
+            file_name = tkinter.filedialog.asksaveasfilename(
+                title="Chess-CLI Save As",
+                filetypes=[
+                    ("Portable Game Notation", "*.pgn"),
+                    ("Forsyth-Edwards Notation", "*.fen"),
+                    ("All Files", "*"),
+                ],
+                defaultextension=".fen" if args.fen else ".pgn",
+            )
+            if not file_name or not isinstance(file_name, str):
+                raise CommandFailure("No file selected.")
+            file_path = Path(file_name)
+        elif not args.clipboard:
+            assert not args.fen and self.pgn_file_path is not None
+            file_path = self.pgn_file_path
+        if args.fen or file_path and file_path.suffix == ".fen":
+            fen: str = self.game_node.board().fen()
+            if args.clipboard:
+                pyperclip.copy(fen)
+                print("FEN copied to clipboard.")
+            if file_path is not None:
+                with open(file_path, mode="w") as f:
+                    f.write(fen)
+                print(f"FEN saved to {file_path}")
         else:
-            self.save_games(args.file, games)
+            games: Iterable[int] = [self.game_idx] if args.this else range(len(self.games))
+            if args.clipboard:
+                pgn_io = io.StringIO()
+                self.write_games(pgn_io, games)
+                pyperclip.copy(pgn_io.getvalue())
+                print("PGN copied to clipboard.")
+            if file_path is not None:
+                self.save_games(file_path, games)
 
     load_argparser = ArgumentParser()
-    load_arggroup = load_argparser.add_mutually_exclusive_group(required=True)
-    load_arggroup.add_argument("-f", "--file", help="Path to a PGN or FEN file.")
+    load_argparser.add_argument("file", nargs="?", type=Path, help="Path to a PGN or FEN file.")
+    load_arggroup = load_argparser.add_mutually_exclusive_group()
     load_arggroup.add_argument(
         "-c", "--clipboard", action="store_true", help="Load a PGN or FEN from the clipboard."
+    )
+    load_arggroup.add_argument(
+        "-d",
+        "--dialog",
+        action="store_true",
+        help='Show a traditional "Open dialog" to select a file.',
     )
 
     @argparse_command(load_argparser, alias="ld")
@@ -367,8 +425,12 @@ class GameCmds(GameUtils):
         Note that the current game will be lost if you load a PGN.
         """
         if args.file:
+            if args.clipboard:
+                raise CommandFailure("You cannot both specify `--clipboard` and a file name.")
+            if args.dialog:
+                raise CommandFailure("You cannot both specify `--dialog` and a file name.")
             self.load_games_from_file(args.file)
-        if args.clipboard:
+        elif args.clipboard:
             clip: str = pyperclip.paste()
             if not clip:
                 raise CommandFailure("The clipboard is empty.")
@@ -382,6 +444,22 @@ class GameCmds(GameUtils):
                 print("Successfully read clipboard as FEN, which is set to the starting position.")
                 self.add_new_game()
                 await self.set_position(board)
+        else:
+            print('Showing an "Open dialog" to select a file.')
+            print(
+                "If it doesn't open automatically, "
+                "press Alt+Tab (or similar) a few times to find it."
+            )
+            print("NVDA may also hang after selecting the file, in that case, just restart NVDA.")
+            file_name: str = tkinter.filedialog.askopenfilename(
+                title="Chess-CLI Open PGN",
+                filetypes=[("Chess Files", "*.pgn;*.fen"), ("All Files", "*")],
+                defaultextension=".pgn",
+            )
+            if not file_name or not isinstance(file_name, str):
+                raise CommandFailure("No file selected.")
+            print(f"Loading {file_name}...")
+            self.load_games_from_file(Path(file_name))
 
     promote_argparser = ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Make it possible to select a file with a traditional "Open" or "Save As" dialog by providing the
+  `--dialog` (or `-d`) flag to the `load` and `save` commands.  
+- Remove the `-f` flag from the `load` and `save` commands. A file path may be provided as a
+  positional argument (with no flags) instead. This is the old behaviour prior to v0.4.0.
 - Add recording status to the prompt: If a recording is in progress or paused, the string
   `(recording)` or `recording paused)` will be added to the prompt respectively.
 - The subcommand `record positions` to get a list of all recorded positions so far.

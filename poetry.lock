@@ -561,12 +561,12 @@ files = [
 
 [[package]]
 name = "nuitka"
-version = "2.4.5"
+version = "2.4.7"
 description = "Python compiler with full language support and CPython compatibility"
 optional = false
 python-versions = "*"
 files = [
-    {file = "Nuitka-2.4.5.tar.gz", hash = "sha256:26743df70d08278c67cdd1dac581bc3bd5ad49b60f1101aef4e99911a323ecc4"},
+    {file = "Nuitka-2.4.7.tar.gz", hash = "sha256:6e2ca3fd39954d11b54e371514b0607ae9259f17e225caa8526cfbe2d8abb3d3"},
 ]
 
 [package.dependencies]
@@ -1005,13 +1005,13 @@ files = [
 
 [[package]]
 name = "pyright"
-version = "1.1.376"
+version = "1.1.377"
 description = "Command line wrapper for pyright"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pyright-1.1.376-py3-none-any.whl", hash = "sha256:0f2473b12c15c46b3207f0eec224c3cea2bdc07cd45dd4a037687cbbca0fbeff"},
-    {file = "pyright-1.1.376.tar.gz", hash = "sha256:bffd63b197cd0810395bb3245c06b01f95a85ddf6bfa0e5644ed69c841e954dd"},
+    {file = "pyright-1.1.377-py3-none-any.whl", hash = "sha256:af0dd2b6b636c383a6569a083f8c5a8748ae4dcde5df7914b3f3f267e14dd162"},
+    {file = "pyright-1.1.377.tar.gz", hash = "sha256:aabc30fedce0ded34baa0c49b24f10e68f4bfc8f68ae7f3d175c4b0f256b4fcf"},
 ]
 
 [package.dependencies]
@@ -1096,19 +1096,19 @@ files = [
 
 [[package]]
 name = "setuptools"
-version = "72.2.0"
+version = "73.0.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-72.2.0-py3-none-any.whl", hash = "sha256:f11dd94b7bae3a156a95ec151f24e4637fb4fa19c878e4d191bfb8b2d82728c4"},
-    {file = "setuptools-72.2.0.tar.gz", hash = "sha256:80aacbf633704e9c8bfa1d99fa5dd4dc59573efcf9e4042c13d3bcef91ac2ef9"},
+    {file = "setuptools-73.0.1-py3-none-any.whl", hash = "sha256:b208925fcb9f7af924ed2dc04708ea89791e24bde0d3020b27df0e116088b34e"},
+    {file = "setuptools-73.0.1.tar.gz", hash = "sha256:d59a3e788ab7e012ab2c4baed1b376da6366883ee20d7a5fc426816e3d7b1193"},
 ]
 
 [package.extras]
-core = ["importlib-metadata (>=6)", "importlib-resources (>=5.10.2)", "jaraco.text (>=3.7)", "more-itertools (>=8.8)", "ordered-set (>=3.1.1)", "packaging (>=24)", "platformdirs (>=2.6.2)", "tomli (>=2.0.1)", "wheel (>=0.43.0)"]
+core = ["importlib-metadata (>=6)", "importlib-resources (>=5.10.2)", "jaraco.text (>=3.7)", "more-itertools (>=8.8)", "packaging (>=24)", "platformdirs (>=2.6.2)", "tomli (>=2.0.1)", "wheel (>=0.43.0)"]
 doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "pyproject-hooks (!=1.1)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
-test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "importlib-metadata", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "jaraco.test", "mypy (==1.11.*)", "packaging (>=23.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-home (>=0.5)", "pytest-mypy", "pytest-perf", "pytest-ruff (<0.4)", "pytest-ruff (>=0.2.1)", "pytest-ruff (>=0.3.2)", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
+test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "importlib-metadata", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "jaraco.test", "mypy (==1.11.*)", "packaging (>=23.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-home (>=0.5)", "pytest-mypy", "pytest-perf", "pytest-ruff (<0.4)", "pytest-ruff (>=0.2.1)", "pytest-ruff (>=0.3.2)", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel (>=0.44.0)"]
 
 [[package]]
 name = "six"
@@ -1123,13 +1123,13 @@ files = [
 
 [[package]]
 name = "spdx-license-list"
-version = "3.24.0"
+version = "3.25.0"
 description = "SPDX License List as a Python dictionary"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "spdx_license_list-3.24.0-py3-none-any.whl", hash = "sha256:1690e1be9d7bb39a9f9dfcdc403a44523bae55c94a82ff88781a98d46bd13610"},
-    {file = "spdx_license_list-3.24.0.tar.gz", hash = "sha256:d366a39da290f5f97f3137a4520e6155574070b21d4838179b837b12dddf006f"},
+    {file = "spdx_license_list-3.25.0-py3-none-any.whl", hash = "sha256:0b09d7ea666e1765e189031135ac842e48a9c99312e939c1d3dacbc61e7768aa"},
+    {file = "spdx_license_list-3.25.0.tar.gz", hash = "sha256:6b104dc74b925c6888e0615b4a52f1d4ff550a32e48347a5d5223c15e8ff101e"},
 ]
 
 [[package]]

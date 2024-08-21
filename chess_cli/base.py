@@ -5,6 +5,7 @@ import tempfile
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import IO, override
 
 import appdirs  # type: ignore
@@ -80,7 +81,7 @@ class Base(Repl):
         self._pgn_file = None
         self._game_idx = 0
         if args.file is not None:
-            self.load_games_from_file(args.file)
+            self.load_games_from_file(Path(args.file))
         else:
             self.add_new_game()
 
@@ -117,9 +118,9 @@ class Base(Repl):
         return self._game_idx
 
     @property
-    def pgn_file_name(self) -> str | None:
+    def pgn_file_path(self) -> Path | None:
         """The name of the currently open PGN file if any."""
-        return self._pgn_file.name if self._pgn_file is not None else None
+        return Path(self._pgn_file.name) if self._pgn_file is not None else None
 
     @override
     def prompt_str(self) -> str:
@@ -187,20 +188,20 @@ class Base(Repl):
             else:
                 self.add_new_game()
 
-    def load_games_from_file(self, file_name: str) -> None:
+    def load_games_from_file(self, file_path: Path) -> None:
         """Load games from a PGN file or a starting position from a FEN.
 
         If loading a PGN file, all games will be discarded.
         A FEN will discard the current game and set the position as starting position.
         """
         try:
-            with open(file_name) as file:
+            with open(file_path) as file:
                 # Try to read as FEN:
                 content = file.read(FEN_WIDTH_UPPER_BOUND)
                 try:
                     board = chess.Board(content)
                     print(
-                        f"Successfully read {file_name} as FEN,"
+                        f"Successfully read {file_path} as FEN,"
                         " which is set to the starting position."
                     )
                     self.add_new_game()
@@ -217,7 +218,7 @@ class Base(Repl):
                         games.append(_GameHandle(headers, offset))
                     if not games:
                         raise CommandFailure(
-                            f"Failed to parse {file_name} as FEN or PGN."
+                            f"Failed to parse {file_path} as FEN or PGN."
                         ) from None
                     # Reset analysis.
                     # TODO:
@@ -232,7 +233,7 @@ class Base(Repl):
                         "as PGN.",
                     )
         except OSError as ex:
-            self.poutput(f"Error: Loading of {file_name} failed: {ex}")
+            self.poutput(f"Error: Loading of {file_path} failed: {ex}")
 
     def load_games_from_pgn_str(self, pgn: str) -> None:
         """Load games from a PGN string.
@@ -251,19 +252,19 @@ class Base(Repl):
         self.select_game(0)
         self.poutput(f"Successfully loaded {len(self._games)} game(s).")
 
-    def _reload_games(self, file_name: str) -> None:
-        """Open and load all games from `file_name`, assuming it contains exactly the
+    def _reload_games(self, file_path: Path) -> None:
+        """Open and load all games from `file_path`, assuming it contains exactly the
         same games, in same order, as `self.games`.
 
         The current file will then be set to this file.
         """
         current_game: int = self.game_idx
-        self._pgn_file = open(file_name)  # NOQA: SIM115
+        self._pgn_file = open(file_path)  # NOQA: SIM115
         for i, game in enumerate(self.games):
             offset: int = self._pgn_file.tell()
             headers = chess.pgn.read_headers(self._pgn_file)
             assert headers is not None
-            assert headers == game.headers
+            assert headers == game.headers, f"{headers}\n  not equal to  \n{game.headers}"
             if game.game_node is None:
                 self.games[i] = _GameHandle(headers, offset)
         self.select_game(current_game)
@@ -275,22 +276,27 @@ class Base(Repl):
         param games: Indices of the games to print.
         """
         current_game: int = self.game_idx
+        is_first: bool = True
         for i in games:
+            if not is_first:
+                print(file=file)  # A newline is needed between all games.")
+            else:
+                is_first = False
             self.select_game(i)
             print(self.game_node.game(), file=file)
         self.select_game(current_game)
 
-    def save_games(self, file_name: str | None, games: Iterable[int]) -> None:
+    def save_games(self, file_path: Path | None, games: Iterable[int]) -> None:
         """Save all games and update the current PGN file to `file_name`.
 
-        param file_name: The file to write to. If it is `None`, the current PGN file will be used,
+        param file_path: The file to write to. If it is `None`, the current PGN file will be used,
                 if that is also `None`, an assertian will be fired.
         param games: List of game indices to save.
         """
-        file_name = file_name or self.pgn_file_name
-        assert file_name is not None
-        if self.pgn_file_name is None or not os.path.samefile(file_name, self.pgn_file_name):
-            with open(file_name, "w+") as f:
+        file_path = file_path or self.pgn_file_path
+        assert file_path is not None
+        if self.pgn_file_path is None or not os.path.samefile(file_path, self.pgn_file_path):
+            with open(file_path, "w+") as f:
                 self.write_games(f, games)
         else:
             file: IO[str] = tempfile.NamedTemporaryFile(mode="w+", delete=False)
@@ -298,8 +304,10 @@ class Base(Repl):
             try:
                 self.write_games(file, games)
                 file.close()
-            except Exception:
+            except Exception as e:
                 file.close()
                 os.remove(tempfile_name)
-            shutil.move(tempfile_name, file_name)
-        self._reload_games(file_name)
+                raise e
+            shutil.move(tempfile_name, file_path)
+        self._reload_games(file_path)
+        print(f"Successfully saved to {file_path}!")
