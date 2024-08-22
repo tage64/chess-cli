@@ -39,9 +39,9 @@
   Section "-hidden app"
     SectionIn RO
     SetOutPath "$INSTDIR"
-    File /r "chess-cli.dist\*.*" 
+    File /r "chess-cli.dist\*.*"
 
-    File "path_ed\PathEd.exe" 
+    File "path_ed\PathEd.exe"
     WriteRegStr HKCU "Software\${NAME}" "" $INSTDIR
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     ;Create shortcuts

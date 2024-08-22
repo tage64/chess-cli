@@ -300,7 +300,7 @@ White and Black can castle on both sides
 White: Ke1 Qd1 Ra1,h1 Bc1,f1 Nb1,g1 Pa2,b2,c2,d2,e2,f2,g2,h2
 Black: ke8 qd8 ra8,h8 bc8,f8 nb8,g8 pa7,b7,c7,d7,e7,f7,g7,h7
 ```
- 
+
 #### Setup a Custom Position
 
 A position can be setup by the `setup` command. It can either be the string "start" ("or "s"), a

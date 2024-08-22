@@ -45,6 +45,7 @@ pyright = "^1.1.369"
 pyinstaller = "^6.5.0"
 ruff = "^0.5.0"
 nuitka = "^2.3.11"
+pre-commit = "^3.8.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -99,6 +100,8 @@ check_untyped_defs = true
 warn_unreachable = true
 
 [tool.pyright]
+venvPath = "."
+venv = ".venv"
 include = ["chess_cli/"]
 reportWildcardImportFromLibrary = false
 reportIncompatibleMethodOverride = false  # Bug in pyright: Incorrectly classifies setting a setter as an error.
