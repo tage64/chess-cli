@@ -23,28 +23,26 @@ python = "~3.12"
 chess = "^1.10.0"
 appdirs = "^1.4.4"
 toml = "^0.10.2"
-more-itertools = "^10.2.0"
-psutil = "^5.9.8"
+more-itertools = "^10.4.0"
+psutil = "^6.0.0"
 berserk = "^0.13.2"
-authlib = "^1.3.0"
-requests = "^2.31.0"
-prompt-toolkit = "^3.0.43"
+authlib = "^1.3.1"
+requests = "^2.32.3"
+prompt-toolkit = "^3.0.47"
 pyaudio = "^0.2.14"
 cairosvg = "^2.7.1"
-pydantic = "^2.6.4"
-spdx-license-list = "^3.23"
+pydantic = "^2.8.2"
+spdx-license-list = "^3.25.0"
 punwrap = {git = "https://github.com/tage64/punwrap"}
 inflect = "^7.3.1"
 typeguard = {git = "https://github.com/tage64/typeguard"}
 pyperclip = "^1.9.0"
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.12.1"
-types-requests = "^2.31.0.20240125"
-pyright = "^1.1.369"
-pyinstaller = "^6.5.0"
-ruff = "^0.5.0"
-nuitka = "^2.3.11"
+types-requests = "^2.32.0.20240712"
+pyright = "^1.1.377"
+ruff = "^0.6.1"
+nuitka = "^2.4.7"
 pre-commit = "^3.8.0"
 
 [build-system]
@@ -100,8 +98,6 @@ check_untyped_defs = true
 warn_unreachable = true
 
 [tool.pyright]
-venvPath = "."
-venv = ".venv"
 include = ["chess_cli/"]
 reportWildcardImportFromLibrary = false
 reportIncompatibleMethodOverride = false  # Bug in pyright: Incorrectly classifies setting a setter as an error.
