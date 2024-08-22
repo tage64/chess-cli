@@ -1,5 +1,6 @@
 # nuitka-project: --standalone
 # nuitka-project: --windows-console-mode=force
+# nuitka-project: --enable-plugin=tk-inter
 # nuitka-project: --user-package-configuration-file={MAIN_DIRECTORY}/my.nuitka-package.config.yml
 
 if "__compiled__" in globals():
