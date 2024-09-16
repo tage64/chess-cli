@@ -198,15 +198,26 @@ start: load -c
 #### Save
 
 The `save` command saves the current game. If the current game is not loaded from a file and the
-game hasn't been saved before, a "Save As" dialog will be opened. This dialog can also be shown by
-providing the `--dialog` flag.
-
-If you want to provide a file directly on the command line, just pass it as an argument. The `-c`
-flag can alternatively be used to copy the game to the clipboard:
+game hasn't been saved before, a "Save As" dialog should be opened. This dialog can also be shown by
+providing the `--dialog` flag. For instance:
 ```
-start: save foo.pgn
+start: save
+start: save --dialog
+```
+
+For some reason, the "Save As dialog" is sometimes a bit buggy, in that case, or if you just want to
+provide the file path manually, you may just pass the file path as an argument to the `save`
+command:
+```
+start: save "C:/Users/USERNAME/Documents/game.pgn"
+```
+Where `USERNAME` should be replaced with your username. It is recommended to use forward slashes
+(`/`) as path separators even on Windows. It is possible to use backslashes as well, but then you
+would need to use double backslashes to avoid the shell to treat it as an escape sequence.
+
+It is also possible to copy the game to the clipboard with the `-c` flag:
+```
 start: save -c
-start save --dialog
 ```
 
 If you want to copy the current FEN to the clipboard you may use the `fen` command:
