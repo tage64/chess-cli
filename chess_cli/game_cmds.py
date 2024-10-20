@@ -1,6 +1,8 @@
 import argparse
+import bisect
 import io
 import textwrap
+import time
 from argparse import ArgumentParser
 from collections import defaultdict
 from collections.abc import Iterable
@@ -9,12 +11,21 @@ from typing import assert_never
 
 import chess
 import chess.pgn
+import progressbar
 import pyperclip
 
 from .base import CommandFailure, GameHandle
 from .game_utils import GameUtils
 from .repl import argparse_command, command
-from .utils import MoveNumber, castling_descr, piece_name
+from .utils import (
+    BoardFoundException,
+    BoardNotFoundException,
+    BoardSearcher,
+    MoveNumber,
+    castling_descr,
+    piece_name,
+    show_rounded_time,
+)
 
 try:
     import tkinter
@@ -254,6 +265,14 @@ class GameCmds(GameUtils):
     games_argparser = ArgumentParser()
     games_subcmds = games_argparser.add_subparsers(dest="subcmd")
     games_ls_argparser = games_subcmds.add_parser("ls", help="List all games.")
+    games_ls_argparser.add_argument(
+        "-p",
+        "--current-position",
+        "--curr-pos",
+        action="store_true",
+        help="Only list games which visit the current position in their main line.  "
+        "May be slow on very large game collections.",
+    )
     games_rm_argparser = games_subcmds.add_parser(
         "rm", aliases=["remove"], help="Remove the current game."
     )
@@ -293,32 +312,7 @@ class GameCmds(GameUtils):
         """List, select, delete or create new games."""
         match args.subcmd:
             case "ls" | None:
-                games: Iterable[tuple[int, GameHandle]]
-                if len(self.games) <= 430:
-                    games = enumerate(self.games)
-                else:
-                    enumerated_games = list(enumerate(self.games))
-                    games = enumerated_games[:5]
-                    games += enumerated_games[
-                        max(5, self.game_idx - 5) : min(self.game_idx + 5, len(enumerated_games))
-                    ]
-                    games += enumerated_games[
-                        max(
-                            min(len(enumerated_games), self.game_idx + 5), len(enumerated_games) - 5
-                        ) :
-                    ]
-
-                next_i = 0
-                for i, game in games:
-                    if i > next_i:
-                        print("...")
-                    next_i = i + 1
-                    show_str: str = "*" if i == self.game_idx else " "
-                    show_str += f"{i + 1}.".ljust(len(str(len(self.games))) + 1)
-                    show_str += f" {game.headers["White"]} -- {game.headers["Black"]}"
-                    if isinstance(game.game_node, chess.pgn.ChildNode):
-                        show_str += f" @ {MoveNumber.last(game.game_node)} {game.game_node.san()}"
-                    print(show_str)
+                self.games_ls(args.current_position)
             case "rm" | "remove":
                 match args.rm_subcmd:
                     case "this" | "t" | None:
@@ -347,6 +341,70 @@ class GameCmds(GameUtils):
                 self.add_new_game(index - 1)
             case x:
                 assert_never(x)
+
+    def games_ls(self, curr_pos: bool) -> None:
+        games: Iterable[tuple[int, GameHandle]] = enumerate(self.games)
+        if curr_pos:
+            games_with_pos_indices: set[int] = set()
+            curr_board = self.game_node.board()
+            print(f"Will search through all {len(self.games)} games to find the position...")
+            with progressbar.ProgressBar(
+                min_value=0,
+                max_value=len(self.games),
+                left_justify=False,
+                widgets=[
+                    progressbar.SimpleProgress(format="%(value_s)s/%(max_value_s)s games "),
+                    progressbar.Bar(marker="=", left="[", right="]"),
+                ],
+            ) as pro_bar:
+                start_time = time.perf_counter()
+                for i in range(len(self.games)):
+                    try:
+                        self.visit_game(i, BoardSearcher(curr_board))
+                    except BoardFoundException:
+                        games_with_pos_indices.add(i)
+                    except BoardNotFoundException:
+                        pass
+                    if i % 1000 == 0:
+                        pro_bar.update(i)
+                elapsed_time = time.perf_counter() - start_time
+            print(f"Finished search in {show_rounded_time(elapsed_time)}.")
+            games = ((i, g) for (i, g) in games if i in games_with_pos_indices)
+        games = list(games)
+        enumerated_games: Iterable[tuple[int, tuple[int, GameHandle]]]
+        if len(games) > 30:
+            curr_idx = bisect.bisect_left(games, self.game_idx, key=lambda x: x[0])
+            if curr_idx == len(games) or games[curr_idx][0] != curr_idx:
+                enumerated_games = (
+                    (i, g) for (i, g) in enumerate(games) if i < 15 or len(games) - 15 <= i
+                )
+            else:
+                enumerated_games = (
+                    (i, g)
+                    for (i, g) in enumerate(games)
+                    if i < 5 or len(games) - 5 <= i or curr_idx - 5 <= i <= curr_idx + 5
+                )
+        else:
+            enumerated_games = enumerate(games)
+
+        next_search_i = 0
+        for search_i, (game_i, game) in enumerated_games:
+            if search_i > next_search_i:
+                print("...")
+            next_search_i = search_i + 1
+            show_str: str = "*" if game_i == self.game_idx else " "
+            show_str += f"{game_i + 1}.".ljust(len(str(games[-1][0])) + 2)
+            show_str += game.headers["White"]
+            if (elo := game.headers.get("WhiteElo")) is not None and (elo := elo.strip()):
+                show_str += f" [{elo} Elo]"
+            show_str += " -- "
+            show_str += game.headers["Black"]
+            if (elo := game.headers.get("BlackElo")) is not None and (elo := elo.strip()):
+                show_str += f" [{elo} Elo]"
+            if isinstance(game.game_node, chess.pgn.ChildNode):
+                show_str += f" @ {MoveNumber.last(game.game_node)} {game.game_node.san()}"
+            print(show_str)
+        print(f"Found {self.p.no("game", next_search_i)}.")  # type: ignore
 
     save_argparser = ArgumentParser()
     save_argparser.add_argument(

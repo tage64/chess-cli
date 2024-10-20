@@ -7,13 +7,13 @@ from collections.abc import Iterable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, override
+from typing import IO, TextIO, override
 
-import appdirs  # type: ignore
+import appdirs
 import chess
 import chess.pgn
 import inflect
-import toml  # type: ignore
+import toml
 
 from .repl import CommandFailure, Repl
 from .utils import move_str
@@ -63,7 +63,7 @@ class Base(Repl):
     _config_file: str  # The path to the currently open config file.
     config: defaultdict[str, dict]  # The current configuration as a dictionary.
     _games: list[GameHandle]  # A list of all currentlyopen games.
-    _pgn_file: IO[str] | None  # The currently open PGN file.
+    _pgn_file: TextIO | None  # The currently open PGN file.
     _game_idx: int  # The index of the currently selected game.
     # Inflect engine for plural forms.
     p: inflect.engine
@@ -169,11 +169,42 @@ class Base(Repl):
         if game_handle.offset is not None:
             assert self._pgn_file is not None
             self._pgn_file.seek(game_handle.offset)
-            game_node = chess.pgn.read_game(self._pgn_file)  # type: ignore
+            game_node = chess.pgn.read_game(self._pgn_file)
             assert game_node is not None
             self._games[idx] = GameHandle(game_node.headers, game_node)
         assert self._games[idx].game_node is not None
         self._game_idx = idx
+
+    def get_game(self, idx: int) -> chess.pgn.Game:
+        """Get a game from the game list without keeping the game in memory.
+
+        If you should search for a game and the headers are not sufficient,
+        this might be useful. But remember that you should not make changes to
+        this game.
+        """
+        assert 0 <= idx < len(self._games)
+        game_handle = self._games[idx]
+        if game_handle.offset is not None:
+            assert self._pgn_file is not None
+            self._pgn_file.seek(game_handle.offset)
+            game_node = chess.pgn.read_game(self._pgn_file)
+            assert game_node is not None
+            return game_node.game()
+        else:
+            assert game_handle.game_node is not None
+            return game_handle.game_node.game()
+
+    def visit_game[T](self, idx: int, visitor: chess.pgn.BaseVisitor[T]) -> T | None:
+        """Visit a game in the game list without loading it into memory."""
+        assert 0 <= idx < len(self._games)
+        game_handle = self._games[idx]
+        if game_handle.offset is not None:
+            assert self._pgn_file is not None
+            self._pgn_file.seek(game_handle.offset)
+            return chess.pgn.read_game(self._pgn_file, Visitor=lambda: visitor)
+        else:
+            assert game_handle.game_node is not None
+            return game_handle.game_node.game().accept(visitor)
 
     def rm_game(self, game_idx: int) -> None:
         """Remove a game from the game list.
@@ -196,9 +227,9 @@ class Base(Repl):
         A FEN will discard the current game and set the position as starting position.
         """
         try:
-            file = open(file_path)
+            file = open(file_path)  # noqa: SIM115
         except OSError as ex:
-            raise CommandFailure(f"Error: Loading of {file_path} failed: {ex}")
+            raise CommandFailure(f"Error: Loading of {file_path} failed: {ex}") from ex
         try:
             # Try to read as FEN:
             content = file.read(FEN_WIDTH_UPPER_BOUND)
@@ -221,9 +252,7 @@ class Base(Repl):
                         break
                     games.append(GameHandle(headers, offset))
                 if not games:
-                    raise CommandFailure(
-                        f"Failed to parse {file_path} as FEN or PGN."
-                    ) from None
+                    raise CommandFailure(f"Failed to parse {file_path} as FEN or PGN.") from None
                 # Reset analysis.
                 # TODO:
                 # self.stop_engines()

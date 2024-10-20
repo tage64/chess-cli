@@ -2,7 +2,7 @@ import math
 import re
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import NamedTuple, assert_never
+from typing import NamedTuple, assert_never, override
 
 import chess.engine
 import chess.pgn
@@ -349,3 +349,56 @@ def castling_descr(board: chess.Board) -> str:
             return f"White and Black {white_descr}"
     else:
         return f"White {white_descr} and Black {black_descr}."
+
+
+class BoardSearcher(chess.pgn.BaseVisitor[None]):
+    """Search for a particular position in a game.
+
+    Raises `BoardFoundException` if the board is found.
+    """
+
+    search_pos: chess.Board
+
+    def __init__(self, search_pos: chess.Board) -> None:
+        self.search_pos = search_pos
+
+    @override
+    def begin_game(self) -> None:
+        self.skip_variation_depth = 0
+
+    @override
+    def begin_variation(self) -> chess.pgn.SkipType:
+        self.skip_variation_depth += 1
+        return chess.pgn.SKIP
+
+    @override
+    def end_variation(self) -> None:
+        self.skip_variation_depth = max(self.skip_variation_depth - 1, 0)
+
+    @override
+    def visit_board(self, board: chess.Board) -> None:
+        if not self.skip_variation_depth:
+            if self.search_pos == board:
+                raise BoardFoundException
+            if not chess.SquareSet(self.search_pos.castling_rights).issubset(board.castling_rights):
+                raise BoardNotFoundException
+            if len(board.pieces(chess.PAWN, chess.BLACK)) < len(
+                self.search_pos.pieces(chess.PAWN, chess.BLACK)
+            ) or len(board.pieces(chess.PAWN, chess.WHITE)) < len(
+                self.search_pos.pieces(chess.PAWN, chess.WHITE)
+            ):
+                raise BoardNotFoundException
+
+    @override
+    def result(self) -> None:
+        pass
+
+
+class BoardFoundException(Exception):
+    """Raised when the board is found."""
+
+
+class BoardNotFoundException(Exception):
+    """Raised when it is proven that the board cannot be found in this game.
+    May never be raised.
+    """
