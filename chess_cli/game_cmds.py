@@ -1,8 +1,6 @@
 import argparse
 import io
 import textwrap
-import tkinter
-import tkinter.filedialog
 from argparse import ArgumentParser
 from collections import defaultdict
 from collections.abc import Iterable
@@ -13,10 +11,16 @@ import chess
 import chess.pgn
 import pyperclip
 
-from .base import CommandFailure
+from .base import CommandFailure, GameHandle
 from .game_utils import GameUtils
 from .repl import argparse_command, command
 from .utils import MoveNumber, castling_descr, piece_name
+
+try:
+    import tkinter
+    import tkinter.filedialog
+except ImportError:
+    tkinter = None
 
 
 class GameCmds(GameUtils):
@@ -289,13 +293,32 @@ class GameCmds(GameUtils):
         """List, select, delete or create new games."""
         match args.subcmd:
             case "ls" | None:
-                for i, game in enumerate(self.games):
-                    show_str: str = f"{i + 1}. "
-                    show_str += "[*]" if i == self.game_idx else "   "
-                    show_str += f" {game.headers["White"]} - {game.headers["Black"]}"
+                games: Iterable[tuple[int, GameHandle]]
+                if len(self.games) <= 430:
+                    games = enumerate(self.games)
+                else:
+                    enumerated_games = list(enumerate(self.games))
+                    games = enumerated_games[:5]
+                    games += enumerated_games[
+                        max(5, self.game_idx - 5) : min(self.game_idx + 5, len(enumerated_games))
+                    ]
+                    games += enumerated_games[
+                        max(
+                            min(len(enumerated_games), self.game_idx + 5), len(enumerated_games) - 5
+                        ) :
+                    ]
+
+                next_i = 0
+                for i, game in games:
+                    if i > next_i:
+                        print("...")
+                    next_i = i + 1
+                    show_str: str = "*" if i == self.game_idx else " "
+                    show_str += f"{i + 1}.".ljust(len(str(len(self.games))) + 1)
+                    show_str += f" {game.headers["White"]} -- {game.headers["Black"]}"
                     if isinstance(game.game_node, chess.pgn.ChildNode):
                         show_str += f" @ {MoveNumber.last(game.game_node)} {game.game_node.san()}"
-                    self.poutput(show_str)
+                    print(show_str)
             case "rm" | "remove":
                 match args.rm_subcmd:
                     case "this" | "t" | None:
@@ -359,12 +382,18 @@ class GameCmds(GameUtils):
     @argparse_command(save_argparser, alias="sv")
     def do_save(self, args) -> None:
         """Save the games to a PGN file or the current position to a FEN file."""
+        if args.dialog and tkinter is None:
+            raise CommandFailure(
+                "A dialog cannot be opened since Tk is not installed on this system."
+            )
         file_path: Path | None = None  # None iff args.file is None and args.clipboard
         if args.file:
             if args.dialog:
                 raise CommandFailure("You cannot specify both `--dialog` and a file name.")
             file_path = args.file
-        elif args.dialog or not args.clipboard and (self.pgn_file_path is None or args.fen):
+        elif tkinter is not None and (
+            args.dialog or not args.clipboard and (self.pgn_file_path is None or args.fen)
+        ):
             print('Opening a "Save As" dialog to select a file.')
             print(
                 "If it doesn't open automatically, "
@@ -444,7 +473,7 @@ class GameCmds(GameUtils):
                 print("Successfully read clipboard as FEN, which is set to the starting position.")
                 self.add_new_game()
                 await self.set_position(board)
-        else:
+        elif tkinter is not None:
             print('Showing an "Open dialog" to select a file.')
             print(
                 "If it doesn't open automatically, "
@@ -460,6 +489,8 @@ class GameCmds(GameUtils):
                 raise CommandFailure("No file selected.")
             print(f"Loading {file_name}...")
             self.load_games_from_file(Path(file_name))
+        else:
+            raise CommandFailure("Tk is not installed so an open dialog could not be opened.")
 
     promote_argparser = ArgumentParser()
     promote_group = promote_argparser.add_mutually_exclusive_group()

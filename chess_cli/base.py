@@ -4,6 +4,7 @@ import shutil
 import tempfile
 from collections import defaultdict
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, override
@@ -31,7 +32,7 @@ class InitArgs:
 
 
 @dataclass
-class _GameHandle:
+class GameHandle:
     """The headers of a game together with either the offset of the game in a file or a
     node in the parsed game."""
 
@@ -61,7 +62,7 @@ class ConfigError(Exception):
 class Base(Repl):
     _config_file: str  # The path to the currently open config file.
     config: defaultdict[str, dict]  # The current configuration as a dictionary.
-    _games: list[_GameHandle]  # A list of all currentlyopen games.
+    _games: list[GameHandle]  # A list of all currentlyopen games.
     _pgn_file: IO[str] | None  # The currently open PGN file.
     _game_idx: int  # The index of the currently selected game.
     # Inflect engine for plural forms.
@@ -99,10 +100,10 @@ class Base(Repl):
     @game_node.setter
     def game_node(self, val: chess.pgn.GameNode) -> None:
         """Change the current position / game node."""
-        self._games[self._game_idx] = _GameHandle(val.game().headers, val)
+        self._games[self._game_idx] = GameHandle(val.game().headers, val)
 
     @property
-    def games(self) -> list[_GameHandle]:
+    def games(self) -> list[GameHandle]:
         """A non-empty list of all currentlyopen games.
 
         (Please do not alter this.).
@@ -153,7 +154,7 @@ class Base(Repl):
         If idx is None, append to the end of the game list.
         """
         game: chess.pgn.Game = chess.pgn.Game()
-        game_handle: _GameHandle = _GameHandle(game.headers, game)
+        game_handle: GameHandle = GameHandle(game.headers, game)
         if idx is None:
             self._games.append(game_handle)
             self._game_idx = len(self._games) - 1
@@ -170,7 +171,7 @@ class Base(Repl):
             self._pgn_file.seek(game_handle.offset)
             game_node = chess.pgn.read_game(self._pgn_file)  # type: ignore
             assert game_node is not None
-            self._games[idx] = _GameHandle(game_node.headers, game_node)
+            self._games[idx] = GameHandle(game_node.headers, game_node)
         assert self._games[idx].game_node is not None
         self._game_idx = idx
 
@@ -195,45 +196,49 @@ class Base(Repl):
         A FEN will discard the current game and set the position as starting position.
         """
         try:
-            with open(file_path) as file:
-                # Try to read as FEN:
-                content = file.read(FEN_WIDTH_UPPER_BOUND)
-                try:
-                    board = chess.Board(content)
-                    print(
-                        f"Successfully read {file_path} as FEN,"
-                        " which is set to the starting position."
-                    )
-                    self.add_new_game()
-                    self.game_node.game().setup(board)
-                except ValueError:
-                    # Try to parse as PGN.
-                    file.seek(0)
-                    games: list[_GameHandle] = []
-                    while True:
-                        offset: int = file.tell()
-                        headers = chess.pgn.read_headers(file)
-                        if headers is None:
-                            break
-                        games.append(_GameHandle(headers, offset))
-                    if not games:
-                        raise CommandFailure(
-                            f"Failed to parse {file_path} as FEN or PGN."
-                        ) from None
-                    # Reset analysis.
-                    # TODO:
-                    # self.stop_engines()
-                    # self.init_analysis()
-                    self._games = games
-                    self._pgn_file = file
-                    self.select_game(0)
-                    print(
-                        "Successfully loaded",
-                        self.p.no("game", len(self._games)),  # type: ignore
-                        "as PGN.",
-                    )
+            file = open(file_path)
         except OSError as ex:
-            self.poutput(f"Error: Loading of {file_path} failed: {ex}")
+            raise CommandFailure(f"Error: Loading of {file_path} failed: {ex}")
+        try:
+            # Try to read as FEN:
+            content = file.read(FEN_WIDTH_UPPER_BOUND)
+            try:
+                board = chess.Board(content)
+                print(
+                    f"Successfully read {file_path} as FEN,"
+                    " which is set to the starting position."
+                )
+                self.add_new_game()
+                self.game_node.game().setup(board)
+            except ValueError:
+                # Try to parse as PGN.
+                file.seek(0)
+                games: list[GameHandle] = []
+                while True:
+                    offset: int = file.tell()
+                    headers = chess.pgn.read_headers(file)
+                    if headers is None:
+                        break
+                    games.append(GameHandle(headers, offset))
+                if not games:
+                    raise CommandFailure(
+                        f"Failed to parse {file_path} as FEN or PGN."
+                    ) from None
+                # Reset analysis.
+                # TODO:
+                # self.stop_engines()
+                # self.init_analysis()
+                self._games = games
+                self._pgn_file = file
+                self.select_game(0)
+                print(
+                    "Successfully loaded",
+                    self.p.no("game", len(self._games)),  # type: ignore
+                    "as PGN.",
+                )
+        except Exception:
+            with suppress(OSError):
+                file.close()
 
     def load_games_from_pgn_str(self, pgn: str) -> None:
         """Load games from a PGN string.
@@ -241,9 +246,9 @@ class Base(Repl):
         Upon success, all previous games will be discarded.
         """
         pgn_io = io.StringIO(pgn)
-        games: list[_GameHandle] = []
+        games: list[GameHandle] = []
         while game := chess.pgn.read_game(pgn_io):
-            game_handle = _GameHandle(game.headers, game)
+            game_handle = GameHandle(game.headers, game)
             games.append(game_handle)
         if not games:
             raise CommandFailure("Couldn't read any games from the PGN.")
@@ -266,7 +271,7 @@ class Base(Repl):
             assert headers is not None
             assert headers == game.headers, f"{headers}\n  not equal to  \n{game.headers}"
             if game.game_node is None:
-                self.games[i] = _GameHandle(headers, offset)
+                self.games[i] = GameHandle(headers, offset)
         self.select_game(current_game)
 
     def write_games(self, file: IO[str], games: Iterable[int]) -> None:
