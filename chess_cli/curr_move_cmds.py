@@ -1,5 +1,5 @@
+import asyncio
 import datetime
-import os
 import re
 import tempfile
 from argparse import ArgumentParser
@@ -10,6 +10,7 @@ import chess
 import chess.engine
 import chess.pgn
 import chess.svg
+import click
 import pyperclip
 
 from . import nags
@@ -216,21 +217,14 @@ class CurrMoveCmds(Base):
                 set_comment(add_to_comment_text(comment, args.comment))
             case "edit" | "e":
                 fd, file_name = tempfile.mkstemp(suffix=".txt", text=True)
-                try:
-                    with os.fdopen(fd, mode="w") as file:
-                        file.write(comment)
-                        file.flush()
-                    self.poutput(f"Opening {file_name} in your editor.")
-                    await self.exec_cmd(f"edit '{file_name}'")
-                    with open(file_name) as file:
-                        file.seek(0)
-                        new_comment: str = file.read().strip()
-                        if not args.raw:
-                            new_comment = update_comment_text(comment, new_comment)
-                        set_comment(new_comment)
-                        self.poutput("Successfully updated comment.")
-                finally:
-                    os.remove(file_name)
+                new_comment: str | bytes | None = await asyncio.to_thread(click.edit, comment)
+                if isinstance(comment, bytes):
+                    comment = comment.decode()
+                if new_comment is not None:
+                    if not args.raw:
+                        new_comment = update_comment_text(comment, new_comment)
+                    set_comment(new_comment)
+                    print(f"Successfully updated comment to:\n{new_comment}")
             case _:
                 raise AssertionError("Unknown subcommand.")
 

@@ -38,6 +38,7 @@ inflect = "^7.4.0"
 typeguard = {git = "https://github.com/tage64/typeguard"}
 pyperclip = "^1.9.0"
 progressbar2 = "^4.5.0"
+click = "^8.1.7"
 
 [tool.poetry.group.dev.dependencies]
 types-requests = "^2.32.0.20241016"
