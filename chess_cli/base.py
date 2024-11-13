@@ -194,7 +194,7 @@ class Base(Repl):
             assert game_handle.game_node is not None
             return game_handle.game_node.game()
 
-    def visit_game[T](self, idx: int, visitor: chess.pgn.BaseVisitor[T]) -> T | None:
+    def visit_game(self, idx: int, visitor: chess.pgn.BaseVisitor):
         """Visit a game in the game list without loading it into memory."""
         assert 0 <= idx < len(self._games)
         game_handle = self._games[idx]
