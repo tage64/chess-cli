@@ -31,7 +31,7 @@ class FastMoveInput(Base):
             if match := SAN_REGEX.fullmatch(prompt):
                 # Solve ambiguities with the b-pawn and a bishop.
                 piece, from_file = match[1], match[2]
-                assert piece == "b" or from_file != "b"
+                assert piece or from_file != "b"
                 if piece == "b" and not from_file:
                     try:
                         move = board.parse_san(prompt)
