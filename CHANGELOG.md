@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added the aliases "sh", "s", and "e" to the "show", "set", and "edit" subcommands of the comment
+  command respectively.
+
+### Fixed
+
+- Solve a bug which incorrectly raised an assertion when moves like "nbd2" were entered.
+
 ## [0.6.0] - 2024-08-22
 
 ### Added

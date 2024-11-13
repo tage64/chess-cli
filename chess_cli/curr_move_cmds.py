@@ -170,10 +170,12 @@ class CurrMoveCmds(Base):
         ),
     )
     comment_subcmds = comment_argparser.add_subparsers(dest="subcmd")
-    comment_subcmds.add_parser("show", help="Show the comment at the current move.")
+    comment_subcmds.add_parser("show", aliases=["sh"], help="Show the comment at the current move.")
     comment_subcmds.add_parser("rm", help="Remove the comment at the current move.")
-    comment_subcmds.add_parser("edit", help="Open the comment in your editor.")
-    comment_set_argparser = comment_subcmds.add_parser("set", help="Set the comment for this move.")
+    comment_subcmds.add_parser("edit", aliases=["e"], help="Open the comment in your editor.")
+    comment_set_argparser = comment_subcmds.add_parser(
+        "set", aliases=["s"], help="Set the comment for this move."
+    )
     comment_set_argparser.add_argument("comment", help="The new text.")
     comment_append_argparser = comment_subcmds.add_parser(
         "append", help="Append text to the already existing comment."
@@ -201,18 +203,18 @@ class CurrMoveCmds(Base):
                 self.game_node.comment = new_comment
 
         match args.subcmd:
-            case "show" | None:
+            case "show" | "sh" | None:
                 self.poutput(comment)
             case "rm":
                 set_comment("")
-            case "set":
+            case "set" | "s":
                 new_comment = (
                     args.comment if args.raw else update_comment_text(comment, args.comment)
                 )
                 set_comment(new_comment)
             case "append":
                 set_comment(add_to_comment_text(comment, args.comment))
-            case "edit":
+            case "edit" | "e":
                 fd, file_name = tempfile.mkstemp(suffix=".txt", text=True)
                 try:
                     with os.fdopen(fd, mode="w") as file:
