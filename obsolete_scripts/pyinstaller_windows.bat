@@ -1,5 +1,5 @@
-poetry install
-poetry run pyinstaller ^
+uv sync
+uv run --with pyinstaller pyinstaller ^
   --noconfirm ^
   --add-data dlls:dlls ^
   --add-data ffmpeg:ffmpeg ^
