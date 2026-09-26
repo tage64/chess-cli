@@ -16,11 +16,12 @@ from typing import Any, Never
 
 import more_itertools
 import prompt_toolkit.document
-import punwrap
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.patch_stdout import patch_stdout
+
+from chess_cli.markdown import wrap_markdown
 
 type ParsedArgs = argparse.Namespace
 # We would like to replayce `Any` with `"ReplBase"` in the following type aliases,
@@ -45,6 +46,9 @@ class ArgparserAndSubcmds:
 
     def __init__(self, argparser: argparse.ArgumentParser) -> None:
         self.argparser = argparser
+        # Python 3.14 enables ANSI-coloured argparse help by default. Disabling it
+        # here also works on older versions, which simply ignore the attribute.
+        argparser.color = False
         if argparser._subparsers is not None:
             subparsers_action: argparse._SubParsersAction = next(
                 a
@@ -528,7 +532,7 @@ class Repl(ReplBase):
     def print_wrapped_markdown(self, markdown: str) -> None:
         """Print markdown wrapped to the width of the terminal."""
         width: int = shutil.get_terminal_size().columns
-        print(punwrap.wrap(markdown, width))  # type: ignore
+        print(wrap_markdown(markdown, width), end="")
 
     help_argparser = ArgumentParser()
     help_arggroup = help_argparser.add_mutually_exclusive_group()
